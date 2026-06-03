@@ -1,0 +1,317 @@
+@startuml
+' ==============================================================
+' Academic UML Class Diagram for Cybersecurity System
+' ==============================================================
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+skinparam packageFontSize 11
+skinparam packageBorderThickness 1
+skinparam backgroundColor #FFFFFF
+hide empty members
+skinparam ArrowThickness 1
+skinparam ArrowColor #333333
+skinparam shadowing false
+skinparam linetype ortho
+
+' ==============================================================
+' FOUR LAYERS (left to right)
+' ==============================================================
+
+' 1. PRESENTATION LAYER (External - represented as simple package)
+package "1. Présentation\n(React - External)" #FFECEC {
+  ' Just show it as an external system with note
+  note "Frontend Application\n(Dashboard, Inventory,\nRadar, Alerts, Terminal)" as FrontendNote
+}
+
+' 2. API LAYER (FastAPI Interface)
+package "2. API\n(FastAPI - Interface)" #E8D8F8 {
+  interface "FastAPI\nAPI" as API {
+    + {static} register_route(path: String, method: String, handler: Callable): Void
+    + {static} register_websocket(path: String, handler: Callable): Void
+    + {static} register_background_task(task: Callable): Void
+  }
+}
+
+' 3. BUSINESS LAYER (Core Logic)
+package "3. Métier\n(Business Logic)" #D8F0D8 {
+  ' ====== Subpackage: Security Services ======
+  package "3.1 Services de Sécurité" #E6E6FA {
+    interface "ISecurityService" <<interface>> {
+      + get_events_since(timestamp: DateTime): List
+      + get_events_by_severity(min_sev: Integer): List
+      + get_network_topology(): Map
+    }
+    
+    class "WazuhService" {
+      - api_url: String
+      - credentials: AuthCredentials
+      # agent_cache: Map<String, AgentInfo>
+      + get_agents(): List
+      + refresh_agent_cache(): Void
+      + sync_alerts(alert_repo: IAlertRepository): List
+      + build_topology(dev_repo: IDeviceRepository, alert_repo: IAlertRepository): Map
+      + get_active_alerts(alert_repo: IAlertRepository): List
+      + get_agent_identity(agent_id: String): Map
+      + stream_agent_report(agent_id: String, report_repo: IIAReportRepository): InputStream
+      + stream_global_report(report_repo: IIAReportRepository): InputStream
+    }
+    
+    class "SuricataService" {
+      - config: ISettings
+      + get_alerts_since(timestamp: DateTime, alert_repo: IAlertRepository): List
+      + send_command(cmd: String, alert_repo: IAlertRepository): Map
+      + get_recent_threats(alert_repo: IAlertRepository): List
+    }
+  }
+  
+  ' ====== Subpackage: Infrastructure Services ======
+  package "3.2 Services d'Infrastructure" #E6E6FA {
+    class "ScannerService" {
+      - interfaces: List<NetworkInterface>
+      + get_active_interfaces(): List
+      + scan_network(iface: String, dev_repo: IDeviceRepository, log_repo: IConnectionLogRepository): List
+      + start_continuous_scan(interval: Integer, dev_repo: IDeviceRepository, log_repo: IConnectionLogRepository): Void
+      + stop_continuous_scan(): Void
+    }
+    
+    class "AnalysisService" {
+      - ollama_endpoint: String
+      - model_name: String
+      + analyze_threat(timeline: List, alert_repo: IAlertRepository): String
+      + generate_risk_report(agent_id: String, alert_repo: IAlertRepository, report_repo: IIAReportRepository): String
+      - _call_llm(prompt: String): String
+    }
+    
+    class "BroadcasterService" {
+      - connections: Set<WebSocketConnection>
+      - mutex: ReentrantLock
+      + register_listener(listener: IEventListener): Void
+      + unregister_listener(listener: IEventListener): Void
+      + broadcast_event(event: SecurityEvent): Void
+      - _notify_listeners(event: SecurityEvent): Void
+    }
+    
+    interface "IEventListener" <<interface>> {
+      + handle_event(event: SecurityEvent): Void
+    }
+  }
+  
+  ' ====== Subpackage: Repository Interfaces ======
+  package "3.3 Répertoires\n(Interfaces)" #E6E6FA {
+    interface "IDeviceRepository" <<interface>> {
+      + find_by_ip(ip: String): Device
+      + find_all(): List
+      + save(device: Device): Void
+      + update_status(ip: String, online: Boolean): Void
+    }
+    
+    interface "IAlertRepository" <<interface>> {
+      + save(alert: Alert): Void
+      + find_by_severity(min_sev: Integer): List
+      + find_since(timestamp: DateTime): List
+      + find_by_source(source: String): List
+      + purge_older_than(days: Integer): Void
+    }
+    
+    interface "IAssetRepository" <<interface>> {
+      + find_by_ip(ip: String): Asset
+      + save(asset: Asset): Void
+      + update_assignment(ip: String, employee: String, dept: String): Void
+    }
+    
+    interface "IConnectionLogRepository" <<interface>> {
+      + save(log: ConnectionLog): Void
+      + find_by_device(device_id: Long): List
+      + find_since(timestamp: DateTime): List
+    }
+    
+    interface "IIAReportRepository" <<interface>> {
+      + save(report: IAReport): Void
+      + find_by_agent(agent_id: String): List
+      + find_by_type(report_type: String): List
+      + find_since(timestamp: DateTime): List
+    }
+  }
+}
+
+' 4. DATA LAYER (Entities Only)
+package "4. Données\n(Entities/Models)" #FFE0E0 {
+  ' ====== Base Entity ======
+  abstract class "BaseEntity" {
+    - id: Long
+    + {static} generate_id(): Long
+    + get_id(): Long
+    + equals(other: Object): Boolean
+    + hash_code(): Integer
+  }
+  
+  ' ====== Domain Entities ======
+  class "Device" {
+    - id: Long
+    - ip: String
+    - mac: String
+    - is_online: Boolean
+    - is_wazuh_agent: Boolean
+    + {static} next_id(): Long
+    + get_id(): Long
+    + get_ip(): String
+    + get_mac(): String
+    + is_online(): Boolean
+    + set_online(status: Boolean): Void
+    + equals(other: Object): Boolean
+    + hash_code(): Integer
+  }
+  
+  class "Alert" {
+    - id: Long
+    - description: String
+    - source: String  # "WAZUH" or "SURICATA"
+    - severity: Integer  # 1-5 (Critical to Info)
+    - timestamp: DateTime
+    + {static} next_id(): Long
+    + get_id(): Long
+    + get_description(): String
+    + get_source(): String
+    + get_severity(): Integer
+    + get_timestamp(): DateTime
+    + equals(other: Object): Boolean
+    + hash_code(): Integer
+  }
+  
+  class "Asset" {
+    - id: Long
+    - ip: String
+    - employee_name: String
+    - department: String
+    + {static} next_id(): Long
+    + get_id(): Long
+    + get_ip(): String
+    + get_employee_name(): String
+    + get_department(): String
+    + set_assignment(employee: String, department: String): Void
+    + equals(other: Object): Boolean
+    + hash_code(): Integer
+  }
+  
+  class "ConnectionLog" {
+    - id: Long
+    - device_id: Long
+    - status: Boolean  # true=connected, false=disconnected
+    - start_time: DateTime
+    - end_time: DateTime
+    + {static} next_id(): Long
+    + get_id(): Long
+    + get_device_id(): Long
+    + get_status(): Boolean
+    + get_start_time(): DateTime
+    + get_end_time(): DateTime
+    + get_duration(): Duration
+    + equals(other: Object): Boolean
+    + hash_code(): Integer
+  }
+  
+  class "IAReport" {
+    - id: Long
+    - report_type: String  # e.g., "GLOBAL_THREAT", "AGENT_SPECIFIC"
+    - agent_id: String
+    - content: String
+    - generated_at: DateTime
+    + {static} next_id(): Long
+    + get_id(): Long
+    + get_report_type(): String
+    + get_agent_id(): String
+    + get_content(): String
+    + get_generated_at(): DateTime
+    + equals(other: Object): Boolean
+    + hash_code(): Integer
+  }
+}
+
+' ==============================================================
+' RELATIONSHIPS (Following UML 2.5 Specification)
+' ==============================================================
+
+' --- Presentation to API (External consumes API) ---
+FrontendNote ..> API : HTTP/HTTPS\nWebSocket
+
+' --- API to Business Layer (API delegates to Services) ---
+API ..> WazuhService : delegates
+API ..> SuricataService : delegates
+API ..> ScannerService : delegates
+API ..> AnalysisService : delegates
+API ..> BroadcasterService : delegates
+
+' --- Business Layer: Security Services Hierarchy ---
+WazuhService ..|> ISecurityService : implements
+SuricataService ..|> ISecurityService : implements
+
+' --- Business Layer: Dependencies on Repository Interfaces ---
+' WazuhService Dependencies
+WazuhService ..> IAlertRepository : queries
+WazuhService ..> IDeviceRepository : queries
+WazuhService ..> IIAReportRepository : queries
+
+' SuricataService Dependencies
+SuricataService ..> IAlertRepository : queries
+
+' ScannerService Dependencies
+ScannerService ..> IDeviceRepository : queries
+ScannerService ..> IConnectionLogRepository : queries
+
+' AnalysisService Dependencies
+AnalysisService ..> IAlertRepository : queries
+AnalysisService ..> IIAReportRepository : queries
+
+' BroadcasterService Dependencies
+BroadcasterService ..> IEventListener : observes
+
+' --- Business Layer: Cross-Service Dependencies ---
+AnalysisService ..> ISecurityService : consumes_events
+
+' --- Data Layer: Entity Hierarchy ---
+Device ..|> BaseEntity
+Alert ..|> BaseEntity
+Asset ..|> BaseEntity
+ConnectionLog ..|> BaseEntity
+IAReport ..|> BaseEntity
+
+' --- Associations with Explicit Multiplicities ---
+Device "1" --"0..*" ConnectionLog : logs_connections_for
+
+' --- Security Event Hierarchy (for Broadcasting) ---
+abstract class "SecurityEvent" {
+  - timestamp: DateTime
+  - severity: Integer
+  - source_ip: String
+  + get_timestamp(): DateTime
+  + get_severity(): Integer
+  + get_source_ip(): String
+}
+Alert ..|> SecurityEvent
+' Note: Services produce SecurityEvent objects but don't inherit from it
+' Instead, they create instances when broadcasting
+
+' --- Broadcaster Notification Relationship ---
+BroadcasterService ..> SecurityEvent : publishes
+
+' ==============================================================
+' LEGEND (for academic clarity)
+' ==============================================================
+note left of WazuhService
+  UML Notation Guide:\n-
+  Private attribute/method\n#
+  Protected attribute/method\n+
+  Public attribute/method\n\n
+  Relationships:\n\
+  Empty triangle: Inheritance (Generalization)\n\
+  Diamond side: Composite in Composition/Aggregation\n\
+  Dashed line: Dependency\n\
+  Straight line: Association\n\
+  Multiplicity format: [min]..[max]\n\
+  1: Exactly one\n\
+  0..*: Zero to many\n\
+  1..*: One to many
+end note
+
+@enduml

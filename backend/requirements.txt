@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+sqlalchemy
+pg8000
+psutil
+pydantic
+pydantic-settings
+python-dotenv
+httpx
+python-dateutil
+python-multipart
+celery
+redis
+scapy
+python-nmap
+paramiko

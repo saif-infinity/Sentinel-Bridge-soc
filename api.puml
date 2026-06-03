@@ -1,0 +1,24 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam packageFontSize 14
+skinparam backgroundColor #FFFFFF
+hide empty members
+skinparam ArrowThickness 2
+skinparam ArrowColor #333333
+
+package "API\n(FastAPI - Interface)" #E8D8F8 {
+  interface "FastAPI" as API {
+    + {static} register_route(path: String, method: String, handler: Callable): Void
+    + {static} register_websocket(path: String, handler: Callable): Void
+    + {static} register_background_task(task: Callable): Void
+  }
+}
+
+' Notes about usage
+note left of API
+  Used by:\n  Presentation layer (React)\n\nUses:\n  Business layer services\n  (via delegation)
+end note
+
+@enduml

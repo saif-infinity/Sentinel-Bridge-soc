@@ -1,0 +1,92 @@
+:root {
+  --bg-0: #0b1220;
+  --bg-1: #0f1b2d;
+  --card: rgba(20, 32, 54, 0.65);
+  --border: rgba(255, 255, 255, 0.08);
+
+  --blue: #4f8cff;
+  --cyan: #22d3ee;
+  --orange: #f59e0b;
+  --pink: #fb7185;
+  --green: #22c55e;
+  --red: #ef4444;
+
+  --text-1: #e5e7eb;
+  --text-2: #94a3b8;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background:
+    radial-gradient(1200px 600px at 20% -10%, #132340 0%, transparent 60%),
+    radial-gradient(800px 400px at 80% 10%, #0b2a44 0%, transparent 55%),
+    linear-gradient(180deg, var(--bg-1), var(--bg-0));
+  color: var(--text-1);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Inter, Roboto;
+}
+
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+}
+
+.grid-2 {
+  display:grid ;
+  grid-template-columns: 1fr ;
+  gap: 16px;
+}
+
+
+.card {
+  background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01)), var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  backdrop-filter: blur(10px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 20px 40px rgba(0,0,0,.35);
+  padding: 16px;
+}
+
+.card h3 {
+  margin: 0 0 12px 0;
+  color: #c7d2fe;
+  font-weight: 1200;
+}
+
+.kpi .value { font-size: 28px; font-weight: 700; }
+.kpi .delta.pos { color: var(--green); }
+.kpi .delta.neg { color: var(--red); }
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.table th, .table td {
+  border-bottom: 1px solid var(--border);
+  padding: 8px;
+  text-align: left;
+  color: var(--text-2);
+}
+.table th { color: var(--text-1); }
+
+.badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 12px;
+}
+.badge.online {
+  color: #052e16;
+  background: linear-gradient(180deg, #34d399, #22c55e);
+  box-shadow: 0 0 16px rgba(34,197,94,.45);
+}
+.badge.offline {
+  color: #450a0a;
+  background: linear-gradient(180deg, #fb7185, #ef4444);
+  box-shadow: 0 0 16px rgba(239,68,68,.45);
+}

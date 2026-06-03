@@ -1,0 +1,86 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam packageFontSize 14
+skinparam packageBorderThickness 2
+skinparam backgroundColor #FFFFFF
+hide empty members
+skinparam ArrowThickness 2
+skinparam ArrowColor #333333
+
+left to right direction
+
+package "Frontend\n(React)" #FFECEC {
+  class App {
+    + Dashboard\nInventory\nRadar\nAlerts\nTerminal
+  }
+}
+
+package "API\n(FastAPI)" #E8D8F8 {
+  class API {
+    + Routeurs\n(7 modules)\n+ WebSocket\n+ Tâches async
+  }
+}
+
+package "Services\n(Métier)" #D8F0D8 {
+  class WazuhSvc {
+    + Agents\n+ Alertes\n+ Topologie\n+ Rapports IA
+  }
+  class Scanner {
+    + Scan ARP\n+ Statut\nmachines
+  }
+  class Suricata {
+    + Alertes\nIDS\n(temps réel)
+  }
+  class Broadcaster {
+    + WebSocket\n temps réel
+  }
+  class Analysis {
+    + Analyse\nmenaces\n(Wazuh+Suricata)\n+ Génération\nrapports IA
+  }
+}
+
+package "Base\ndonnées" #FFE0E0 {
+  class Device {
+    + ip, mac\n+ état
+  }
+  class Alert {
+    + desc\n+ source\n(Wazuh/Suricata)\n+ gravité\n+ timestamp
+  }
+  class Asset {
+    + ip\n+ employé
+  }
+  class Log {
+    + appareil\n+ statut\n+ temps
+  }
+  class IaReport {
+    + type\n+ contenu\n+ timestamp
+  }
+}
+
+' === Flux principal ===
+App ..> API : HTTP/WebSocket
+API ..> WazuhSvc : utilise
+API ..> Scanner : utilise
+API ..> Suricata : utilise
+API ..> Analysis : utilise
+API --> Broadcaster : WebSocket
+
+' === Services → DB ===
+WazuhSvc ..> Device : lire/écrire
+WazuhSvc ..> Alert : créer(Wazuh)
+Suricata ..> Alert : créer(Suricata)
+Analysis ..> IaReport : crée  ' Analysis generates AI reports
+Scanner ..> Device : maj
+Scanner ..> Log : créer
+
+' === Notifications ===
+Broadcaster --o WazuhSvc : alertes
+Broadcaster --o Scanner : résultats
+Broadcaster --o Analysis : menaces
+Broadcaster --o Suricata : alertes
+
+
+
+@enduml
