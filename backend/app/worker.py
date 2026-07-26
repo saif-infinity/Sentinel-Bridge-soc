@@ -3,9 +3,18 @@ import httpx
 import json
 import logging
 import nmap
+import re
+import redis
 from .config import settings
 
 logger = logging.getLogger(__name__)
+
+def _sanitize(text: str) -> str:
+    """Supprime les références d'images Markdown et caractères non-textes."""
+    text = re.sub(r'!\[.*?\]\(.*?\)', '', text)  # ![alt](url)
+    text = re.sub(r'<img[^>]*>', '', text)        # <img ...>
+    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', text)  # caracteres de controle
+    return text.strip()[:500]
 
 celery_app = Celery(
     "sentinel_worker",
@@ -20,83 +29,210 @@ celery_app.conf.update(
     timezone='UTC',
     enable_utc=True,
     task_track_started=True,
-    task_time_limit=300,
+    task_time_limit=600,
+    task_soft_time_limit=540,
 )
 
-@celery_app.task(name="tasks.analyze_threat")
-def analyze_threat_task(timeline_data):
-    logger.info("Starting AI threat analysis background task...")
 
-    timeline_str = "\n".join(timeline_data) if timeline_data else "No alerts in timeline."
-    prompt = f"""You are a Senior SOC Analyst. Analyze the following security alert timeline and detect multi-layered attacks or lateral movement.
-
-Timeline:
-{timeline_str}
-
-Provide a 'Security Incident Synthesis' in Markdown. Include:
-## 1. Incident Summary
-## 2. Threat Correlation
-## 3. Action Plan
-
-Be direct and concise."""
+def _call_ollama(prompt: str) -> str:
+    """
+    Envoie un prompt à Ollama sans lock bloquant.
+    Utilise un lock Redis non-bloquant pour éviter la surcharge du modèle,
+    mais sans bloquer les autres requêtes plus de 30s.
+    """
+    redis_client = redis.Redis.from_url(settings.REDIS_URL)
+    lock = redis_client.lock("ollama_lock", timeout=300, blocking_timeout=30)
 
     try:
-        with httpx.Client(timeout=300.0) as client:
+        lock.acquire(blocking=True)
+    except Exception:
+        pass  # on continue même sans lock
+
+    try:
+        timeout = httpx.Timeout(300.0, connect=15.0)
+        with httpx.Client(timeout=timeout) as client:
             response = client.post(
                 f"{settings.OLLAMA_URL}/api/generate",
                 json={
                     "model": settings.OLLAMA_MODEL,
                     "prompt": prompt,
-                    "stream": False
+                    "stream": False,
+                    "options": {
+                        "num_predict": 512,
+                        "temperature": 0.7,
+                        "top_p": 0.9
+                    }
                 }
             )
-
             if response.status_code == 200:
-                result = response.json().get("response", "No response from AI")
-                logger.info("AI Analysis completed successfully.")
-                return {"status": "success", "analysis": result}
+                return response.json().get("response", "")
             else:
-                logger.error("Ollama API error: %d", response.status_code)
-                return {"status": "error", "message": f"Ollama HTTP {response.status_code}"}
-
+                raise RuntimeError(f"Ollama HTTP {response.status_code}")
     except httpx.ConnectError:
-        logger.error("Could not connect to Ollama.")
-        return {"status": "error", "message": "Ollama service not reachable."}
-    except Exception as e:
-        logger.exception("Unexpected error in AI task")
-        return {"status": "error", "message": str(e)}
+        raise RuntimeError("Ollama non accessible. Lancez : ollama serve")
+    finally:
+        try:
+            lock.release()
+        except Exception:
+            pass
 
-@celery_app.task(name="tasks.deep_nmap_scan")
-def deep_nmap_scan_task(target, scan_args):
-    logger.info("Starting deep Nmap scan on %s with args: %s", target, scan_args)
 
-    nm = nmap.PortScanner()
+# ─────────────────────────────────────────────────────────────
+#  TÂCHE 1 : Analyse Threat Timeline (Wazuh, level >= 7)
+# ─────────────────────────────────────────────────────────────
+
+@celery_app.task(name="tasks.analyze_threat")
+def analyze_threat_task(tenant_id: str = "default"):
+    logger.info("Démarrage analyse IA Wazuh — récupération des 10 alertes critiques (level >= 7)...")
+
+    from .models import Alert
+    from .db import SessionLocal
+
+    db = SessionLocal()
     try:
-        nm.scan(hosts=target, arguments=scan_args)
+        alerts = (
+            db.query(Alert)
+            .filter(Alert.severity >= 7, Alert.tenant_id == tenant_id)
+            .order_by(Alert.timestamp.desc())
+            .limit(5)
+            .all()
+        )
+        if not alerts:
+            timeline_str = "Aucune alerte Wazuh critique (level >= 7) trouvée."
+        else:
+            timeline_str = "\n".join([
+                f"[{a.timestamp.strftime('%Y-%m-%d %H:%M:%S')}] Level {a.severity}: "
+                f"{_sanitize(a.description)} (src: {a.src_ip}, agent: {a.agent_id})"
+                for a in alerts
+            ])
+    finally:
+        db.close()
 
-        results = []
-        for host in nm.all_hosts():
-            host_info = nm[host]
-            addresses = host_info.get('addresses', {})
-            mac = (addresses.get('mac') or host_info.get('mac') or 'UNKNOWN').upper()
+    prompt = f"""You are a Senior SOC Analyst. Analyze these Wazuh alerts and detect threats.
 
-            ports = []
-            for proto in host_info.all_protocols():
-                for port in host_info[proto].keys():
-                    service = host_info[proto][port]['name']
-                    product = host_info[proto][port].get('product', '')
-                    ports.append(f"{port}/{proto}: {service} {product}")
+Alerts:
+{timeline_str}
 
-            results.append({
-                "ip": host,
-                "mac": mac,
-                "ports": ports,
-                "os": host_info.get('osmatch', [{}])[0].get('name', 'Unknown') if host_info.get('osmatch') else 'Unknown'
-            })
+Provide a Markdown report:
+## 1. Summary
+## 2. Threat Analysis
+## 3. Actions
 
-        logger.info("Deep scan completed. Found %d hosts.", len(results))
-        return {"status": "success", "results": results}
+Be concise."""
 
-    except Exception as e:
-        logger.error("Nmap Task Failed: %s", e)
+    try:
+        result = _call_ollama(prompt)
+        logger.info("Analyse Wazuh IA terminée avec succès.")
+
+        from .models import IaReport
+        db = SessionLocal()
+        try:
+            db.add(IaReport(report_type="threat_analysis", content=result, tenant_id=tenant_id))
+            db.commit()
+        except Exception as e:
+            logger.error("Sauvegarde rapport threat échouée : %s", e)
+        finally:
+            db.close()
+
+        return {"status": "success", "analysis": result}
+
+    except RuntimeError as e:
+        logger.error("Erreur analyse Wazuh : %s", e)
         return {"status": "error", "message": str(e)}
+    except Exception as e:
+        logger.exception("Erreur inattendue analyse Wazuh")
+        return {"status": "error", "message": str(e)}
+
+
+# ─────────────────────────────────────────────────────────────
+#  TÂCHE 2 : Analyse Network Global (Suricata, severity >= 7)
+# ─────────────────────────────────────────────────────────────
+
+@celery_app.task(name="tasks.analyze_network_global")
+def analyze_network_global_task(tenant_id: str = "default"):
+    logger.info("Démarrage analyse IA réseau — récupération des 10 alertes Suricata critiques (severity >= 7)...")
+
+    from .models import SuricataAlert, Device
+    from .db import SessionLocal
+
+    db = SessionLocal()
+    try:
+        suricata_alerts = (
+            db.query(SuricataAlert)
+            .filter(SuricataAlert.severity >= 7, SuricataAlert.tenant_id == tenant_id)
+            .order_by(SuricataAlert.timestamp.desc())
+            .limit(5)
+            .all()
+        )
+        devices       = db.query(Device).filter(Device.tenant_id == tenant_id).all()
+        total_devices = len(devices)
+        online_devices = sum(1 for d in devices if d.is_online)
+        wazuh_agents   = sum(1 for d in devices if d.is_wazuh_agent)
+
+        if not suricata_alerts:
+            alert_summary = "Aucune alerte Suricata critique (severity >= 7) trouvée."
+        else:
+            by_sev = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+            for a in suricata_alerts:
+                s = int(a.severity or 0)
+                if s >= 7:   by_sev["critical"] += 1
+                elif s >= 5: by_sev["high"]     += 1
+                elif s >= 3: by_sev["medium"]   += 1
+                else:        by_sev["low"]      += 1
+
+            recent_lines = [
+                f"- [{a.timestamp.strftime('%H:%M')}] S{a.severity}: "
+                f"{_sanitize(a.alert_msg)} ({a.src_ip}->{a.dest_ip} {a.proto})"
+                for a in suricata_alerts
+            ]
+            alert_summary = (
+                f"Critical:{by_sev['critical']} High:{by_sev['high']} "
+                f"Medium:{by_sev['medium']} Low:{by_sev['low']}\n"
+                + "\n".join(recent_lines)
+            )
+    except Exception as e:
+        alert_summary = f"Erreur de récupération des données : {e}"
+        total_devices, online_devices, wazuh_agents = 0, 0, 0
+    finally:
+        db.close()
+
+    prompt = f"""You are a CISO writing an Executive Security Audit Report.
+
+Network: {total_devices} devices, {online_devices} online, {wazuh_agents} agents.
+
+Top Suricata Alerts:
+{alert_summary}
+
+Generate a Markdown report:
+# Network Security Audit
+## 1. Threat Posture
+## 2. Key Indicators
+## 3. Action Items
+
+Professional CISO language, max 300 words."""
+
+    try:
+        result = _call_ollama(prompt)
+        logger.info("Analyse réseau globale IA terminée avec succès.")
+
+        from .models import IaReport
+        db = SessionLocal()
+        try:
+            db.add(IaReport(report_type="global_network", content=result, tenant_id=tenant_id))
+            db.commit()
+        except Exception as e:
+            logger.error("Sauvegarde rapport global échouée : %s", e)
+        finally:
+            db.close()
+
+        return {"status": "success", "analysis": result}
+
+    except RuntimeError as e:
+        logger.error("Erreur analyse réseau globale : %s", e)
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        logger.exception("Erreur inattendue analyse réseau globale")
+        return {"status": "error", "message": str(e)}
+
+
+
