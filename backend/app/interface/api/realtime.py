@@ -4,7 +4,7 @@ import time
 from datetime import datetime, timezone
 
 import psutil
-from fastapi import APIRouter, Depends, WebSocket
+from fastapi import APIRouter, Depends, Request, WebSocket
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
@@ -12,7 +12,8 @@ from ...application.wazuh.service import wazuh_service
 from ...auth import get_api_key_or_jwt
 from ...config import settings
 from ...core.broadcaster import broadcaster
-from ...db import get_db
+from ...core.jwt_utils import verify_token
+from ...db import get_db, query_with_tenant
 from ...models import Alert, Asset, Device
 
 logger = logging.getLogger(__name__)
@@ -25,11 +26,11 @@ prev_time = time.time()
 
 
 @router.get("/api/real-alerts", dependencies=[Depends(get_api_key_or_jwt)])
-async def get_real_alerts(limit: int = 50, db: Session = Depends(get_db)):
+async def get_real_alerts(request: Request, limit: int = 50, db: Session = Depends(get_db)):
     """ 
     Fetch latest security alerts from DATABASE, enriched with asset data.
     """
-    db_alerts = db.query(Alert).order_by(desc(Alert.timestamp)).limit(min(limit, 500)).all()
+    db_alerts = query_with_tenant(Alert, request, db).order_by(desc(Alert.timestamp)).limit(min(limit, 500)).all()
     
     enriched_data = []
     for item in db_alerts:
@@ -65,16 +66,20 @@ async def get_real_alerts(limit: int = 50, db: Session = Depends(get_db)):
 
 
 @router.websocket("/ws/status")
-async def websocket_endpoint(websocket: WebSocket, api_key: str | None = None):
+async def websocket_endpoint(websocket: WebSocket, api_key: str | None = None, token: str | None = None):
     await websocket.accept()
 
     authenticated = False
-    
-    # Only allow API key for WebSocket auth (JWT tokens in URLs leak in logs/history)
+
+    # Accept either the API key OR a valid JWT (passed as `token` query param).
     if api_key:
         if api_key == settings.API_KEY.get_secret_value():
             authenticated = True
-    
+
+    if not authenticated and token:
+        if verify_token(token):
+            authenticated = True
+
     if not authenticated:
         try:
             await websocket.send_json({"type": "error", "message": "Unauthorized"})

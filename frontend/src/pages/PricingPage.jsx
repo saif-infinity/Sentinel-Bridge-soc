@@ -2,10 +2,15 @@ import React, { useState } from "react";
 import { Shield, Check, ArrowRight, X, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function PricingPage() {
   const navigate = useNavigate();
+  const { jwtToken, hasRole } = useAuth();
   const [isLoading, setIsLoading] = useState(null);
+  const [subscriptionResult, setSubscriptionResult] = useState(null);
+
+  const isAdmin = hasRole("admin");
 
   const plans = [
     {
@@ -52,21 +57,22 @@ export default function PricingPage() {
     }
     
     setIsLoading(planId);
+    setSubscriptionResult(null);
     
     try {
       const response = await fetch("/api/tenants/subscribe", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${jwtToken}`,
         },
         body: JSON.stringify({
-          plan_id: planId,
-          payment_method: "stripe"
+          plan: planId
         })
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.detail || "Failed to subscribe");
       }
       
@@ -76,19 +82,16 @@ export default function PricingPage() {
         // Redirect to Stripe checkout
         window.location.href = data.checkout_url;
       } else {
-        throw new Error("No checkout URL received");
+        // Backend applies the plan directly; show the resulting state.
+        setSubscriptionResult(data);
+        toast.success(`Subscribed to the ${data.plan} plan`);
       }
       
     } catch (error) {
       console.error("Subscription error:", error);
-      toast.error("Stripe integration coming soon. Please contact support for manual plan selection.", {
+      toast.error(error.message || "Subscription failed", {
         icon: <X className="text-yellow-400" />
       });
-      
-      // Redirect to settings for manual plan selection
-      setTimeout(() => {
-        navigate("/settings");
-      }, 2000);
     } finally {
       setIsLoading(null);
     }
@@ -111,8 +114,32 @@ export default function PricingPage() {
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          {plans.map((plan) => (
+        {!isAdmin ? (
+          <div className="max-w-6xl mx-auto">
+            <div className="bg-[var(--bg-card)] rounded-lg border border-[var(--border)] p-8 text-center">
+              <Shield size={32} className="text-[#94a3b8] mx-auto mb-4" />
+              <h3 className="text-[#c8d6e5] font-semibold mb-2">Administrator access required</h3>
+              <p className="text-[#94a3b8] text-sm">
+                Only administrators can manage the tenant subscription. Contact your workspace administrator to change the plan.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {subscriptionResult && (
+              <div className="max-w-6xl mx-auto mb-8">
+                <div className="bg-[var(--bg-card)] rounded-lg border border-[#00ff88]/30 p-6 text-center">
+                  <Check size={24} className="text-[#00ff88] mx-auto mb-2" />
+                  <h3 className="text-[#00ff88] font-semibold">Subscription updated</h3>
+                  <p className="text-[#94a3b8] text-sm mt-1">
+                    Plan: <span className="text-[#c8d6e5] font-mono uppercase">{subscriptionResult.plan}</span>
+                    {subscriptionResult.subscription_end && <> · Renews {new Date(subscriptionResult.subscription_end).toLocaleDateString()}</>}
+                  </p>
+                </div>
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+              {plans.map((plan) => (
             <div
               key={plan.id}
               className={`relative group ${plan.popular ? 'lg:scale-105 z-10' : 'hover:scale-[1.02]'} transition-all duration-300`}
@@ -188,7 +215,9 @@ export default function PricingPage() {
               </div>
             </div>
           ))}
-        </div>
+            </div>
+          </>
+        )}
 
         {/* FAQ Section */}
         <div className="mt-20 max-w-4xl mx-auto">

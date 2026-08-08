@@ -32,12 +32,12 @@ dev:
 	@echo "Starting all services..."
 	start "ollama" cmd /c "$(OLLAMA) serve"
 	start "wazuh" cmd /c "cd /d $(WAZUH_DIR) && docker-compose up -d"
-	start "backend" cmd /c "cd /d $(CURDIR)\backend & .\venv\Scripts\uvicorn app.main:app --reload --host 127.0.0.1 --port 8000"
+	start "backend" cmd /c "cd /d $(CURDIR)\backend & .\venv\Scripts\uvicorn app.main:app --reload --host 127.0.0.1 --port 8001"
 	start "worker" cmd /c "cd /d $(CURDIR)\backend & .\venv\Scripts\celery -A app.worker.celery_app worker --loglevel=info --pool=solo"
 	start "frontend" cmd /c "cd /d $(CURDIR)\frontend & npm run dev"
 
 dev-backend:
-	cd backend && .\venv\Scripts\uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+	cd backend && .\venv\Scripts\uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
 
 dev-frontend:
 	cd frontend && npm run dev

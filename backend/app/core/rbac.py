@@ -71,11 +71,22 @@ def require_role(min_role: str):
             )
         payload = verify_token(token)
         if payload is None:
-            raise HTTPException(
-                status_code=401,
-                detail="Not authenticated",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+            # Console-admin tokens (signed with ADMIN_JWT_SECRET) are accepted
+            # as super_admin: the admin console is the platform operator UI.
+            from ..admin_auth import verify_admin_token
+            admin_payload = verify_admin_token(token)
+            if admin_payload is None:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Not authenticated",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            return {
+                "sub": admin_payload.get("sub", "admin"),
+                "tenant_id": getattr(request.state, "tenant_id", "default"),
+                "role": "super_admin",
+                "source": "admin_jwt",
+            }
 
         tenant_id = getattr(request.state, "tenant_id", "default")
         role, row = resolve_user_role(db, payload["sub"], tenant_id)

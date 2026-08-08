@@ -4,7 +4,7 @@ import shlex
 import logging
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
-from ...auth import get_api_key_or_jwt
+from ...auth import get_api_key_or_jwt, has_scopes_or_api_key
 from ...config import settings
 from ...db import get_db
 from ...schemas import CommandRequest
@@ -99,7 +99,8 @@ def _get_ssh_config(db: Session, target: str, request: Request = None) -> dict:
 
 
 @router.post("/exec")
-async def execute_ssh_command(request: Request, req: CommandRequest, db: Session = Depends(get_db)):
+async def execute_ssh_command(request: Request, req: CommandRequest, db: Session = Depends(get_db),
+                              _=Depends(has_scopes_or_api_key(["terminal:exec"]))):
     try:
         if req.target not in ("wazuh", "suricata"):
             return {"output": "Invalid target", "status": "error"}

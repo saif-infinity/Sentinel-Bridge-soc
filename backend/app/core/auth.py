@@ -54,6 +54,10 @@ async def get_api_key_or_jwt(
             payload = verify_token(token)
             if payload:
                 return token
+            # Console-admin token (ADMIN_JWT_SECRET): accepted as operator.
+            from ..admin_auth import verify_admin_token
+            if verify_admin_token(token) is not None:
+                return token
     
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
@@ -143,6 +147,12 @@ def has_scopes_or_api_key(required_scopes: List[str]):
                     required_scopes_set: Set[str] = set(required_scopes)
                     if required_scopes_set.issubset(token_scopes):
                         return payload
+                else:
+                    # Console-admin token (ADMIN_JWT_SECRET): operator, all scopes.
+                    from ..admin_auth import verify_admin_token
+                    admin_payload = verify_admin_token(token)
+                    if admin_payload is not None:
+                        return admin_payload
         
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

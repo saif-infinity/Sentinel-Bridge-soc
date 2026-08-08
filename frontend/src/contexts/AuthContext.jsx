@@ -19,10 +19,12 @@ export function AuthProvider({ children }) {
     setTenantIdState(tid);
   }, []);
 
-  // AUTO-LOGIN BYPASS — désactivé temporairement pour le dev
+  // AUTO-LOGIN BYPASS — only active when VITE_AUTOLOGIN=1 (dev escape hatch).
+  // Default behavior: no auto-registration, login required.
   useEffect(() => {
-    if (import.meta.env.MODE !== 'production' && !localStorage.getItem("auth_token")) {
-      fetch("/auth/register", {
+    if (import.meta.env.VITE_AUTOLOGIN !== "1") return;
+    if (localStorage.getItem("auth_token")) return;
+    fetch("/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: "dev_user", password: "DevPass123", role: "analyst" }),
@@ -42,8 +44,7 @@ export function AuthProvider({ children }) {
             setIsAuthenticated(true);
           }
         })
-        .catch(() => {});
-    }
+.catch(() => {});
   }, []);
 
   const handleUnauthorized = useCallback(() => {

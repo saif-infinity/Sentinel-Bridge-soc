@@ -84,7 +84,22 @@ async def register_user(data: RegisterRequest, request: Request):
 
     _validate_password_strength(data.password)
 
+    # Anonymous callers must always land in the "default" tenant — never
+    # trust a client-supplied X-Tenant-ID header on an unauthenticated
+    # registration.
+    authenticated = False
+    authorization = request.headers.get("Authorization")
+    if authorization:
+        scheme, token = authorization.split() if " " in authorization else (None, None)
+        if scheme and scheme.lower() == "bearer" and token and verify_token(token):
+            authenticated = True
+    api_key = request.headers.get("X-API-Key")
+    if api_key and api_key == settings.API_KEY.get_secret_value():
+        authenticated = True
+
     tenant_id = getattr(request.state, "tenant_id", "default")
+    if not authenticated:
+        tenant_id = "default"
 
     if user_exists(f"user:{data.username}", tenant_id=tenant_id):
         raise HTTPException(

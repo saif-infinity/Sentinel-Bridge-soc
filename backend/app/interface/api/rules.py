@@ -164,7 +164,8 @@ def create_rule(body: RuleCreate, request: Request, db: Session = Depends(get_db
 
 
 @router.post("/test")
-def test_rule(body: RuleTestRequest, request: Request):
+def test_rule(body: RuleTestRequest, request: Request,
+              _=Depends(has_scopes_or_api_key(["admin:manage"]))):
     """Dry-run : évalue un échantillon d'alerte contre une définition de règle (non persistée)."""
     tenant_id = get_tenant_id(request)
     rule_def = body.rule

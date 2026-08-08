@@ -15,7 +15,11 @@ ADMIN_DIR="$PROJECT_DIR/admin-frontend"
 VENV_DIR="$BACKEND_DIR/venv"
 
 # ── Load nvm if available (ensures npm/node are on PATH) ────────────
-export NVM_DIR="$HOME/.nvm"
+# Resolve the real home first: under sudo HOME=/root but the user's nvm
+# lives in the real user's home, so node would never load.
+REAL_HOME="${SUDO_USER:+/home/$SUDO_USER}"
+REAL_HOME="${REAL_HOME:-$HOME}"
+export NVM_DIR="$REAL_HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" 2>/dev/null
 
 START_OLLAMA=true
@@ -91,8 +95,6 @@ else
 fi
 
 # ── Save npm/node paths (before venv activation may shadow them) ────
-REAL_HOME="${SUDO_USER:+/home/$SUDO_USER}"
-REAL_HOME="${REAL_HOME:-$HOME}"
 NPM_BIN=""
 for p in "$REAL_HOME/.nvm/versions/node/"*/bin/npm /usr/bin/npm /usr/local/bin/npm; do
   [[ -x "$p" ]] && { NPM_BIN="$p"; break; }
@@ -102,9 +104,12 @@ if [[ -z "$NPM_BIN" ]]; then
   exit 1
 fi
 ok "npm found: $NPM_BIN"
+# Ensure the node binary next to npm is on PATH so `#!/usr/bin/env node`
+# shebangs (npm, vite) resolve even when nvm failed to load (e.g. sudo runs).
+export PATH="$(dirname "$NPM_BIN"):$PATH"
 
 # ── 3. Backend ──────────────────────────────────────────────────────
-info "Backend (uvicorn :8000)..."
+info "Backend (uvicorn :8001)..."
 if [[ ! -f "$VENV_DIR/bin/activate" ]]; then
   fail "Python venv not found at $VENV_DIR"
   fail "Run: cd backend && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt"
@@ -113,10 +118,10 @@ fi
 # shellcheck source=/dev/null
 source "$VENV_DIR/bin/activate"
 cd "$BACKEND_DIR"
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000 --log-level info \
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8001 --log-level info \
   2>&1 | sed 's/^/[backend] /' &
 PIDS+=($!)
-ok "Backend starting on http://127.0.0.1:8000 (PID ${PIDS[-1]})"
+ok "Backend starting on http://127.0.0.1:8001 (PID ${PIDS[-1]})"
 sleep 2
 
 # ── 4. Celery Worker ───────────────────────────────────────────────
@@ -160,7 +165,7 @@ echo -e "${BOLD}${CYAN}═══════════════════
 echo -e "${BOLD}   All services up. Ctrl+C to stop.${NC}"
 echo -e "${BOLD}${CYAN}════════════════════════════════════════${NC}"
 echo ""
-echo -e "  ${GREEN}Backend${NC}      http://127.0.0.1:8000"
+echo -e "  ${GREEN}Backend${NC}      http://127.0.0.1:8001"
 echo -e "  ${GREEN}Frontend${NC}     http://localhost:5173"
 [[ "$START_ADMIN" == true ]] && echo -e "  ${GREEN}Admin${NC}        http://localhost:5174"
 [[ "$REDIS_OK" == true ]] && echo -e "  ${GREEN}Redis${NC}        localhost:6379" \

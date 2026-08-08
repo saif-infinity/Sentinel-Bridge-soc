@@ -4,7 +4,11 @@ import { useAuth } from "./AuthContext";
 const DataContext = createContext(null);
 
 export function DataProvider({ children }) {
-  const { fetchWithAuth, jwtToken } = useAuth();
+  const { fetchWithAuth, jwtToken, isAuthenticated } = useAuth();
+  const isAuthenticatedRef = useRef(isAuthenticated);
+  useEffect(() => {
+    isAuthenticatedRef.current = isAuthenticated;
+  }, [isAuthenticated]);
 
   const [wazuhAlerts, setWazuhAlerts] = useState([]);
   const [suricataAlerts, setSuricataAlerts] = useState([]);
@@ -40,21 +44,21 @@ export function DataProvider({ children }) {
 
   const fetchRules = useCallback(async () => {
     try {
-      const res = await fetchWithAuth("/api/rules");
+      const res = await fetchWithAuth("/api/rules", { silent: true });
       if (res.ok) setRules(await res.json());
     } catch (e) {}
   }, [fetchWithAuth]);
 
   const fetchPipelineStats = useCallback(async () => {
     try {
-      const res = await fetchWithAuth("/api/pipeline/stats");
+      const res = await fetchWithAuth("/api/pipeline/stats", { silent: true });
       if (res.ok) setPipelineStats(await res.json());
     } catch (e) {}
   }, [fetchWithAuth]);
 
   const fetchRuleMatches = useCallback(async () => {
     try {
-      const res = await fetchWithAuth("/api/rules/matches?limit=20");
+      const res = await fetchWithAuth("/api/rules/matches?limit=20", { silent: true });
       if (res.ok) setRuleMatches(await res.json());
     } catch (e) {}
   }, [fetchWithAuth]);
@@ -65,7 +69,7 @@ export function DataProvider({ children }) {
 
   const fetchCases = useCallback(async () => {
     try {
-      const res = await fetchWithAuth("/api/cases?limit=100");
+      const res = await fetchWithAuth("/api/cases?limit=100", { silent: true });
       if (res.ok) {
         const data = await res.json();
         setCases(data.items || []);
@@ -75,14 +79,14 @@ export function DataProvider({ children }) {
 
   const fetchCaseStats = useCallback(async () => {
     try {
-      const res = await fetchWithAuth("/api/cases/stats");
+      const res = await fetchWithAuth("/api/cases/stats", { silent: true });
       if (res.ok) setCaseStats(await res.json());
     } catch (e) {}
   }, [fetchWithAuth]);
 
   const fetchHunts = useCallback(async () => {
     try {
-      const res = await fetchWithAuth("/api/hunts");
+      const res = await fetchWithAuth("/api/hunts", { silent: true });
       if (res.ok) setHunts(await res.json());
     } catch (e) {}
   }, [fetchWithAuth]);
@@ -97,8 +101,8 @@ export function DataProvider({ children }) {
     const fetchCritical = async () => {
       try {
         const [devRes, alertRes] = await Promise.all([
-          fetchWithAuth("/devices"),
-          fetchWithAuth("/api/real-alerts?limit=200"),
+          fetchWithAuth("/devices", { silent: true }),
+          fetchWithAuth("/api/real-alerts?limit=200", { silent: true }),
         ]);
         if (devRes.ok) {
           const devData = await devRes.json();
@@ -132,7 +136,7 @@ export function DataProvider({ children }) {
 
     const fetchSuricata = async () => {
       try {
-        const res = await fetchWithAuth("/api/suricata/alerts");
+        const res = await fetchWithAuth("/api/suricata/alerts", { silent: true });
         if (res.ok) {
           const data = await res.json();
           setSuricataAlerts(data);
@@ -153,7 +157,7 @@ export function DataProvider({ children }) {
 
     const fetchBandwidth = async () => {
       try {
-        const res = await fetchWithAuth("/api/stats/bandwidth");
+        const res = await fetchWithAuth("/api/stats/bandwidth", { silent: true });
         if (res.ok) {
           const data = await res.json();
           setThroughputHistory((prev) => {
@@ -184,7 +188,7 @@ export function DataProvider({ children }) {
 
     const fetchInventory = async () => {
       try {
-        const res = await fetchWithAuth("/devices/inventory");
+        const res = await fetchWithAuth("/devices/inventory", { silent: true });
         if (res.ok) {
           const data = await res.json();
           setInventory(data);
@@ -235,33 +239,61 @@ export function DataProvider({ children }) {
   useEffect(() => {
     if (!jwtToken) return;
 
-    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${proto}//${window.location.host}/ws/status?token=${encodeURIComponent(jwtToken)}`;
-    const ws = new WebSocket(wsUrl);
+    let ws = null;
+    let reconnectTimer = null;
+    let retryDelay = 3000;
+    let disposed = false;
 
-    ws.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (payload.type === "alerts_update") {
-          setWazuhAlerts((prev) => {
-            const combined = [...payload.data, ...prev];
-            const seen = new Map();
-            combined.forEach((a) => {
-              const key = (a.Timestamp || a.timestamp) + (a.Description || a.description);
-              if (!seen.has(key)) seen.set(key, a);
+    const connect = () => {
+      if (disposed) return;
+      const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${proto}//${window.location.host}/ws/status?token=${encodeURIComponent(jwtToken)}`;
+      ws = new WebSocket(wsUrl);
+
+      ws.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.type === "alerts_update") {
+            setWazuhAlerts((prev) => {
+              const combined = [...payload.data, ...prev];
+              const seen = new Map();
+              combined.forEach((a) => {
+                const key = (a.Timestamp || a.timestamp) + (a.Description || a.description);
+                if (!seen.has(key)) seen.set(key, a);
+              });
+              return Array.from(seen.values()).slice(0, 200);
             });
-            return Array.from(seen.values()).slice(0, 200);
-          });
+          }
+        } catch (e) {
+          // ws parse error
         }
-      } catch (e) {
-        // ws parse error
-      }
+      };
+
+      ws.onopen = () => {
+        retryDelay = 3000;
+      };
+
+      ws.onerror = () => {};
+
+      ws.onclose = () => {
+        if (disposed) return;
+        // Reconnect with backoff (3s -> 30s, doubling, capped) only while still authenticated.
+        if (isAuthenticatedRef.current) {
+          reconnectTimer = setTimeout(() => {
+            retryDelay = Math.min(retryDelay * 2, 30000);
+            connect();
+          }, retryDelay);
+        }
+      };
     };
 
-    ws.onerror = () => {};
-    ws.onclose = () => {};
+    connect();
 
-    return () => ws.close();
+    return () => {
+      disposed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (ws) ws.close();
+    };
   }, [jwtToken]);
 
   const value = {

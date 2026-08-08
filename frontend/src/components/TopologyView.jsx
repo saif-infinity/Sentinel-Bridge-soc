@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { createFetchWithAuth } from "../lib/api";
 import { 
   Shield, 
   Server, 
@@ -186,20 +187,18 @@ export default function TopologyView({ devices = [], alerts = [], jwtToken = nul
     alerts.filter(a => parseInt(a.Severity || 0) >= 7).map(a => a["Source IP"] || a.src_ip)
   );
 
-  const fetchWithAuth = async (url, options = {}) => {
-    const doFetch = (h) => fetch(url, { ...options, headers: h });
-    
-    const baseHeaders = options.headers || { ...headers };
-    if (!baseHeaders.Authorization && jwtToken) baseHeaders.Authorization = `Bearer ${jwtToken}`;
-
-    let res = await doFetch(baseHeaders);
-    if ((res.status === 401 || res.status === 403) && jwtToken) {
-      localStorage.removeItem("auth_token");
-      localStorage.removeItem("auth_username");
-      window.location.reload();
-    }
-    return res;
-  };
+  const fetchWithAuth = useMemo(
+    () =>
+      createFetchWithAuth(
+        () => jwtToken,
+        () => {
+          localStorage.removeItem("auth_token");
+          localStorage.removeItem("auth_username");
+          window.location.reload();
+        },
+      ),
+    [jwtToken],
+  );
 
   const fetchTopology = useCallback(async (isManual = false) => {
     try {
@@ -208,7 +207,7 @@ export default function TopologyView({ devices = [], alerts = [], jwtToken = nul
       const res = await fetchWithAuth("/api/wazuh/topology");
       if (res.ok) setTopology(await res.json());
     } catch (e) { console.error(e); } finally { setLoading(false); }
-  }, [headers, jwtToken]);
+  }, [fetchWithAuth]);
 
   useEffect(() => {
     fetchTopology();

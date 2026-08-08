@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from ...db import get_db, get_tenant_id, query_with_tenant
 from ...models import NetworkDevice
-from ...auth import get_api_key_or_jwt
+from ...auth import get_api_key_or_jwt, has_scopes_or_api_key
 from ...infrastructure.network_device.command_builder import generate_commands, _advanced_cmds
 
 logger = logging.getLogger(__name__)
@@ -106,6 +106,7 @@ def create_device(
     body: DeviceCreate,
     db: Session = Depends(get_db),
     _user: Any = Depends(get_api_key_or_jwt),
+    _scope: Any = Depends(has_scopes_or_api_key(["admin:manage"])),
 ):
     d = NetworkDevice(
         name=body.name, ip=body.ip, device_type=body.device_type,
@@ -183,6 +184,7 @@ def test_connection(
     device_id: int,
     db: Session = Depends(get_db),
     _user: Any = Depends(get_api_key_or_jwt),
+    _scope: Any = Depends(has_scopes_or_api_key(["admin:manage"])),
 ):
     """Simulate testing SSH/telnet connectivity to a device."""
     import time, random
@@ -213,6 +215,7 @@ def push_config(
     body: ConfigPushRequest,
     db: Session = Depends(get_db),
     _user: Any = Depends(get_api_key_or_jwt),
+    _scope: Any = Depends(has_scopes_or_api_key(["admin:manage"])),
 ):
     """Generate CLI commands and simulate push (no actual SSH in demo mode)."""
     d = query_with_tenant(NetworkDevice, request, db).filter(NetworkDevice.id == device_id).first()

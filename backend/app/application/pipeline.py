@@ -163,12 +163,12 @@ def ensure_columns(engine):
         "alerts": [
             ("normalized_severity", "INTEGER DEFAULT 5"),
             ("pipeline_source", "VARCHAR(30)"),
-            ("pipeline_processed_at", "DATETIME"),
+            ("pipeline_processed_at", "TIMESTAMP WITH TIME ZONE"),
         ],
         "suricata_alerts": [
             ("normalized_severity", "INTEGER DEFAULT 5"),
             ("pipeline_source", "VARCHAR(30)"),
-            ("pipeline_processed_at", "DATETIME"),
+            ("pipeline_processed_at", "TIMESTAMP WITH TIME ZONE"),
         ],
     }
     with engine.begin() as conn:
@@ -184,6 +184,7 @@ def ensure_columns(engine):
                     logger.info("Pipeline: colonne ajoutée %s.%s", table, col)
                 except Exception as e:
                     logger.warning("Pipeline: ADD COLUMN %s.%s échoué: %s", table, col, e)
+                    conn.rollback()
 
 
 # ── Persistance ─────────────────────────────────────────────────────

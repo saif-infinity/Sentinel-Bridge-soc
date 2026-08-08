@@ -3,6 +3,7 @@ import asyncio
 import os
 import time
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import psutil
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -12,8 +13,7 @@ from sqlalchemy import desc
 from ...db import get_db, SessionLocal, get_tenant_id, query_with_tenant
 from ...models import NetworkSensor, AccessLog, Alert, ActionLog, SuricataAlert
 from ...schemas import NetworkSensorCreate
-from ...admin_auth import get_current_admin
-from ...auth import get_api_key_or_jwt
+from ...auth import get_api_key_or_jwt, has_scopes_or_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ async def get_analyst_bandwidth(
     username: str,
     hours: int = Query(24, ge=1, le=168),
     db: Session = Depends(get_db),
-    admin=Depends(get_current_admin),
+    _user: Any = Depends(has_scopes_or_api_key(["devices:read"])),
 ):
     """Get bandwidth readings for a specific analyst over the last N hours."""
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
@@ -74,7 +74,7 @@ async def get_all_bandwidth(
     request: Request,
     hours: int = Query(24, ge=1, le=168),
     db: Session = Depends(get_db),
-    admin=Depends(get_current_admin),
+    _user: Any = Depends(has_scopes_or_api_key(["devices:read"])),
 ):
     """Get the latest bandwidth snapshot for each online analyst + system."""
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
@@ -156,7 +156,7 @@ async def get_all_bandwidth(
 async def get_system_health(
     request: Request,
     db: Session = Depends(get_db),
-    admin=Depends(get_current_admin),
+    _user: Any = Depends(get_api_key_or_jwt),
 ):
     """Full system health: resources, services, alerts, errors, actions."""
 

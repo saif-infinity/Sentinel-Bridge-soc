@@ -97,7 +97,7 @@ timeout /t 2 /nobreak >nul
 REM ============================================
 REM  Step 4/8: Backend FastAPI
 REM ============================================
-echo [4/8] Demarrage du backend FastAPI (port 8000^)...
+echo [4/8] Demarrage du backend FastAPI (port 8001^)...
 if exist "%ROOT_DIR%backend\venv" goto :backend_install_done
 echo       Installation de l'environnement Python...
 pushd "%ROOT_DIR%backend"
@@ -114,21 +114,21 @@ popd
 echo [ OK ] Environnement Python installe.
 :backend_install_done
 
-REM Tuer les anciens processus backend sur le port 8000
-echo       Arret des anciens processus backend (port 8000^)...
-for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8000 " ^| findstr "LISTENING"') do (
+REM Tuer les anciens processus backend sur le port 8001
+echo       Arret des anciens processus backend (port 8001^)...
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8001 " ^| findstr "LISTENING"') do (
     taskkill /F /PID %%a >nul 2>&1
 )
 
 pushd "%ROOT_DIR%backend"
-start /b "backend" cmd /c ".\venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000" >> "%BACKEND_LOG%" 2>&1
+start /b "backend" cmd /c ".\venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8001" >> "%BACKEND_LOG%" 2>&1
 popd
 timeout /t 5 /nobreak >nul
 findstr /m /c:"Uvicorn running on" "%BACKEND_LOG%" >nul 2>&1
 if errorlevel 1 (
     echo [WARN] Backend en cours de demarrage... consultez "%BACKEND_LOG%"
 ) else (
-    echo [ OK ] Backend lance sur http://127.0.0.1:8000
+    echo [ OK ] Backend lance sur http://127.0.0.1:8001
 )
 
 REM ============================================
@@ -220,7 +220,7 @@ echo ============================================
 echo  Tous les services sont demarres !
 echo.
 echo  URLS:
-echo    Backend API  : http://127.0.0.1:8000
+echo    Backend API  : http://127.0.0.1:8001
 echo    Frontend SOC : http://localhost:5173
 echo    Admin Panel  : http://localhost:5174
 echo    Redis CLI    : docker compose exec redis redis-cli

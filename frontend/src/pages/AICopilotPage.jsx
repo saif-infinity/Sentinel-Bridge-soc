@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Cpu, Zap, Printer } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useData } from "../contexts/DataContext";
@@ -12,24 +12,41 @@ export default function AICopilotPage() {
   const [globalAiReport, setGlobalAiReport] = useState("");
   const [isAnalyzingGlobal, setIsAnalyzingGlobal] = useState(false);
 
+  const pollRef = useRef(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
+
   const pollTaskStatus = (taskId, setStatus, setResult) => {
-    const interval = setInterval(async () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(async () => {
       try {
         const res = await fetchWithAuth(`/api/tasks/status/${taskId}`, { headers });
         if (res.ok) {
           const data = await res.json();
           if (data.status === "SUCCESS") {
-            clearInterval(interval);
-            setResult(data.result.analysis || data.result);
-            setStatus(false);
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+            if (mountedRef.current) {
+              setResult(data.result.analysis || data.result);
+              setStatus(false);
+            }
           } else if (data.status === "FAILURE") {
-            clearInterval(interval);
-            setStatus(false);
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+            if (mountedRef.current) setStatus(false);
           }
         }
       } catch {
-        clearInterval(interval);
-        setStatus(false);
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+        if (mountedRef.current) setStatus(false);
       }
     }, 2000);
   };

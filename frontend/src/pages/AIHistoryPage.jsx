@@ -7,14 +7,23 @@ export default function AIHistoryPage() {
   const { fetchWithAuth, headers } = useAuth();
   const [aiHistory, setAiHistory] = useState([]);
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState("");
   const [selectedReport, setSelectedReport] = useState(null);
 
   const fetchAiHistory = async () => {
     setIsFetchingHistory(true);
+    setHistoryError("");
     try {
-      const res = await fetchWithAuth("/api/ai/history", { headers });
-      if (res.ok) setAiHistory(await res.json());
-    } catch {}
+      const res = await fetchWithAuth("/api/analyse/history", { headers });
+      if (res.ok) {
+        setAiHistory(await res.json());
+      } else {
+        const errText = await res.text().catch(() => "");
+        setHistoryError(errText || `Erreur lors du chargement de l'historique (${res.status})`);
+      }
+    } catch {
+      setHistoryError("Impossible de contacter le serveur pour charger l'historique IA.");
+    }
     setIsFetchingHistory(false);
   };
 
@@ -73,6 +82,15 @@ export default function AIHistoryPage() {
         </div>
       </div>
 
+      {historyError && (
+        <div className="section-card" style={{ padding: "16px 20px", border: "1px solid rgba(239,68,68,0.4)", background: "rgba(239,68,68,0.08)" }}>
+          <p style={{ margin: 0, color: "#f87171", fontSize: "13px" }}>
+            <ShieldAlert size={16} style={{ verticalAlign: "middle", marginRight: "8px" }} />
+            {historyError}
+          </p>
+        </div>
+      )}
+
       {selectedReport ? (
         <div className="section-card" style={{ position: "relative", padding: "25px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
@@ -94,7 +112,7 @@ export default function AIHistoryPage() {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "25px" }}>
-          {aiHistory.length === 0 && !isFetchingHistory ? (
+          {aiHistory.length === 0 && !isFetchingHistory && !historyError ? (
             <div className="section-card" style={{ textAlign: "center", padding: "60px" }}>
               <FileText size={48} color="var(--text-muted)" style={{ opacity: 0.5, marginBottom: "20px", display: "inline-block" }} />
               <h4 style={{ margin: 0 }}>Aucun rapport trouve</h4>

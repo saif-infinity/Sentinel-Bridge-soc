@@ -96,10 +96,11 @@ function RequireRole({ minRole, children }) {
 function AppRoutes() {
   const { isAuthenticated, login } = useAuth();
 
-  // LOGIN BYPASS — désactivé temporairement pour le dev
-  // if (!isAuthenticated) {
-  //   return <LoginPage onLogin={login} />;
-  // }
+  // Login gate: default behavior requires authentication. Dev escape hatch is
+  // only active when VITE_AUTOLOGIN=1 is set in the environment.
+  if (!isAuthenticated && import.meta.env.VITE_AUTOLOGIN !== "1") {
+    return <LoginPage onLogin={login} />;
+  }
 
   return (
     <DataProvider>

@@ -9,7 +9,7 @@ import {
   Cpu, Clock, Zap, Lock, Network, Database, Globe, AlertTriangle,
   Volume2, VolumeX, Printer, LayoutDashboard, Monitor, Laptop, HardDrive,
   Terminal, Radio, FileText, X, LogIn, Users, Fingerprint, Settings, ScrollText,
-  FolderKanban, Crosshair, Workflow,
+  FolderKanban, Crosshair, Workflow, Camera,
 } from "lucide-react";
 
 const SystemClock = memo(() => {
@@ -21,10 +21,24 @@ const SystemClock = memo(() => {
   return <span className="text-gray-400 text-xs font-mono">{time}</span>;
 });
 
+// Single lazy AudioContext reused across beeps (browsers cap concurrent contexts).
+let sharedAudioCtx = null;
+function getAudioContext() {
+  if (!sharedAudioCtx) {
+    try {
+      sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {
+      sharedAudioCtx = null;
+    }
+  }
+  return sharedAudioCtx;
+}
+
 const NAV_ITEMS = [
   { group: "command_center", items: [
     { key: "dashboard", icon: LayoutDashboard, path: "/", minRole: "viewer" },
     { key: "topology", icon: Network, path: "/topology", minRole: "viewer" },
+    { key: "surveillance", icon: Camera, path: "/surveillance", minRole: "analyst" },
   ]},
   { group: "asset_management", items: [
     { key: "inventory", icon: Database, path: "/inventory", minRole: "viewer" },
@@ -81,7 +95,9 @@ export default function Layout({ children }) {
   useEffect(() => {
     if ((criticalCount > 0 || networkCriticalCount > 0) && !isMuted) {
       try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const ctx = getAudioContext();
+        if (!ctx) return;
+        if (ctx.state === "suspended") ctx.resume().catch(() => {});
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);

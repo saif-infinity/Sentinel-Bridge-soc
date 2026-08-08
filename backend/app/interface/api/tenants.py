@@ -136,7 +136,11 @@ def subscribe_tenant(
     tenant.subscription_end = datetime.now(timezone.utc) + timedelta(days=30)
     db.commit()
 
-    return {"plan": tenant.plan, "subscription_end": tenant.subscription_end.isoformat()}
+    return {
+        "plan": tenant.plan,
+        "status": tenant.status,
+        "subscription_end": tenant.subscription_end.isoformat(),
+    }
 
 
 @router.get("/current")

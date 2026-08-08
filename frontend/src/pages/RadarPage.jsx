@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Radar } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useData } from "../contexts/DataContext";
@@ -10,13 +10,26 @@ export default function RadarPage() {
   const { lang } = useTranslation();
   const [scanResults, setScanResults] = useState([]);
   const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState("");
   const [subnet, setSubnet] = useState("");
   const [scanType, setScanType] = useState("fast");
+
+  const pollRef = useRef(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
 
   const startNetworkScan = async (subnet, type) => {
     if (isScanning) return;
     setIsScanning(true);
     setScanResults([]);
+    setScanError("");
 
     try {
       const r = await fetchWithAuth("/api/tasks/nmap-scan", {
@@ -27,32 +40,58 @@ export default function RadarPage() {
       if (r.ok) {
         const { task_id } = await r.json();
         trackTask(task_id, "Nmap Scan", subnet || "auto");
-        const interval = setInterval(async () => {
+        pollRef.current = setInterval(async () => {
           try {
             const res = await fetchWithAuth(`/api/tasks/status/${task_id}`, { headers });
             if (res.ok) {
               const data = await res.json();
               if (data.status === "SUCCESS") {
-                clearInterval(interval);
-                setScanResults(
-                  data.result.results.map((r) => ({ ip: r.ip, mac: r.mac, status: [r.os, ...r.ports] }))
-                );
-                setIsScanning(false);
+                clearInterval(pollRef.current);
+                pollRef.current = null;
+                if (mountedRef.current) {
+                  setScanResults(
+                    data.result.results.map((r) => ({ ip: r.ip, mac: r.mac, status: [r.os, ...r.ports] }))
+                  );
+                  setIsScanning(false);
+                }
               } else if (data.status === "FAILURE") {
-                clearInterval(interval);
+                clearInterval(pollRef.current);
+                pollRef.current = null;
+                if (mountedRef.current) {
+                  setScanError(data.error || "Scan failed");
+                  setIsScanning(false);
+                }
+              }
+            } else {
+              clearInterval(pollRef.current);
+              pollRef.current = null;
+              if (mountedRef.current) {
+                const errText = await res.text().catch(() => "");
+                setScanError(errText || `Scan status error (${res.status})`);
                 setIsScanning(false);
               }
             }
           } catch {
-            clearInterval(interval);
-            setIsScanning(false);
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+            if (mountedRef.current) {
+              setScanError("Scan polling failed");
+              setIsScanning(false);
+            }
           }
         }, 3000);
       } else {
-        setIsScanning(false);
+        const errText = await r.text().catch(() => "");
+        if (mountedRef.current) {
+          setScanError(errText || `Scan request failed (${r.status})`);
+          setIsScanning(false);
+        }
       }
     } catch {
-      setIsScanning(false);
+      if (mountedRef.current) {
+        setScanError("Scan request failed");
+        setIsScanning(false);
+      }
     }
   };
 
@@ -99,6 +138,11 @@ export default function RadarPage() {
           </div>
         </div>
         <div className="table-wrapper">
+          {scanError && (
+            <div style={{ padding: "14px 18px", margin: "0 0 16px 0", border: "1px solid rgba(239,68,68,0.4)", background: "rgba(239,68,68,0.08)", borderRadius: "8px", color: "#f87171", fontSize: "13px" }}>
+              {scanError}
+            </div>
+          )}
           <table className="custom-table">
             <thead>
               <tr><th>IP</th><th>MAC Address</th><th>State</th></tr>

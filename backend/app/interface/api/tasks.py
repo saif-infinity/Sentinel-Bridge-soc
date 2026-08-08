@@ -14,6 +14,11 @@ from typing import Optional, List
 
 logger = logging.getLogger(__name__)
 
+
+class NmapScanRequest(BaseModel):
+    target: str
+    scan_type: str = "ports"
+
 router = APIRouter(prefix="/api/tasks", tags=["Background Tasks"], dependencies=[Depends(has_scopes_or_api_key(["ai:generate"]))])
 
 @router.post("/analyze-threat", response_model=TaskResponse)
@@ -52,11 +57,13 @@ async def get_task_status(task_id: str):
     return response
 
 @router.post("/nmap-scan", response_model=TaskResponse)
-async def trigger_nmap_scan(target: str, scan_type: str = "ports"):
+async def trigger_nmap_scan(body: NmapScanRequest):
     """
     Triggers a deep Nmap scan in the background.
     """
     import ipaddress
+    target = body.target
+    scan_type = body.scan_type
     try:
         ipaddress.ip_network(target, strict=False)
     except ValueError:

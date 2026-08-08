@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from ...services.face_service import face_service
@@ -94,3 +95,14 @@ async def face_status(username: str, request: Request):
     tenant_id = get_tenant_id(request)
     registered = face_service.has_registered_face(username, tenant_id=tenant_id)
     return {"username": username, "registered": registered}
+
+
+@router.get("/image/{username}", dependencies=[Depends(has_scopes_or_api_key(["devices:read"]))])
+async def face_image(username: str, request: Request):
+    """Return the stored face image for a user (404 if none registered)."""
+    from ...db import get_tenant_id
+    tenant_id = get_tenant_id(request)
+    path = face_service.get_face_path(username, tenant_id=tenant_id)
+    if not path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Face image not found")
+    return FileResponse(path, media_type="image/jpeg")

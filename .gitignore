@@ -73,5 +73,5 @@ Thumbs.db
 # Face data and password hashes (sensitive — biometrics + credentials)
 backend/app/face_data/
 
-# Deepwork state
-.slim/deepwork/
+# Deepwork / local tooling state
+.slim/
