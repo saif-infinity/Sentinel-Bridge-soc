@@ -1,5 +1,8 @@
-# Environment variables
+# Environment variables (NEVER commit these)
 .env
+.env.*
+!.env.example
+!.env.example.*
 
 # Logs
 *.log
@@ -32,6 +35,10 @@ share/python-wheels/
 .installed.cfg
 *.egg
 
+# Frontend build artifacts
+frontend/dist/
+admin-frontend/dist/
+
 # Virtual Environment
 venv/
 ENV/
@@ -59,3 +66,12 @@ Thumbs.db
 *.temp
 *.old
 *.backup
+
+# Pytest cache
+.pytest_cache/
+
+# Face data and password hashes (sensitive — biometrics + credentials)
+backend/app/face_data/
+
+# Deepwork state
+.slim/deepwork/
