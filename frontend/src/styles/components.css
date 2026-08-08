@@ -1,0 +1,143 @@
+/* Common components - cards, buttons, tables, status badges */
+
+@layer base {
+  /* Common Section Card */
+  .section-card {
+    background: rgba(5, 15, 20, 0.6);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(0, 255, 136, 0.06);
+    border-radius: 24px;
+    padding: 35px;
+    box-shadow: var(--shadow-lg);
+    transition: border-color 0.3s ease;
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 35px;
+  }
+
+  .section-header h2 {
+    font-size: 18px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #e0f2f1;
+  }
+
+  /* BUTTONS - Professional */
+  .btn-primary {
+    background: linear-gradient(135deg, #00ff88, #00cc6a);
+    color: #050a0e;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 10px 20px -10px rgba(0, 255, 136, 0.4);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 15px 25px -10px rgba(0, 255, 136, 0.5);
+    background: linear-gradient(135deg, #33ff9f, #00ff88);
+  }
+
+  /* Tables Styling - Ultra Clean */
+  .table-wrapper {
+    margin-top: 25px;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(5, 10, 14, 0.4);
+  }
+
+  .custom-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .custom-table th {
+    background: rgba(0, 255, 136, 0.02);
+    padding: 16px 24px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    border-bottom: 1px solid rgba(0, 255, 136, 0.06);
+  }
+
+  .custom-table td {
+    padding: 16px 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    font-size: 13px;
+    color: #cbd5e1;
+  }
+
+  .custom-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  .custom-table tr:hover {
+    background: rgba(0, 255, 136, 0.03);
+  }
+
+  /* Status Badges */
+  .status-pill {
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+  }
+
+  .status-online { background: rgba(16, 185, 129, 0.1); color: #10b981; border-color: rgba(16, 185, 129, 0.2); }
+  .status-offline { background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.2); }
+  .status-known { background: rgba(0, 255, 136, 0.15); color: #00ff88; }
+  .status-unknown { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+  .status-success { background: rgba(16, 185, 129, 0.1); color: #10b981; border-color: rgba(16, 185, 129, 0.2); }
+  .status-danger { background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.2); }
+  .status-warning { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border-color: rgba(245, 158, 11, 0.2); }
+
+  /* Sortable table header hover */
+  .custom-table th {
+    transition: color 0.2s ease, background 0.2s ease;
+    user-select: none;
+  }
+  .custom-table th[style*="cursor: pointer"],
+  .custom-table th[style*="cursor:pointer"] {
+    cursor: pointer;
+  }
+  .custom-table th[style*="cursor: pointer"]:hover,
+  .custom-table th[style*="cursor:pointer"]:hover {
+    color: #00ff88;
+    background: rgba(0, 255, 136, 0.06);
+  }
+
+  /* Smooth transitions for buttons */
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Input focus transitions */
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent-cyan) !important;
+    box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.1);
+  }
+}

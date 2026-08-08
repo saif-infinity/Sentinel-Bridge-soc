@@ -13,12 +13,6 @@ import {
   Router
 } from 'lucide-react';
 
-// API key should be handled via environment variables or backend proxy in production
-// const API_KEY = import.meta.env.VITE_API_KEY || ""; 
-// For development only - REMOVE IN PRODUCTION
-const API_KEY = "sDr6ANE9JVhPTBxjLJpKq5SHLXHNSt3_LAfz4c6yj3U";
-const HEADERS = { "X-API-Key": API_KEY };
-
 /* ─── Helpers ─────────────────────────────────────────────────── */
 // GNS3 Style Icons
 const GNS3Icons = {
@@ -180,7 +174,7 @@ function ConnectionLines({ agentRefs, managerRef, containerRef, nodeHasAlert }) 
 }
 
 /* ─── Main TopologyView ───────────────────────────────────────── */
-export default function TopologyView({ alerts = [], onNodeClick }) {
+export default function TopologyView({ devices = [], alerts = [], jwtToken = null, headers = null, onNodeClick }) {
   const [topology, setTopology] = useState(null);
   const [loading, setLoading] = useState(true);
   
@@ -192,14 +186,29 @@ export default function TopologyView({ alerts = [], onNodeClick }) {
     alerts.filter(a => parseInt(a.Severity || 0) >= 7).map(a => a["Source IP"] || a.src_ip)
   );
 
+  const fetchWithAuth = async (url, options = {}) => {
+    const doFetch = (h) => fetch(url, { ...options, headers: h });
+    
+    const baseHeaders = options.headers || { ...headers };
+    if (!baseHeaders.Authorization && jwtToken) baseHeaders.Authorization = `Bearer ${jwtToken}`;
+
+    let res = await doFetch(baseHeaders);
+    if ((res.status === 401 || res.status === 403) && jwtToken) {
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_username");
+      window.location.reload();
+    }
+    return res;
+  };
+
   const fetchTopology = useCallback(async (isManual = false) => {
     try {
       setLoading(true);
-      if (isManual) await fetch("/api/wazuh/refresh-cache", { method: "POST", headers: HEADERS });
-      const res = await fetch("/api/wazuh/topology", { headers: HEADERS });
+      if (isManual) await fetchWithAuth("/api/wazuh/refresh-cache", { method: "POST" });
+      const res = await fetchWithAuth("/api/wazuh/topology");
       if (res.ok) setTopology(await res.json());
     } catch (e) { console.error(e); } finally { setLoading(false); }
-  }, []);
+  }, [headers, jwtToken]);
 
   useEffect(() => {
     fetchTopology();

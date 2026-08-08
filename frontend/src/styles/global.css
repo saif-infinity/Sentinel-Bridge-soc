@@ -1,0 +1,61 @@
+/* Global styles - fonts, variables, reset, base layout */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap');
+
+@layer base {
+  :root {
+    --bg-primary: #050a0e;
+    --bg-secondary: #0a1018;
+    --bg-tertiary: #0f1a24;
+    --glass-bg: rgba(5, 15, 20, 0.65);
+    --accent-blue: #00ff88;
+    --accent-cyan: #00e5ff;
+    --accent-purple: #00e5ff;
+    --text-main: #c8d6e5;
+    --text-muted: #5a7a8a;
+    --success: #00ff88;
+    --danger: #ff6b6b;
+    --warning: #eab308;
+    --border: rgba(0, 255, 136, 0.08);
+    --sidebar-w: 260px;
+    --shadow-sm: 0 4px 6px -1px rgb(0 0 0 / 0.2), 0 2px 4px -2px rgb(0 0 0 / 0.15);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+    --radius: 14px;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'JetBrains Mono', monospace;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 255, 136, 0.15) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 136, 0.15);
+    border-radius: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-main);
+    background-image:
+      radial-gradient(circle at 50% 0%, rgba(0, 255, 136, 0.06) 0%, transparent 50%),
+      radial-gradient(circle at 100% 100%, rgba(0, 229, 255, 0.04) 0%, transparent 40%);
+    min-height: 100vh;
+  }
+
+  .dashboard-layout {
+    display: flex;
+    min-height: 100vh;
+  }
+}

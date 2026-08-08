@@ -1,0 +1,104 @@
+/* Layout styles */
+
+@layer base {
+  /* Pulse dot for status indicators */
+  .pulse-dot {
+    width: 10px;
+    height: 10px;
+    background: #00ff88;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #00ff88;
+    animation: pulse 1.5s infinite;
+  }
+}
+
+/* Note: Sidebar layout is handled by Tailwind utilities in Layout.jsx */
+/* These old class-based rules are removed — no component references them */
+
+@keyframes pulse {
+  0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(0, 255, 136, 0); }
+  100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(0, 255, 136, 0); }
+}
+
+/* Page loader */
+.page-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+  color: var(--text-muted, #5a7a8a);
+  font-size: 14px;
+  gap: 12px;
+}
+
+.page-loader-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--accent-blue, #00ff88);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Error boundary */
+.error-boundary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+  color: var(--text-muted, #5a7a8a);
+}
+
+.error-boundary-title {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.error-boundary-message {
+  font-size: 12px;
+  color: #ff6b6b;
+  margin-bottom: 16px;
+  max-width: 500px;
+  text-align: center;
+  word-break: break-word;
+}
+
+.error-boundary-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.error-boundary-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.error-boundary-btn-retry {
+  background: transparent;
+  color: #5a7a8a;
+  border: 1px solid rgba(0, 255, 136, 0.15);
+}
+
+.error-boundary-btn-retry:hover {
+  background: rgba(0, 255, 136, 0.05);
+  color: #00ff88;
+}
+
+.error-boundary-btn-reload {
+  background: var(--accent-blue, #00ff88);
+  color: #fff;
+  border: none;
+}
+
+.error-boundary-btn-reload:hover {
+  opacity: 0.9;
+}

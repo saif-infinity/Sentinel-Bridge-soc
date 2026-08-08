@@ -1,0 +1,74 @@
+@layer base {
+/* Suricata alert styles - animations, row variants, badges */
+
+/* ============================================
+   Suricata Alert Table - Colors & Animations
+   ============================================ */
+
+@keyframes row-slide-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes glow-red {
+  0%, 100% { box-shadow: inset 3px 0 0 #ff4d4d; }
+  50%       { box-shadow: inset 3px 0 0 #ff4d4d, 0 0 18px rgba(255,77,77,0.18); }
+}
+@keyframes glow-orange {
+  0%, 100% { box-shadow: inset 3px 0 0 #f97316; }
+  50%       { box-shadow: inset 3px 0 0 #f97316, 0 0 14px rgba(249,115,22,0.14); }
+}
+@keyframes glow-yellow {
+  0%, 100% { box-shadow: inset 3px 0 0 #f59e0b; }
+  50%       { box-shadow: inset 3px 0 0 #f59e0b, 0 0 10px rgba(245,158,11,0.12); }
+}
+
+.suricata-row {
+  animation: row-slide-in 0.3s ease both;
+  transition: background 0.2s ease;
+}
+
+.suricata-row-critical {
+  animation: row-slide-in 0.3s ease both, row-glow 2s infinite ease-in-out, glow-red 2.5s infinite;
+  border-left: 3px solid #ff4d4d !important;
+  background: rgba(255,77,77,0.04);
+}
+.suricata-row-critical:hover { background: rgba(255,77,77,0.1) !important; }
+
+.suricata-row-high {
+  animation: row-slide-in 0.3s ease both, glow-orange 3s infinite;
+  border-left: 3px solid #f97316 !important;
+  background: rgba(249,115,22,0.03);
+}
+.suricata-row-high:hover { background: rgba(249,115,22,0.08) !important; }
+
+.suricata-row-medium {
+  animation: row-slide-in 0.3s ease both, glow-yellow 4s infinite;
+  border-left: 3px solid #f59e0b !important;
+  background: rgba(245,158,11,0.02);
+}
+.suricata-row-medium:hover { background: rgba(245,158,11,0.07) !important; }
+
+.suricata-row-low {
+  animation: row-slide-in 0.3s ease both;
+  border-left: 3px solid #38bdf8 !important;
+  background: rgba(56,189,248,0.02);
+}
+.suricata-row-low:hover { background: rgba(56,189,248,0.06) !important; }
+
+/* Suricata Severity Badges */
+.suricata-sev-critical { background: rgba(255,77,77,0.2);   color: #ff6b6b; border: 1px solid rgba(255,77,77,0.45);  font-weight: 800; font-size: 10px; padding: 3px 9px; border-radius: 4px; animation: critical-pulse 1.5s infinite; display: inline-block; }
+.suricata-sev-high     { background: rgba(249,115,22,0.15); color: #fb923c; border: 1px solid rgba(249,115,22,0.3);  font-weight: 700; font-size: 10px; padding: 3px 9px; border-radius: 4px; display: inline-block; }
+.suricata-sev-medium   { background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3);  font-weight: 700; font-size: 10px; padding: 3px 9px; border-radius: 4px; display: inline-block; }
+.suricata-sev-low      { background: rgba(56,189,248,0.1);  color: #38bdf8; border: 1px solid rgba(56,189,248,0.2);  font-weight: 600; font-size: 10px; padding: 3px 9px; border-radius: 4px; display: inline-block; }
+.suricata-sev-info     { background: rgba(148,163,184,0.1); color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); font-size: 10px;  padding: 3px 9px; border-radius: 4px; display: inline-block; }
+
+/* Event-type colored tags */
+.suricata-event-flow     { background: rgba(56,189,248,0.12); color: #38bdf8; }
+.suricata-event-http     { background: rgba(16,185,129,0.12); color: #10b981; }
+.suricata-event-stats    { background: rgba(0,229,255,0.12); color: #00e5ff; }
+.suricata-event-dns      { background: rgba(245,158,11,0.12); color: #f59e0b; }
+.suricata-event-tls      { background: rgba(0,255,136,0.12); color: #00ff88; }
+.suricata-event-fileinfo { background: rgba(234,179,8,0.12);  color: #eab308; }
+.suricata-event-ssh      { background: rgba(236,72,153,0.12); color: #ec4899; }
+}
