@@ -1,0 +1,169 @@
+import paramiko
+import subprocess
+import shlex
+import logging
+from fastapi import APIRouter, Depends, Request
+from sqlalchemy.orm import Session
+from ...auth import get_api_key_or_jwt
+from ...config import settings
+from ...db import get_db
+from ...schemas import CommandRequest
+
+logger = logging.getLogger(__name__)
+
+ALLOWED_COMMANDS = {
+    "wazuh": {
+        "status", "agent_control", "ossec-control", "cat", "tail", "head",
+        "grep", "find", "ls", "df", "free", "uptime", "whoami", "id",
+        "ps", "netstat", "ss", "ip", "ifconfig", "top", "htop",
+        "journalctl", "systemctl", "docker", "docker ps", "docker stats",
+    },
+    "suricata": {
+        "status", "cat", "tail", "head", "grep", "find", "ls", "df",
+        "free", "uptime", "whoami", "id", "ps", "netstat", "ss",
+        "ip", "ifconfig", "suricatasc", "systemctl",
+    },
+}
+
+# Restrict file-reading commands to known safe directories only
+SAFE_READ_DIRS = {
+    "wazuh": ["/var/log/", "/var/ossec/logs/", "/var/ossec/etc/"],
+    "suricata": ["/var/log/", "/etc/suricata/"],
+}
+
+SAFE_FIND_DIRS = {
+    "wazuh": ["/var/log/", "/var/ossec/", "/var/run/"],
+    "suricata": ["/var/log/", "/etc/suricata/"],
+}
+
+def sanitize_command(cmd: str, target: str) -> str:
+    cmd = cmd.strip()
+    if not cmd:
+        raise ValueError("Empty command")
+
+    if len(cmd) > 500:
+        raise ValueError("Command too long")
+
+    for char in ['|', '&', ';', '`', '$', '(', ')', '{', '}', '<', '>', '\n', '\r']:
+        if char in cmd:
+            raise ValueError(f"Invalid character in command: {char}")
+
+    try:
+        parts = shlex.split(cmd)
+    except ValueError:
+        raise ValueError("Invalid command syntax")
+
+    if not parts:
+        raise ValueError("Empty command")
+
+    base_cmd = parts[0].lower()
+    allowed = ALLOWED_COMMANDS.get(target, set())
+
+    if base_cmd not in allowed:
+        raise ValueError(f"Command '{base_cmd}' is not allowed. Allowed: {', '.join(sorted(allowed))}")
+
+    # Restrict file-reading commands (cat, tail, head) to known safe directories
+    if base_cmd in ("cat", "tail", "head") and len(parts) >= 2:
+        target_path = parts[-1]
+        safe_dirs = SAFE_READ_DIRS.get(target, [])
+        if safe_dirs and not any(target_path.startswith(d) for d in safe_dirs):
+            raise ValueError(f"Access to '{target_path}' is restricted to: {', '.join(safe_dirs)}")
+
+    # Restrict find to safe directories only
+    if base_cmd == "find" and len(parts) >= 2:
+        search_path = parts[1]
+        safe_find = SAFE_FIND_DIRS.get(target, [])
+        if safe_find and not any(search_path.startswith(d) for d in safe_find):
+            raise ValueError(f"find is restricted to: {', '.join(safe_find)}")
+
+    return cmd
+
+router = APIRouter(prefix="/api/terminal", tags=["Terminal"], dependencies=[Depends(get_api_key_or_jwt)])
+
+def _get_ssh_config(db: Session, target: str, request: Request = None) -> dict:
+    from ...services.system_config_service import get_config_value
+    if target == "wazuh":
+        return {
+            "docker_container": get_config_value(db, "wazuh_ssh", "docker_container", settings.WAZUH_DOCKER_CONTAINER),
+            "ssh_port": int(get_config_value(db, "wazuh_ssh", "ssh_port", str(settings.WAZUH_SSH_PORT))),
+            "ssh_user": get_config_value(db, "wazuh_ssh", "ssh_user", settings.WAZUH_SSH_USER),
+            "ssh_password": get_config_value(db, "wazuh_ssh", "ssh_password", ""),
+        }
+    else:
+        return {
+            "host": get_config_value(db, "suricata_ssh", "host", settings.SURICATA_HOST),
+            "port": int(get_config_value(db, "suricata_ssh", "port", str(settings.SURICATA_PORT))),
+            "user": get_config_value(db, "suricata_ssh", "user", settings.SURICATA_USER),
+            "password": get_config_value(db, "suricata_ssh", "password", ""),
+        }
+
+
+@router.post("/exec")
+async def execute_ssh_command(request: Request, req: CommandRequest, db: Session = Depends(get_db)):
+    try:
+        if req.target not in ("wazuh", "suricata"):
+            return {"output": "Invalid target", "status": "error"}
+
+        cmd = sanitize_command(req.command, req.target)
+        cfg = _get_ssh_config(db, req.target, request)
+
+        if req.target == "wazuh":
+            try:
+                args_list = shlex.split(cmd)
+                process = subprocess.run(
+                    ["docker", "exec", cfg["docker_container"], *args_list],
+                    capture_output=True,
+                    text=True,
+                    timeout=15
+                )
+                output = process.stdout[:4096]
+                error = process.stderr[:1024]
+                return {
+                    "output": output if output else error,
+                    "status": "success" if process.returncode == 0 else "error"
+                }
+            except subprocess.TimeoutExpired:
+                return {"output": "Command timed out", "status": "error"}
+            except Exception as e:
+                logger.error("Docker exec error: %s", e)
+                return {"output": "Failed to execute command on Wazuh", "status": "error"}
+
+        elif req.target == "suricata":
+            if not cfg.get("password"):
+                return {"output": "Suricata SSH password not configured. Go to Settings.", "status": "error"}
+            client = paramiko.SSHClient()
+            client.set_missing_host_key_policy(paramiko.RejectPolicy())
+            try:
+                client.connect(
+                    cfg["host"],
+                    port=cfg["port"],
+                    username=cfg["user"],
+                    password=cfg["password"],
+                    timeout=10,
+                    banner_timeout=200,
+                    look_for_keys=False,
+                    allow_agent=False
+                )
+                stdin, stdout, stderr = client.exec_command(cmd, timeout=15)
+                output = stdout.read().decode('utf-8', errors='replace')[:4096]
+                error = stderr.read().decode('utf-8', errors='replace')[:1024]
+                client.close()
+                return {
+                    "output": output if output else error,
+                    "status": "success" if not error else "warning"
+                }
+            except paramiko.ssh_exception.SSHException as e:
+                if "Unknown server" in str(e) or "host key" in str(e).lower():
+                    logger.warning("SSH host key verification failed for %s", cfg["host"])
+                    return {"output": "Host key verification failed. Add the host key to known_hosts.", "status": "error"}
+                logger.error("SSH error: %s", e)
+                return {"output": "SSH connection failed", "status": "error"}
+            except Exception as e:
+                logger.error("Suricata SSH error: %s", e)
+                return {"output": "Connection to Suricata failed", "status": "error"}
+
+    except ValueError as e:
+        return {"output": f"Command rejected: {e}", "status": "error"}
+    except Exception as e:
+        logger.exception("Terminal execution failed")
+        return {"output": "Internal error during command execution", "status": "error"}

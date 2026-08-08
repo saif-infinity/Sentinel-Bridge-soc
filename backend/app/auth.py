@@ -1,6 +1,13 @@
-from fastapi import Header, HTTPException, status
-from .config import settings
-
-def api_key_auth(x_api_key: str = Header(...)):
-    if x_api_key != settings.API_KEY:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+from .core.auth import (  # noqa: F401
+    oauth2_scheme,
+    http_bearer,
+    get_token_from_header,
+    get_token_from_query,
+    get_api_key,
+    get_api_key_or_jwt,
+    api_key_auth,
+    get_token,
+    get_token_from_request,
+    has_scopes,
+    has_scopes_or_api_key,
+)
