@@ -18,6 +18,37 @@ _RULES_CACHE: Dict[str, Any] = {"ts": 0.0, "rules": {}}
 _RULES_TTL = 60.0
 _correlator = WindowedCorrelator()
 
+_mitre_columns_checked = False
+
+
+def _ensure_mitre_columns(db) -> None:
+    """R2 — ADD COLUMN idempotent (mitre_attack_ids/tactics) sur bases existantes."""
+    global _mitre_columns_checked
+    if _mitre_columns_checked:
+        return
+    try:
+        from ...domain.rule_models import ensure_mitre_columns
+        ensure_mitre_columns(db)
+        _mitre_columns_checked = True
+    except Exception as e:
+        logger.warning("ensure_mitre_columns échoué: %s", e)
+
+
+def _loads(value: Optional[str], fallback: str):
+    try:
+        v = json.loads(value or fallback)
+    except (TypeError, ValueError):
+        v = json.loads(fallback)
+    return v
+
+
+def _dedupe(items: List[str]) -> List[str]:
+    out: List[str] = []
+    for i in items:
+        if i not in out:
+            out.append(i)
+    return out
+
 
 def invalidate_rules_cache() -> None:
     """À appeler après tout CRUD de règle (router rules.py)."""
@@ -27,6 +58,7 @@ def invalidate_rules_cache() -> None:
 
 def load_rules(db, tenant_id: str) -> List[Rule]:
     """Règles actives visibles du tenant : règles globales (tenant_id NULL) + règles du tenant."""
+    _ensure_mitre_columns(db)
     now = time.time()
     if now - _RULES_CACHE["ts"] < _RULES_TTL and tenant_id in _RULES_CACHE["rules"]:
         return _RULES_CACHE["rules"][tenant_id]
@@ -37,12 +69,15 @@ def load_rules(db, tenant_id: str) -> List[Rule]:
         .all()
     )
     _RULES_CACHE["ts"] = now
-    _RULES_CACHE["rules"] = {tenant_id: rules}
+    if "rules" not in _RULES_CACHE:
+        _RULES_CACHE["rules"] = {}
+    _RULES_CACHE["rules"][tenant_id] = rules
     return rules
 
 
 def visible_rules(db, tenant_id: str) -> List[Rule]:
     """Toutes les règles visibles (actives ou non) — pour le CRUD API."""
+    _ensure_mitre_columns(db)
     return (
         db.query(Rule)
         .filter((Rule.tenant_id == tenant_id) | (Rule.tenant_id.is_(None)))
@@ -62,6 +97,8 @@ def evaluate_normalized_alert(normalized: Dict[str, Any],
     try:
         rules = load_rules(db, tenant_id)
         matched: List[Dict[str, Any]] = []
+        mitre_ids: List[str] = []
+        tactics: List[str] = []
         for rule in rules:
             try:
                 conditions = json.loads(rule.conditions or "[]")
@@ -72,11 +109,12 @@ def evaluate_normalized_alert(normalized: Dict[str, Any],
 
             try:
                 corr = json.loads(rule.correlation or "{}")
-                has_corr = bool(corr and corr.get("sequence"))
+                has_sequence = bool(corr and corr.get("sequence"))
+                has_count = bool(corr and corr.get("count"))
             except (TypeError, ValueError):
-                has_corr = False
+                has_sequence = has_count = False
 
-            if has_corr:
+            if has_sequence or has_count:
                 if not _correlator.evaluate(rule, normalized, conditions):
                     continue
                 matched_conditions = evaluate_conditions(conditions, normalized)
@@ -87,24 +125,35 @@ def evaluate_normalized_alert(normalized: Dict[str, Any],
                     continue
                 is_correlation = False
 
-            try:
-                tags = json.loads(rule.tags or "[]")
-            except (TypeError, ValueError):
-                tags = []
+            tags = _loads(rule.tags, "[]")
             if not isinstance(tags, list):
                 tags = []
+            rule_mitre = _loads(rule.mitre_attack_ids, "[]")
+            rule_tactics = _loads(rule.tactics, "[]")
+            if not isinstance(rule_mitre, list):
+                rule_mitre = []
+            if not isinstance(rule_tactics, list):
+                rule_tactics = []
             matched.append({
                 "rule_id": rule.id,
                 "rule_name": rule.name,
                 "rule_severity": int(rule.severity or 5),
                 "tags": tags,
+                "mitre_attack_ids": rule_mitre or None,
+                "tactics": rule_tactics or None,
                 "correlation": is_correlation,
                 "matched_conditions": matched_conditions,
             })
+            mitre_ids.extend(rule_mitre)
+            tactics.extend(rule_tactics)
 
-        _correlator.push(normalized)  # historique pour les corrélations futures
         if matched:
-            event = make_rule_match_event(tenant_id, normalized, matched, source=source)
+            enriched = dict(normalized)
+            if mitre_ids:
+                enriched["mitre_attack_ids"] = _dedupe(mitre_ids)
+            if tactics:
+                enriched["tactics"] = _dedupe(tactics)
+            event = make_rule_match_event(tenant_id, enriched, matched, source=source)
             event_bus.publish_sync(CHANNEL_RULE_MATCH, event)
         return matched, len(matched)
     finally:

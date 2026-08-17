@@ -8,7 +8,82 @@ NORMALIZED_KEYS = [
     "alert_id", "tenant_id", "timestamp", "source", "severity",
     "normalized_severity", "signature", "category", "description",
     "src_ip", "dest_ip", "agent_id", "proto", "raw",
+    "mitre_attack_ids", "tactics",   # R2 — optionnels (None si absents)
 ]
+
+# ── R2 MITRE ATT&CK ──────────────────────────────────────────────────
+# Mapping technique → (nom, tactiques). Les sous-techniques (T1059.001)
+# héritent de la technique parente (T1059).
+MITRE_TECHNIQUES: Dict[str, Dict[str, Any]] = {
+    "T1059": {"name": "Command and Scripting Interpreter", "tactics": ["execution"]},
+    "T1078": {"name": "Valid Accounts", "tactics": ["defense-evasion", "persistence", "privilege-escalation", "initial-access"]},
+    "T1547": {"name": "Boot or Logon Autostart Execution", "tactics": ["persistence", "privilege-escalation"]},
+    "T1548": {"name": "Abuse Elevation Control Mechanism", "tactics": ["privilege-escalation", "defense-evasion"]},
+    "T1562": {"name": "Impair Defenses", "tactics": ["defense-evasion"]},
+    "T1110": {"name": "Brute Force", "tactics": ["credential-access"]},
+    "T1021": {"name": "Remote Services", "tactics": ["lateral-movement"]},
+    "T1048": {"name": "Exfiltration Over Alternative Protocol", "tactics": ["exfiltration"]},
+    "T1566": {"name": "Phishing", "tactics": ["initial-access"]},
+    "T1190": {"name": "Exploit Public-Facing Application", "tactics": ["initial-access"]},
+    "T1571": {"name": "Non-Standard Port", "tactics": ["command-and-control"]},
+    "T1071": {"name": "Application Layer Protocol", "tactics": ["command-and-control"]},
+    "T1027": {"name": "Obfuscated Files or Information", "tactics": ["defense-evasion"]},
+    "T1003": {"name": "OS Credential Dumping", "tactics": ["credential-access"]},
+    "T1036": {"name": "Masquerading", "tactics": ["defense-evasion"]},
+    "T1498": {"name": "Network Denial of Service", "tactics": ["impact"]},
+    "T1485": {"name": "Data Destruction", "tactics": ["impact"]},
+    "T1053": {"name": "Scheduled Task/Job", "tactics": ["execution", "persistence", "privilege-escalation"]},
+    "T1055": {"name": "Process Injection", "tactics": ["defense-evasion", "privilege-escalation"]},
+    "T1041": {"name": "Exfiltration Over C2 Channel", "tactics": ["exfiltration"]},
+    "T1046": {"name": "Network Service Discovery", "tactics": ["discovery"]},
+    "T1016": {"name": "System Network Configuration Discovery", "tactics": ["discovery"]},
+    "T1018": {"name": "Remote System Discovery", "tactics": ["discovery"]},
+    "T1082": {"name": "System Information Discovery", "tactics": ["discovery"]},
+    "T1555": {"name": "Credentials from Password Stores", "tactics": ["credential-access"]},
+    "T1068": {"name": "Exploitation for Privilege Escalation", "tactics": ["privilege-escalation"]},
+    "T1219": {"name": "Remote Access Software", "tactics": ["command-and-control"]},
+    "T1505": {"name": "Server Software Component", "tactics": ["persistence"]},
+    "T1543": {"name": "Create or Modify System Process", "tactics": ["persistence", "privilege-escalation"]},
+    "T1550": {"name": "Use Alternate Authentication Material", "tactics": ["defense-evasion", "lateral-movement"]},
+    "T1573": {"name": "Encrypted Channel", "tactics": ["command-and-control"]},
+    "T1047": {"name": "Windows Management Instrumentation", "tactics": ["execution"]},
+    "T1090": {"name": "Proxy", "tactics": ["command-and-control"]},
+    "T1133": {"name": "External Remote Services", "tactics": ["persistence", "initial-access"]},
+    "T1567": {"name": "Exfiltration Over Web Service", "tactics": ["exfiltration"]},
+    "T1204": {"name": "User Execution", "tactics": ["execution"]},
+    "T1210": {"name": "Exploitation of Remote Services", "tactics": ["lateral-movement"]},
+    "T1482": {"name": "Domain Trust Discovery", "tactics": ["discovery"]},
+    "T1587": {"name": "Develop Capabilities", "tactics": ["resource-development"]},
+    "T1588": {"name": "Obtain Capabilities", "tactics": ["resource-development"]},
+    "T1583": {"name": "Acquire Infrastructure", "tactics": ["resource-development"]},
+    "T1595": {"name": "Active Scanning", "tactics": ["reconnaissance"]},
+    "T1598": {"name": "Phishing for Information", "tactics": ["reconnaissance"]},
+    "T1589": {"name": "Gather Victim Identity Information", "tactics": ["reconnaissance"]},
+    "T1592": {"name": "Gather Victim Host Information", "tactics": ["reconnaissance"]},
+}
+
+
+def mitre_parent(tech_id: str) -> str:
+    """T1059.001 -> T1059 (sous-technique -> technique parente)."""
+    return str(tech_id).split(".", 1)[0]
+
+
+def mitre_technique_info(tech_id: str) -> Dict[str, Any]:
+    """Infos (nom + tactiques) d'une technique, héritées de la technique parente."""
+    base = MITRE_TECHNIQUES.get(mitre_parent(tech_id))
+    if base:
+        return {"id": tech_id, "name": base["name"], "tactics": list(base["tactics"])}
+    return {"id": tech_id, "name": tech_id, "tactics": []}
+
+
+def mitre_tactics_for(ids: Optional[List[str]]) -> List[str]:
+    """Dérive la liste des tactiques depuis les IDs de techniques (dédupliquée)."""
+    out: List[str] = []
+    for tid in (ids or []):
+        for t in mitre_technique_info(tid)["tactics"]:
+            if t not in out:
+                out.append(t)
+    return out
 
 # Mapping de sévérité par défaut (surchargé via SystemConfig section "pipeline", clé "severity_mapping")
 DEFAULT_SEVERITY_MAPPING: Dict[str, Any] = {
@@ -137,4 +212,7 @@ def build_normalized_alert(payload: Dict[str, Any], mapping: Optional[dict] = No
         "agent_id": str(payload.get("agent_id") or "")[:10] or None,
         "proto": str(payload.get("proto") or "")[:20] or None,
         "raw": payload.get("raw") or payload,
+        # R2 — propagation des champs MITRE de la règle matchée (optionnels)
+        "mitre_attack_ids": payload.get("mitre_attack_ids") or None,
+        "tactics": payload.get("tactics") or None,
     }

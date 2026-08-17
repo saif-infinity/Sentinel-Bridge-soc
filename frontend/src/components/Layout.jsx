@@ -9,7 +9,7 @@ import {
   Cpu, Clock, Zap, Lock, Network, Database, Globe, AlertTriangle,
   Volume2, VolumeX, Printer, LayoutDashboard, Monitor, Laptop, HardDrive,
   Terminal, Radio, FileText, X, LogIn, Users, Fingerprint, Settings, ScrollText,
-  FolderKanban, Crosshair, Workflow, Camera,
+  FolderKanban, Crosshair, Workflow, Camera, Target,
 } from "lucide-react";
 
 const SystemClock = memo(() => {
@@ -59,6 +59,7 @@ const NAV_ITEMS = [
     { key: "ai", icon: Cpu, path: "/ai", minRole: "analyst" },
     { key: "ai_history", icon: FileText, path: "/ai-history", minRole: "analyst" },
     { key: "rules", icon: ScrollText, path: "/rules", minRole: "admin" },
+    { key: "mitre", icon: Target, path: "/mitre", minRole: "analyst" },
   ]},
   { group: "case_management", items: [
     { key: "cases", icon: FolderKanban, path: "/cases", minRole: "viewer" },

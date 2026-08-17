@@ -196,6 +196,7 @@ def _create_alert_row(db, payload: dict, source: str, normalized_severity: int) 
         ts = _dp.isoparse(ts) if ts else datetime.now(timezone.utc)
     except Exception:
         ts = datetime.now(timezone.utc)
+    processed_at = datetime.now(timezone.utc)
     desc = str(payload.get("description") or payload.get("signature") or "Alerte")[:500]
     if source == "suricata":
         row = SuricataAlert(
@@ -209,6 +210,7 @@ def _create_alert_row(db, payload: dict, source: str, normalized_severity: int) 
             severity=int(payload.get("severity") or 3),
             normalized_severity=normalized_severity,
             pipeline_source=source,
+            pipeline_processed_at=processed_at,
             payload=json.dumps(payload.get("raw") or payload, ensure_ascii=False, default=str)[:3000] or None,
         )
     else:
@@ -221,6 +223,7 @@ def _create_alert_row(db, payload: dict, source: str, normalized_severity: int) 
             agent_id=str(payload.get("agent_id") or "")[:10] or None,
             normalized_severity=normalized_severity,
             pipeline_source=source,
+            pipeline_processed_at=processed_at,
         )
     db.add(row)
     db.commit()
@@ -234,6 +237,7 @@ def _mark_normalized(db, source: str, alert_id: int, normalized_severity: int):
     if row is not None:
         row.normalized_severity = normalized_severity
         row.pipeline_source = source
+        row.pipeline_processed_at = datetime.now(timezone.utc)
         db.commit()
 
 

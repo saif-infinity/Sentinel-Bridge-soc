@@ -6,10 +6,11 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from .suricata import receive_suricata_alert
+from ...application.normalization import map_wazuh, to_pipeline_payload
+from ...application.pipeline import ingest_alert
 from ...auth import get_api_key_or_jwt
 from ...core.broadcaster import broadcaster
-from ...db import get_db
-from ...models import Alert
+from ...db import get_db, get_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -24,42 +25,28 @@ router.add_api_route("/webhook", receive_suricata_alert, methods=["POST"])
 async def wazuh_webhook(request: Request, db: Session = Depends(get_db)):
     try:
         data = await request.json()
-        rule = data.get("rule", {})
-        
-        ts_str = data.get("timestamp", datetime.now(timezone.utc).isoformat())
-        ts = dateutil.parser.isoparse(ts_str) if ts_str else datetime.now(timezone.utc)
-        desc_text = rule.get("description", "Wazuh Alert")
 
-        exists = db.query(Alert).filter(
-            Alert.description == desc_text,
-            Alert.timestamp == ts
-        ).first()
-        if exists:
-            return {"status": "duplicate", "id": exists.id}
+        # R1 — Normalisation canonique (ECS-like) puis pipeline unique :
+        # le pipeline crée la ligne Alert, déduplique, normalise la sévérité
+        # et évalue les règles. Pas de double-écriture ici.
+        canonical = map_wazuh(data)
+        canonical["tenant_id"] = get_tenant_id(request)
+        payload = to_pipeline_payload(canonical, source="wazuh")
+        result = ingest_alert(payload, db=db)
 
-        new_alert = Alert(
-            timestamp=ts,
-            description=desc_text[:500],
-            severity=min(int(rule.get("level", 0)), 15),
-            src_ip=str(data.get("agent", {}).get("ip", "0.0.0.0"))[:45],
-            agent_id=str(data.get("agent", {}).get("id", "Unknown"))[:10]
-        )
-        db.add(new_alert)
-        db.commit()
-        db.refresh(new_alert)
-
-        alert_pkg = {
-            "Timestamp": ts.isoformat(),
-            "Description": new_alert.description,
-            "Severity": new_alert.severity,
-            "Source IP": new_alert.src_ip,
-            "Agent ID": new_alert.agent_id,
-            "MAC Address": "Auto-Detect",
-            "Employee Name": "System Incident",
-            "Department": "SOC Managed"
-        }
-        await broadcaster.broadcast({"type": "alerts_update", "data": [alert_pkg]})
-        return {"status": "saved", "id": new_alert.id}
+        if result.get("status") == "accepted":
+            alert_pkg = {
+                "Timestamp": canonical.get("@timestamp") or datetime.now(timezone.utc).isoformat(),
+                "Description": canonical.get("description") or "Wazuh Alert",
+                "Severity": canonical.get("severity") or 0,
+                "Source IP": canonical.get("src_ip") or "0.0.0.0",
+                "Agent ID": canonical.get("agent_id") or "Unknown",
+                "MAC Address": "Auto-Detect",
+                "Employee Name": "System Incident",
+                "Department": "SOC Managed"
+            }
+            await broadcaster.broadcast({"type": "alerts_update", "data": [alert_pkg]})
+        return {"status": result.get("status", "accepted"), "id": result.get("alert_id")}
     except Exception as e:
         logger.error("Wazuh webhook error: %s", e)
         return {"status": "error", "message": "Internal processing error"}

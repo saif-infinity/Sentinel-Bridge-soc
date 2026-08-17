@@ -7,8 +7,9 @@ from ...db import get_db, get_tenant_id, query_with_tenant
 from ...models import SuricataAlert
 from ...schemas import SuricataAlertRead
 from ...auth import get_api_key_or_jwt
+from ...application.normalization import map_suricata, to_pipeline_payload
+from ...application.pipeline import ingest_alert
 from typing import List, Optional
-from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,7 @@ async def receive_suricata_alert(request: Request, db: Session = Depends(get_db)
     if not isinstance(payload_data, list):
         payload_data = [payload_data]
         
+    tenant_id = get_tenant_id(request)
     alerts_added = 0
     for original_data in payload_data:
         if not isinstance(original_data, dict):
@@ -87,19 +89,7 @@ async def receive_suricata_alert(request: Request, db: Session = Depends(get_db)
                 pass
                 
         event_type = data.get("event_type", "unknown")
-        alert_data = data.get("alert", {})
         
-        # Safely parse timestamp
-        ts_str = data.get("timestamp", "")
-        try:
-            if ts_str.endswith("Z"):
-                ts_str = ts_str.replace("Z", "+00:00")
-            elif len(ts_str) > 5 and ts_str[-5] in ("+", "-") and ":" not in ts_str[-5:]:
-                ts_str = ts_str[:-2] + ":" + ts_str[-2:]
-            ts = datetime.fromisoformat(ts_str)
-        except Exception:
-            ts = datetime.now(timezone.utc)
-            
         # Simplify huge payloads to avoid truncation (which breaks JSON.parse in frontend)
         if event_type == "stats" and "stats" in data:
             s = data["stats"]
@@ -117,56 +107,21 @@ async def receive_suricata_alert(request: Request, db: Session = Depends(get_db)
                     "flow": {"total": s.get("flow", {}).get("total", 0), "active": s.get("flow", {}).get("active", 0)},
                 }
             }
-        
-        # Safely get payload
+
+        # R1 — Normalisation canonique (ECS-like) puis pipeline unique :
+        # le pipeline crée la ligne SuricataAlert, déduplique, normalise la
+        # sévérité et évalue les règles. Pas de double-écriture ici.
+        canonical = map_suricata(data)
+        canonical["tenant_id"] = tenant_id
+        payload = to_pipeline_payload(canonical, source="suricata")
         try:
-            payload_str = json.dumps(data)
+            ingest_alert(payload, db=db)
+            alerts_added += 1
         except Exception as e:
-            logger.error(f"Error serializing payload: {e}")
-            payload_str = str(data)
-            
-        if len(payload_str) > 2000:
-            payload_str = payload_str[:1997] + "..."
-
-        # Safely get alert_msg
-        alert_msg = alert_data.get("signature", "")
-        if not alert_msg:
-            alert_msg = f"Suricata {event_type.upper()} Log"
-        alert_msg = str(alert_msg)[:255]
-        
-        # Safely get ips
-        src_ip = data.get("src_ip", "")[:45] if data.get("src_ip") else None
-        dest_ip = data.get("dest_ip", "")[:45] if data.get("dest_ip") else None
-        proto = data.get("proto", "")[:20] if data.get("proto") else None
-        
-        severity = alert_data.get("severity", 0)
-        try:
-            severity = int(severity)
-        except (ValueError, TypeError):
-            severity = 0
-
-        new_alert = SuricataAlert(
-            timestamp=ts,
-            event_type=event_type,
-            src_ip=src_ip,
-            dest_ip=dest_ip,
-            proto=proto,
-            alert_msg=alert_msg,
-            severity=severity,
-            payload=payload_str,
-            tenant_id=get_tenant_id(request)
-        )
-        db.add(new_alert)
-        alerts_added += 1
+            logger.error("Suricata webhook: pipeline ingest échoué: %s", e)
             
     if alerts_added > 0:
-        try:
-            db.commit()
-            return {"status": "success", "alerts_processed": alerts_added}
-        except Exception as e:
-            db.rollback()
-            logger.error("Database Error in webhook: %s", e)
-            return {"status": "error", "message": "Database insertion error"}
+        return {"status": "success", "alerts_processed": alerts_added}
             
     # For debugging, let's see what we are ignoring
     for original_data in payload_data:

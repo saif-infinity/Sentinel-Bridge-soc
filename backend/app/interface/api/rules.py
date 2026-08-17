@@ -12,7 +12,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ...application.rules.engine import invalidate_rules_cache, visible_rules
-from ...application.rules.evaluator import build_normalized_alert, evaluate_conditions
+from ...application.rules.evaluator import (
+    build_normalized_alert,
+    evaluate_conditions,
+    mitre_parent,
+    mitre_tactics_for,
+    mitre_technique_info,
+)
 from ...auth import get_api_key_or_jwt, has_scopes_or_api_key
 from ...db import get_db, get_tenant_id
 from ...domain.rule_models import Rule, RuleMatchOutbox
@@ -34,6 +40,8 @@ class CorrelationModel(BaseModel):
     sequence: List[int] = Field(default_factory=list, description="Indices des conditions, ordre attendu")
     require_same_src: bool = False
     require_same_dest: bool = False
+    count: Optional[int] = Field(None, ge=1, description="R13 — seuil d'agrégat : déclenche après N matches dans la fenêtre")
+    threshold_window_seconds: Optional[int] = Field(None, ge=1, description="R13 — fenêtre du seuil (défaut = window_seconds)")
 
 
 class RuleCreate(BaseModel):
@@ -45,6 +53,8 @@ class RuleCreate(BaseModel):
     conditions: List[ConditionModel] = Field(default_factory=list)
     correlation: Optional[CorrelationModel] = None
     action_flags: dict = Field(default_factory=dict)
+    mitre_attack_ids: List[str] = Field(default_factory=list, description="R2 — IDs MITRE ATT&CK (ex: T1059.001)")
+    tactics: List[str] = Field(default_factory=list, description="R2 — tactiques dérivées des IDs")
 
 
 class RuleUpdate(BaseModel):
@@ -56,6 +66,8 @@ class RuleUpdate(BaseModel):
     conditions: Optional[List[ConditionModel]] = None
     correlation: Optional[CorrelationModel] = None
     action_flags: Optional[dict] = None
+    mitre_attack_ids: Optional[List[str]] = None
+    tactics: Optional[List[str]] = None
 
 
 class RuleTestRequest(BaseModel):
@@ -83,6 +95,8 @@ def _rule_to_dict(rule: Rule) -> dict:
         "conditions": _loads(rule.conditions, "[]"),
         "correlation": _loads(rule.correlation, "{}"),
         "action_flags": _loads(rule.action_flags, "{}"),
+        "mitre_attack_ids": _loads(rule.mitre_attack_ids, "[]"),
+        "tactics": _loads(rule.tactics, "[]"),
         "created_at": rule.created_at.isoformat() if rule.created_at else None,
         "updated_at": rule.updated_at.isoformat() if rule.updated_at else None,
     }
@@ -106,6 +120,10 @@ def _write_rule(db, rule: Rule, data: dict) -> Rule:
         rule.correlation = json.dumps(corr, ensure_ascii=False) if corr else "{}"
     if "action_flags" in data:
         rule.action_flags = json.dumps(dict(data["action_flags"] or {}), ensure_ascii=False)
+    if "mitre_attack_ids" in data:
+        rule.mitre_attack_ids = json.dumps(list(data["mitre_attack_ids"] or []), ensure_ascii=False)
+    if "tactics" in data:
+        rule.tactics = json.dumps(list(data["tactics"] or []), ensure_ascii=False)
     db.commit()
     db.refresh(rule)
     return rule
@@ -155,6 +173,8 @@ def create_rule(body: RuleCreate, request: Request, db: Session = Depends(get_db
         correlation=json.dumps(body.correlation.model_dump(), ensure_ascii=False)
         if body.correlation else "{}",
         action_flags=json.dumps(body.action_flags, ensure_ascii=False),
+        mitre_attack_ids=json.dumps(body.mitre_attack_ids, ensure_ascii=False),
+        tactics=json.dumps(body.tactics, ensure_ascii=False),
     )
     db.add(rule)
     db.commit()
@@ -174,12 +194,20 @@ def test_rule(body: RuleTestRequest, request: Request,
     matched = evaluate_conditions(conditions, normalized)
     corr = rule_def.correlation
     corr_info = None
-    if corr and len(corr.sequence) >= 2:
-        corr_info = {
-            "configured": True,
-            "note": (f"Séquence de {len(corr.sequence)} conditions sur {corr.window_seconds}s — "
-                     f"la validation séquentielle nécessite l'historique du pipeline (corrélateur)."),
-        }
+    if corr and (len(corr.sequence) >= 2 or corr.count):
+        if corr.count:
+            corr_info = {
+                "configured": True,
+                "note": (f"Agrégat de {corr.count} matches sur "
+                         f"{corr.threshold_window_seconds or corr.window_seconds}s — "
+                         f"le déclenchement nécessite le compteur persistant (corrélateur)."),
+            }
+        else:
+            corr_info = {
+                "configured": True,
+                "note": (f"Séquence de {len(corr.sequence)} conditions sur {corr.window_seconds}s — "
+                         f"la validation séquentielle nécessite l'historique du pipeline (corrélateur)."),
+            }
     return {
         "matched": bool(conditions) and len(matched) == len(conditions),
         "matched_conditions": matched,
@@ -207,6 +235,41 @@ def recent_matches(request: Request, db: Session = Depends(get_db), limit: int =
             out.append({"event_id": row.event_id, "tenant_id": row.tenant_id,
                         "payload": row.payload})
     return out
+
+
+@router.get("/coverage")
+def mitre_coverage(request: Request, db: Session = Depends(get_db)):
+    """R2 — Couverture MITRE ATT&CK des règles ENABLED (scoping tenant).
+
+    Contrat VERROUILLÉ (consommé par le frontend MitrePage) :
+    {"tactics": {"<tactic>": {"total_rules": int,
+                              "techniques": {"<TID>": {"name": str, "rule_count": int}}}}}
+    """
+    tenant_id = get_tenant_id(request)
+    rules = (
+        db.query(Rule)
+        .filter(Rule.enabled == True)  # noqa: E712
+        .filter((Rule.tenant_id == tenant_id) | (Rule.tenant_id.is_(None)))
+        .all()
+    )
+    tactics: dict = {}
+    for rule in rules:
+        ids = _loads(rule.mitre_attack_ids, "[]")
+        if not isinstance(ids, list) or not ids:
+            continue
+        rule_tactics = _loads(rule.tactics, "[]")
+        if not isinstance(rule_tactics, list) or not rule_tactics:
+            rule_tactics = mitre_tactics_for(ids)
+        parents = {mitre_parent(t) for t in ids}
+        for tactic in rule_tactics:
+            entry = tactics.setdefault(tactic, {"total_rules": 0, "techniques": {}})
+            entry["total_rules"] += 1
+            for parent in parents:
+                info = mitre_technique_info(parent)
+                tech = entry["techniques"].setdefault(
+                    parent, {"name": info["name"], "rule_count": 0})
+                tech["rule_count"] += 1
+    return {"tactics": tactics}
 
 
 @router.get("/{rule_id}")

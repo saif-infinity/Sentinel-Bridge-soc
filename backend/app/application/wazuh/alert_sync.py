@@ -1,6 +1,4 @@
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List
 
 import httpx
 
@@ -39,17 +37,14 @@ class WazuhAlertSync:
                         self._indexer_available = True
                     
                     hits = response.json().get('hits', {}).get('hits', [])
-                    from ...models import Alert, Device, Asset
-                    import dateutil.parser
+                    from ...models import Device, Asset
+                    from ...application.pipeline import ingest_alert
+                    from ...application.normalization import map_wazuh, to_pipeline_payload
                     
                     db = db_session_factory()
                     try:
                         for hit in hits:
                             source = hit['_source']
-                            ts_str = source.get('timestamp')
-                            ts = dateutil.parser.isoparse(ts_str) if ts_str else datetime.now(timezone.utc)
-                            desc = source.get('rule', {}).get('description', 'Wazuh Security Event')
-                            sev = source.get('rule', {}).get('level', 3)
                             
                             agent_data = source.get('agent', {})
                             agent_id = agent_data.get('id', '000')
@@ -84,11 +79,19 @@ class WazuhAlertSync:
                                     asset.employee_name = os_user
                                 db.flush()
 
-                            exists = db.query(Alert).filter(Alert.description == desc, Alert.timestamp == ts).first()
-                            if not exists:
-                                # Force src_ip to be the real_ip from PC, not the alert
-                                new_alert = Alert(timestamp=ts, description=desc, severity=sev, src_ip=real_ip, agent_id=agent_id, tenant_id=tenant_id)
-                                db.add(new_alert)
+                            # R1 — Normalisation canonique (ECS-like) puis pipeline unique :
+                            # le pipeline crée la ligne Alert, déduplique, normalise la
+                            # sévérité et évalue les règles. Pas de double-écriture ici.
+                            canonical = map_wazuh(source)
+                            canonical["tenant_id"] = tenant_id
+                            payload = to_pipeline_payload(canonical, source="wazuh")
+                            # Force src_ip to be the real_ip from PC, not the alert
+                            payload["src_ip"] = real_ip
+                            payload["agent_id"] = agent_id
+                            try:
+                                ingest_alert(payload, db=db)
+                            except Exception as e:
+                                logger.warning("Wazuh Sync: ingest_alert échoué: %s", e)
                         db.commit()
                     finally:
                         db.close()

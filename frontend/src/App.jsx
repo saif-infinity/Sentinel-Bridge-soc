@@ -26,6 +26,7 @@ const AICopilotPage = lazy(() => import("./pages/AICopilotPage"));
 const AIHistoryPage = lazy(() => import("./pages/AIHistoryPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const RulesPage = lazy(() => import("./pages/RulesPage"));
+const MitrePage = lazy(() => import("./pages/MitrePage"));
 const CasesPage = lazy(() => import("./pages/CasesPage"));
 const HuntingPage = lazy(() => import("./pages/HuntingPage"));
 const PlaybooksPage = lazy(() => import("./pages/PlaybooksPage"));
@@ -124,6 +125,7 @@ function AppRoutes() {
               <Route path="/ai-history" element={<AIHistoryPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/rules" element={<RulesPage />} />
+              <Route path="/mitre" element={<MitrePage />} />
               <Route path="/cases" element={<CasesPage />} />
               <Route path="/hunting" element={<HuntingPage />} />
               <Route path="/playbooks" element={<PlaybooksPage />} />
