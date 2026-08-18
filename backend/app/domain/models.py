@@ -1,11 +1,21 @@
 import uuid
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, Index, Integer, Text, Float, LargeBinary
+from sqlalchemy import String, Boolean, DateTime, ForeignKey, Index, Integer, Text, Float, LargeBinary, PrimaryKeyConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime, timezone
 from ..db import Base
 
 def _utcnow():
     return datetime.now(timezone.utc)
+
+def _gen_id():
+    """Génère un id 31-bit unique pour les tables hypertables (composite PK (id, timestamp)).
+
+    SQLite ne supporte pas l'auto-increment sur une PK composite ; PostgreSQL non plus
+    via SQLAlchemy pour ce schéma. On génère donc côté Python un entier positif 31-bit
+    (compatible INTEGER PostgreSQL 32-bit) — la PK composite (id, timestamp) rend la
+    collision effective quasi impossible.
+    """
+    return int(uuid.uuid4().int & 0x7FFFFFFF)
 
 class Device(Base):
     __tablename__ = "devices"
@@ -34,7 +44,7 @@ Index("ix_logs_time_range", ConnectionLog.start_time, ConnectionLog.end_time)
 
 class SuricataAlert(Base):
     __tablename__ = "suricata_alerts"
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(default=_gen_id)
     tenant_id: Mapped[str] = mapped_column(String(36), index=True, default="default")
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
     event_type: Mapped[str] = mapped_column(String(50), index=True)
@@ -53,6 +63,10 @@ class SuricataAlert(Base):
     intel_verdict: Mapped[str | None] = mapped_column(String(20), nullable=True)
     intel_source: Mapped[str | None] = mapped_column(String(64), nullable=True)
     intel_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # R4 — TimescaleDB hypertable : PK composite (id, timestamp)
+    __table_args__ = (
+        PrimaryKeyConstraint("id", "timestamp"),
+    )
 
 class Asset(Base):
     __tablename__ = "assets"
@@ -67,7 +81,7 @@ class Asset(Base):
 
 class Alert(Base):
     __tablename__ = "alerts"
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(default=_gen_id)
     tenant_id: Mapped[str] = mapped_column(String(36), index=True, default="default")
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, default=_utcnow)
     description: Mapped[str] = mapped_column(String(500))
@@ -83,6 +97,10 @@ class Alert(Base):
     intel_verdict: Mapped[str | None] = mapped_column(String(20), nullable=True)
     intel_source: Mapped[str | None] = mapped_column(String(64), nullable=True)
     intel_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # R4 — TimescaleDB hypertable : PK composite (id, timestamp)
+    __table_args__ = (
+        PrimaryKeyConstraint("id", "timestamp"),
+    )
 
 class IaReport(Base):
     __tablename__ = "ia_reports"

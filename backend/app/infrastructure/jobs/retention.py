@@ -71,6 +71,9 @@ def run_retention_cleanup(db, tenant_id: str = "default", dry_run: bool = False)
                                        DEFAULT_RETENTION_CONFIG["batch_size"], tenant_id=tenant_id)))
     days = _retention_days_for(db, tenant_id)
     cutoff = datetime.now(timezone.utc) - timedelta(days=days + grace)
+    # R4: TimescaleDB compresses chunks older than 7 days — the Celery purge must
+    # only touch recent uncompressed rows; the global retention policy handles old data.
+    uncompressed_cutoff = datetime.now(timezone.utc) - timedelta(days=7)
 
     report = {
         "tenant_id": tenant_id,
@@ -83,15 +86,17 @@ def run_retention_cleanup(db, tenant_id: str = "default", dry_run: bool = False)
 
     for model, col_name, label in RETENTION_TABLES:
         col = getattr(model, col_name)
-        total = db.query(sa.func.count(model.id)).filter(
-            model.tenant_id == tenant_id, col < cutoff).scalar() or 0
+        # R4: Skip compressed chunks for hypertable candidates (TimescaleDB handles old data)
+        extra_filters = [model.tenant_id == tenant_id, col < cutoff]
+        if model in (Alert, SuricataAlert):
+            extra_filters.append(col >= uncompressed_cutoff)
+        total = db.query(sa.func.count(model.id)).filter(*extra_filters).scalar() or 0
         if dry_run or total == 0:
             report["deleted"][label] = total
             continue
         deleted = 0
         while True:
-            ids = [r[0] for r in db.query(model.id).filter(
-                model.tenant_id == tenant_id, col < cutoff).limit(batch).all()]
+            ids = [r[0] for r in db.query(model.id).filter(*extra_filters).limit(batch).all()]
             if not ids:
                 break
             db.execute(sa.delete(model).where(model.id.in_(ids)))

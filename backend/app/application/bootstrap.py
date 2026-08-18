@@ -38,6 +38,11 @@ async def run_startup():
     from . import pipeline as pipeline_module
     from ..infrastructure.jobs import retention as retention_module
     pipeline_module.ensure_columns(engine)
+
+    # R4 — TimescaleDB hypertables (PostgreSQL only, idempotent)
+    from ..infrastructure.timescale import ensure_timescaledb
+    ensure_timescaledb(engine)
+
     db = SessionLocal()
     try:
         pipeline_module.ensure_defaults(db)

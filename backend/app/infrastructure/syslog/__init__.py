@@ -1,0 +1,1 @@
+"""R10 — Syslog agentless ingestion (UDP/TCP receiver → Redis Stream → Celery)."""

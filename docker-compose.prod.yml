@@ -51,12 +51,13 @@ services:
       - no-new-privileges:true
 
   postgres:
-    image: postgres:16
+    image: timescale/timescaledb:2.29.1-pg16
     container_name: sentinel-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: postgres
+      TIMESCALEDB_TELEMETRY: "off"
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
@@ -86,11 +87,31 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  syslog:
+    build: ./backend
+    container_name: sentinel-syslog
+    command: python -m app.infrastructure.syslog.server
+    env_file:
+      - ./backend/.env
+    environment:
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - SYSLOG_HOST=0.0.0.0
+      - SYSLOG_PORT=1514
+      - SYSLOG_DEFAULT_TENANT=default
+    ports:
+      - "1514:1514/udp"
+      - "1514:1514/tcp"
+    depends_on:
+      - redis
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+
   wazuh:
     build: ./wazuh
     container_name: sentinel-wazuh
     ports:
-      - "1514:1514/udp"
       - "1515:1515/tcp"
       - "55000:55000/tcp"
     volumes:

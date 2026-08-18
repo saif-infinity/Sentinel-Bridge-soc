@@ -10,6 +10,7 @@ payload inconnu). `to_pipeline_payload()` convertit le canonique vers le
 payload attendu par `ingest_alert()` (pipeline.py).
 """
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
@@ -133,13 +134,52 @@ def map_generic(raw: dict) -> Dict[str, Any]:
     }
 
 
+def map_syslog(raw: dict) -> Dict[str, Any]:
+    """Syslog (RFC 5424/3164, agentless) → canonique.
+
+    Entrée : dict produit par app.infrastructure.syslog.protocol.parse_syslog()
+    enrichi par le receiver (source_ip, tenant_id).
+    """
+    if not isinstance(raw, dict):
+        return {}
+    c = {k: None for k in CANONICAL_KEYS}
+    c["@timestamp"] = _get(raw, "timestamp") or datetime.now(timezone.utc).isoformat()
+    c["event.kind"] = "alert"
+    c["event.category"] = "network"
+    c["event.type"] = "info"
+    c["description"] = _get(raw, "message")
+    c["src_ip"] = _get(raw, "source_ip")
+
+    # Severity: syslog severity 0-7 → our normalized scale
+    sev = _get(raw, "severity")
+    if sev is not None:
+        try:
+            sev_int = int(sev)
+            # Map syslog severity (0=crit, 7=debug) to 1-15 scale
+            mapping = {0: 15, 1: 13, 2: 11, 3: 9, 4: 7, 5: 5, 6: 3, 7: 1}
+            c["severity"] = mapping.get(sev_int, 5)
+        except (ValueError, TypeError):
+            c["severity"] = 5
+
+    c["agent_id"] = _get(raw, "appname")
+    c["host"] = {"name": _get(raw, "hostname"), "ip": _get(raw, "source_ip")}
+    c["payload"] = raw.get("message")
+
+    # Proto: default to "syslog"
+    c["proto"] = "syslog"
+
+    return c
+
+
 def normalize_event(raw: dict, source: str) -> Dict[str, Any]:
-    """Dispatche vers le mapper de la source (suricata | wazuh | générique)."""
+    """Dispatche vers le mapper de la source (suricata | wazuh | syslog | générique)."""
     src = (source or "generic").lower()
     if src == "suricata":
         return map_suricata(raw)
     if src == "wazuh":
         return map_wazuh(raw)
+    if src == "syslog":
+        return map_syslog(raw)
     return map_generic(raw)
 
 
