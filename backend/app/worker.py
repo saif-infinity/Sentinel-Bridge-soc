@@ -9,3 +9,4 @@ from .application.rules import tasks as rules_tasks  # noqa: F401  # enregistre 
 from .infrastructure.jobs import soar_tasks  # noqa: F401
 from .infrastructure.jobs import intel_tasks  # noqa: F401
 from .infrastructure.jobs import syslog_process  # noqa: F401
+from .infrastructure.jobs import notification_tasks  # noqa: F401

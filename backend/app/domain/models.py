@@ -287,3 +287,35 @@ class Hunt(Base):
     last_run_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     last_run_duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+# ── R3 — Notifications : canaux + déduplication ──
+
+class NotificationChannel(Base):
+    """Canal de notification (email/webhook/telegram/slack) configuré par tenant.
+
+    config = JSON chiffré (Fernet) ; les clés secrètes finissent par "_secret".
+    """
+    __tablename__ = "notification_channels"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True, default="default")
+    name: Mapped[str] = mapped_column(String(100))
+    channel_type: Mapped[str] = mapped_column(String(20), index=True)
+    config: Mapped[str] = mapped_column(Text, default="{}")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    rate_limit_per_minute: Mapped[int] = mapped_column(Integer, default=10)
+    dedup_window_seconds: Mapped[int] = mapped_column(Integer, default=300)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+    __table_args__ = (Index("ix_channels_tenant_name", "tenant_id", "name", unique=True),)
+
+
+class NotificationDedup(Base):
+    """Empreinte de notification déjà envoyée (fenêtre de déduplication par canal)."""
+    __tablename__ = "notification_dedup"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True, default="default")
+    fingerprint: Mapped[str] = mapped_column(String(64), index=True)
+    channel_id: Mapped[int] = mapped_column(Integer, index=True)
+    first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
+    __table_args__ = (Index("ix_dedup_fp_channel", "fingerprint", "channel_id", unique=True),)

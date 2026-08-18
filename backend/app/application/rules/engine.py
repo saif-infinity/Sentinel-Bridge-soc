@@ -153,6 +153,14 @@ def evaluate_normalized_alert(normalized: Dict[str, Any],
                 enriched["mitre_attack_ids"] = _dedupe(mitre_ids)
             if tactics:
                 enriched["tactics"] = _dedupe(tactics)
+            # R3 — Notification dispatch (thin: DB read + Celery .delay() only)
+            try:
+                from ...infrastructure.notifications.dispatch import dispatch_notifications
+                import uuid as _uuid
+                _event_id = str(_uuid.uuid4())
+                dispatch_notifications(tenant_id, matched, normalized, _event_id)
+            except Exception as e:
+                logger.warning("Notification dispatch failed: %s", e)
             event = make_rule_match_event(tenant_id, enriched, matched, source=source)
             event_bus.publish_sync(CHANNEL_RULE_MATCH, event)
         return matched, len(matched)

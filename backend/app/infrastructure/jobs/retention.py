@@ -16,6 +16,7 @@ from ...domain.models import (
 )
 from ...domain.pipeline_models import PipelineEvent
 from ...domain.rule_models import RuleMatchOutbox
+from ..notifications.dedup import prune_dedup
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +107,12 @@ def run_retention_cleanup(db, tenant_id: str = "default", dry_run: bool = False)
                 break
         report["deleted"][label] = deleted
         logger.info("Rétention %s/%s: %d ligne(s) purgée(s)", tenant_id, label, deleted)
+    # R3 — Purge des entrées de déduplication des notifications (24h)
+    try:
+        report["dedup_pruned"] = prune_dedup(db, max_age_hours=24)
+    except Exception as e:
+        logger.warning("Prune dedup notifications échoué: %s", e)
+        report["dedup_pruned"] = 0
     return report
 
 

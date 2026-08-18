@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     THREAT_INTEL_CACHE_TTL_SECONDS: int = 3600
     THREAT_INTEL_TIMEOUT_SECONDS: int = 10
 
+    # R3 — Notifications : clé Fernet pour chiffrer les configs de canaux.
+    # Vide => fallback déterministe dérivé de JWT_SECRET_KEY (dev/tests).
+    NOTIFICATION_ENCRYPTION_KEY: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 settings = Settings()

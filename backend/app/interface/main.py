@@ -41,6 +41,7 @@ from .api.cases import router as cases_router
 from .api.hunts import router as hunts_router
 from .api.playbooks import router as playbooks_router
 from .api.intel import router as intel_router
+from .api.exports import router as exports_router
 from .api.auth import me_router
 from .middleware.action_log import ActionLogMiddleware
 from .middleware.tenant import TenantMiddleware
@@ -114,6 +115,7 @@ app.include_router(cases_router)
 app.include_router(hunts_router)
 app.include_router(playbooks_router)
 app.include_router(intel_router)
+app.include_router(exports_router)
 
 # ────────────────────────────────────────────────────────────────────
 # F4 — RBAC: apply role guards to every router (runs at import time,
