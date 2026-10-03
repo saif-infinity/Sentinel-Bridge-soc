@@ -891,6 +891,16 @@ Contributions are welcome! Please follow these guidelines:
 
 ---
 
+
+
+## 🔗 Project Links & Portfolio
+
+- **GitHub Repository**: [projet-soc-ips-siem-xdr-](https://github.com/saif-infinity/projet-soc-ips-siem-xdr-)
+- **Portfolio (Project Showcase)**: [View Project on Portfolio](https://saif-infinity.github.io/portfolio/projects/sentinel-bridge-soc-ips-siem-xdr)
+- **Live Demo** *(if available)*: [Demo Link](#) — *To be added later*
+
+---
+
 ## 📄 License
 
 This project is part of an academic/professional PFE (End-of-Study Project). Please check with the repository owner regarding licensing terms.
