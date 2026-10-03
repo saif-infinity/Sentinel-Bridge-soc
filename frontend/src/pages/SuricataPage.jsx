@@ -1,13 +1,104 @@
-import { useState } from "react";
-import { Activity, ShieldAlert } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Activity, ShieldAlert, Settings, Lock } from "lucide-react";
 import { useData } from "../contexts/DataContext";
+import { useAuth } from "../contexts/AuthContext";
 import { formatSuricataDetails } from "../lib/formatters";
+import SourceConfigWizard from "../components/SourceConfigWizard";
 
 export default function SuricataPage() {
   const { suricataAlerts } = useData();
+  const { fetchWithAuth, headers, hasRole } = useAuth();
+  const canEdit = hasRole ? hasRole("analyst") : false;
   const [srcFilter, setSrcFilter] = useState("");
   const [destFilter, setDestFilter] = useState("");
   const [sort, setSort] = useState({ key: "timestamp", dir: "desc" });
+  const [gate, setGate] = useState({ enabled: null, configured: null, loading: true });
+  const [wizard, setWizard] = useState({ open: false });
+
+  const fetchGate = useCallback(async () => {
+    try {
+      const res1 = await fetchWithAuth("/api/settings/sources", { headers, silent: true });
+      let enabled = null;
+      if (res1.ok) {
+        const d1 = await res1.json();
+        enabled = typeof d1.suricata === "boolean" ? d1.suricata : false;
+      } else if (res1.status === 404) {
+        enabled = true; // dégradé: backend pas à jour -> ne pas bloquer
+      }
+      const res2 = await fetchWithAuth("/api/settings/sources/config", { headers, silent: true });
+      let configured = null;
+      if (res2.ok) {
+        const d2 = await res2.json();
+        configured = d2.suricata?.configured === true;
+      } else if (res2.status === 404) {
+        configured = true; // dégradé
+      } else if (res2.status === 403) {
+        configured = false;
+      }
+      // si 404 dégradé on considère non-bloquant
+      if (enabled === null && configured === null) {
+        setGate({ enabled: true, configured: true, loading: false });
+      } else {
+        setGate({ enabled: enabled ?? true, configured: configured ?? true, loading: false });
+      }
+    } catch {
+      setGate({ enabled: true, configured: true, loading: false });
+    }
+  }, [fetchWithAuth, headers]);
+
+  useEffect(() => {
+    fetchGate();
+  }, [fetchGate]);
+
+  const blocked = !gate.loading && (!gate.enabled || !gate.configured);
+
+  if (blocked) {
+    return (
+      <div className="tab-pane animate-fade-in" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+        <div className="section-card" style={{ padding: "40px 24px", textAlign: "center", maxWidth: "560px", margin: "40px auto", width: "100%" }}>
+          <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.2)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+            <Settings size={22} color="var(--accent-cyan)" />
+          </div>
+          <h3 style={{ margin: 0, fontSize: "16px", color: "var(--text-main)" }}>Source Suricata non configurée</h3>
+          <p style={{ fontSize: "13px", color: "var(--text-muted)", margin: "8px 0 0 0", lineHeight: 1.5 }}>
+            {!gate.enabled ? "La source Suricata est désactivée." : "La source Suricata n'est pas configurée (méthode et identifiants manquants)."}
+            <br /> Configurez la source pour afficher les événements Suricata.
+          </p>
+          <div style={{ display: "flex", gap: "10px", justifyContent: "center", marginTop: "18px", flexWrap: "wrap" }}>
+            <button
+              onClick={() => canEdit && setWizard({ open: true })}
+              disabled={!canEdit}
+              title={canEdit ? "Ouvrir le paramétrage" : "Nécessite un compte analyste"}
+              style={{
+                padding: "8px 16px",
+                background: canEdit ? "rgba(56,189,248,0.9)" : "rgba(255,255,255,0.08)",
+                color: canEdit ? "#fff" : "var(--text-muted)",
+                border: "1px solid var(--border)",
+                borderRadius: "8px",
+                cursor: canEdit ? "pointer" : "not-allowed",
+                fontSize: "13px",
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              {!canEdit && <Lock size={12} />} Configurer Suricata
+            </button>
+            {!gate.enabled && (
+              <span style={{ fontSize: "12px", color: "var(--text-muted)", alignSelf: "center" }}>ou activez-la depuis le dashboard</span>
+            )}
+          </div>
+          {!canEdit && (
+            <div style={{ marginTop: "12px", fontSize: "12px", color: "var(--text-muted)", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+              <Lock size={12} /> Lecture seule — compte analyste requis pour configurer.
+            </div>
+          )}
+        </div>
+        <SourceConfigWizard open={wizard.open} source="suricata" onClose={() => setWizard({ open: false })} onSuccess={() => { setWizard({ open: false }); fetchGate(); }} />
+      </div>
+    );
+  }
 
   const eventTypes = ["alert", "flow", "http", "dns", "tls", "ssh", "fileinfo", "unknown"];
 

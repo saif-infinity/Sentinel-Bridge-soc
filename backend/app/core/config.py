@@ -50,15 +50,45 @@ class Settings(BaseSettings):
     SUPER_ADMIN_API_KEY: SecretStr = SecretStr("")
     SUPER_ADMIN_PASSWORD: SecretStr = SecretStr("")
 
-    THREAT_INTEL_ENABLED: bool = False
+    # ── Source toggles (default: host-agent enabled, Wazuh/Suricata off) ──
+    ENABLE_HOST_AGENT_SOURCE: bool = True
+    ENABLE_WAZUH_SOURCE: bool = False
+    ENABLE_SURICATA_SOURCE: bool = False
+
+    THREAT_INTEL_ENABLED: bool = True
     THREAT_INTEL_PROVIDER: str = "abuseipdb"
     THREAT_INTEL_API_KEY: SecretStr = SecretStr("")
     THREAT_INTEL_CACHE_TTL_SECONDS: int = 3600
     THREAT_INTEL_TIMEOUT_SECONDS: int = 10
 
+    # Inscription : l'analyste attend l'approbation admin avant d'entrer.
+    # False → register crée le compte immédiatement (ancien comportement).
+    REGISTRATION_REQUIRES_APPROVAL: bool = True
+
+    # Rate-limit login (/auth/token) : max tentatives par fenêtre, par IP.
+    # Dev partage 127.0.0.1 entre tous les users → seuil plus permissif.
+    AUTH_LOGIN_RATE_LIMIT_MAX: int = 10
+    AUTH_LOGIN_RATE_LIMIT_WINDOW: int = 60
+
     # R3 — Notifications : clé Fernet pour chiffrer les configs de canaux.
     # Vide => fallback déterministe dérivé de JWT_SECRET_KEY (dev/tests).
     NOTIFICATION_ENCRYPTION_KEY: str = ""
+
+    # ── HF Router LLM config ──
+    HF_ROUTER_URL: str = "https://router.huggingface.co/v1"
+    HF_MODEL: str = "meta-llama/Llama-3.1-70B-Instruct:featherless-ai"
+    HF_TOKEN: str = ""
+
+    # ── AI Auto-Analyse defaults (ai_auto section) ──
+    AI_AUTO_DEFAULTS: dict = Field(default_factory=lambda: {
+        "enabled": False,
+        "threshold": 8,
+        "send_count": 10,
+        "severity_min": 8,
+        "window_minutes": 60,
+        "model": "meta-llama/Llama-3.1-70B-Instruct:featherless-ai",
+        "url": "https://router.huggingface.co/v1",
+    })
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

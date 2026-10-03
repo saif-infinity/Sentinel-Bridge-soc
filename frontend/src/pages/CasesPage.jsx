@@ -1,7 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Plus, Trash2, Edit, FolderKanban, X, Save, ChevronLeft, Link2, Search,
-  XCircle,
+  XCircle, FileSearch, ChevronDown, ChevronUp, Check, Minus, AlertTriangle,
+  ShieldAlert, Lightbulb, Layers,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useData } from "../contexts/DataContext";
@@ -31,9 +32,38 @@ const pillClass = (status) => {
   }
 };
 
+const riskPillClass = (lvl) => {
+  switch (lvl) {
+    case "critical": return "bg-red-500/10 text-red-400 border border-red-500/20";
+    case "high": return "bg-orange-500/10 text-orange-400 border border-orange-500/20";
+    case "medium": return "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20";
+    case "low": return "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+    default: return "bg-gray-500/10 text-gray-400 border border-gray-500/20";
+  }
+};
+
+const INV_STATUS_LABEL = {
+  queued: "En file d'attente",
+  running: "En cours",
+  scoring: "Évaluation",
+  summarizing: "Rédaction",
+  awaiting_response: "Action requise",
+  complete: "Terminée",
+  cancelled: "Annulée",
+  failed: "Échouée",
+};
+
+const invStatusPill = (s) => {
+  if (s === "awaiting_response") return "bg-amber-500/15 text-amber-400 border border-amber-500/30 ring-1 ring-amber-400/20";
+  if (s === "failed" || s === "cancelled") return "bg-red-500/10 text-red-400 border border-red-500/20";
+  if (s === "complete") return "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+  if (s === "running" || s === "scoring" || s === "summarizing") return "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20";
+  return "bg-gray-500/10 text-gray-400 border border-gray-500/20";
+};
+
 export default function CasesPage() {
   const { fetchWithAuth } = useAuth();
-  const { cases, caseStats, refreshCases, refreshCaseStats } = useData();
+  const { cases, caseStats, refreshCases, refreshCaseStats, investigations } = useData();
 
   const [view, setView] = useState("list"); // "list" | "detail"
   const [selectedId, setSelectedId] = useState(null);
@@ -57,6 +87,10 @@ export default function CasesPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
 
+  const [invEvidence, setInvEvidence] = useState({});
+  const [invRecs, setInvRecs] = useState({});
+  const [evidenceOpen, setEvidenceOpen] = useState({});
+
   const loadDetail = useCallback(async (caseId) => {
     try {
       const [caseRes, linksRes, tlRes] = await Promise.all([
@@ -77,6 +111,31 @@ export default function CasesPage() {
     setView("detail");
     loadDetail(caseId);
   };
+
+  // investigations liées au case ouvert
+  const matchedInvestigations = (investigations || []).filter((inv) => inv.case_id === (detail?.id ?? selectedId));
+
+  useEffect(() => {
+    if (view !== "detail" || matchedInvestigations.length === 0) return;
+    matchedInvestigations.forEach(async (inv) => {
+      if (invEvidence[inv.id] || invRecs[inv.id]) return;
+      try {
+        const [evRes, recRes] = await Promise.all([
+          fetchWithAuth(`/api/investigations/${inv.id}/evidence?limit=100`, { silent: true }),
+          fetchWithAuth(`/api/investigations/${inv.id}/recommendations?limit=100`, { silent: true }),
+        ]);
+        if (evRes?.ok) {
+          const data = await evRes.json();
+          setInvEvidence((prev) => ({ ...prev, [inv.id]: data.items || [] }));
+          setEvidenceOpen((prev) => (prev[inv.id] !== undefined ? prev : { ...prev, [inv.id]: true }));
+        }
+        if (recRes?.ok) {
+          const data = await recRes.json();
+          setInvRecs((prev) => ({ ...prev, [inv.id]: data.items || [] }));
+        }
+      } catch {}
+    });
+  }, [view, detail?.id, selectedId, investigations, fetchWithAuth]);
 
   const backToList = () => {
     setView("list");
@@ -488,6 +547,102 @@ export default function CasesPage() {
           </div>
         </div>
       )}
+
+      {/* Enquête automatique — liée à ce case */}
+      {matchedInvestigations.length > 0 && matchedInvestigations.map((inv) => {
+        const isFailed = inv.status === "failed" || inv.status === "cancelled";
+        const evList = invEvidence[inv.id] || [];
+        const recList = invRecs[inv.id] || [];
+        const open = evidenceOpen[inv.id] ?? true;
+        return (
+          <div key={inv.id} className={`rounded-lg p-4 border ${isFailed ? "bg-red-950/20 border-red-900/40" : "bg-gray-900 border-gray-800"}`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="flex items-center gap-1.5 text-sm font-semibold text-gray-200">
+                <FileSearch size={16} className="text-emerald-400" /> Enquête automatique
+                <span className="text-xs font-normal text-gray-500">#{inv.id} · {inv.trigger_alert_type}#{inv.trigger_alert_id}</span>
+              </span>
+              {inv.risk_level && (
+                <span className={`status-pill ${riskPillClass(inv.risk_level)}`}>
+                  {inv.risk_level === "critical" ? "Critique" : inv.risk_level === "high" ? "Élevé" : inv.risk_level === "medium" ? "Moyen" : inv.risk_level === "low" ? "Faible" : inv.risk_level}
+                </span>
+              )}
+              {inv.risk_score != null && (
+                <span className={`text-sm font-bold ${inv.risk_level === "critical" ? "text-red-400" : inv.risk_level === "high" ? "text-orange-400" : inv.risk_level === "medium" ? "text-yellow-400" : inv.risk_level === "low" ? "text-emerald-400" : "text-gray-400"}`}>
+                  {inv.risk_score}/100
+                </span>
+              )}
+              <span className={`status-pill ${invStatusPill(inv.status)}`}>{INV_STATUS_LABEL[inv.status] || inv.status}</span>
+              {inv.completion === "partial" && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">partielle</span>
+              )}
+            </div>
+            {isFailed ? (
+              <div className="mt-3 flex items-center gap-2 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded px-3 py-2">
+                <AlertTriangle size={14} /> Enquête {inv.status === "cancelled" ? "annulée" : "échouée"} — voir les journaux système.
+              </div>
+            ) : (
+              <>
+                {inv.summary && (
+                  <p className="mt-3 text-sm text-gray-300 leading-relaxed">{inv.summary}</p>
+                )}
+                {!inv.summary && inv.status !== "failed" && (
+                  <p className="mt-2 text-xs text-gray-500 italic">Résumé en cours de génération…</p>
+                )}
+                {/* Preuves */}
+                <div className="mt-4">
+                  <button
+                    onClick={() => setEvidenceOpen((p) => ({ ...p, [inv.id]: !open }))}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-gray-200"
+                  >
+                    <Layers size={12} /> Preuves ({evList.length})
+                    {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                  </button>
+                  {open && (
+                    <div className="mt-2 space-y-1">
+                      {evList.length === 0 ? (
+                        <div className="text-xs text-gray-500">Collecte en cours…</div>
+                      ) : evList.map((ev) => (
+                        <div key={ev.id || ev.step_key} className="flex items-start gap-2 text-xs bg-gray-800/50 border border-gray-800 rounded px-2.5 py-1.5">
+                          <span className={`mt-0.5 ${ev.status === "success" ? "text-emerald-400" : ev.status === "failed" ? "text-red-400" : "text-gray-500"}`}>
+                            {ev.status === "success" ? <Check size={12} /> : ev.status === "failed" ? <X size={12} /> : <Minus size={12} />}
+                          </span>
+                          <span className="font-mono text-[10px] px-1 py-0.5 rounded bg-gray-700 text-gray-300 shrink-0">{ev.evidence_type || ev.step_key}</span>
+                          <span className="text-gray-300 flex-1 leading-snug">{ev.summary || ev.source || "—"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* Recommandations */}
+                <div className="mt-4">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-400">
+                    <Lightbulb size={12} /> Recommandations ({recList.length})
+                  </div>
+                  {recList.length === 0 ? (
+                    <div className="text-xs text-gray-500 mt-1">Aucune recommandation pour l'instant.</div>
+                  ) : (
+                    <div className="mt-2 space-y-1.5">
+                      {recList.map((rec) => (
+                        <div key={rec.id} className="bg-gray-800/50 border border-gray-800 rounded px-3 py-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-gray-700 text-gray-200">{rec.action_type}</span>
+                            {rec.target && <span className="text-xs font-mono text-cyan-400">{rec.target}</span>}
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-400">P{rec.priority}</span>
+                            <span className="text-[10px] text-gray-500">{Math.round((rec.confidence ?? 0) * 100)}% confiance</span>
+                            <span className={`text-[10px] px-1 py-0.5 rounded border ${rec.source === "llm" ? "bg-violet-500/10 text-violet-400 border-violet-500/20" : "bg-gray-700 text-gray-400 border-gray-600"}`}>{rec.source}</span>
+                            <span className="text-[10px] text-gray-500">{rec.status}</span>
+                          </div>
+                          {rec.rationale && <div className="text-xs text-gray-400 mt-1 leading-snug">{rec.rationale}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })}
 
       {/* Alertes liées + triage */}
       <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">

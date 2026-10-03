@@ -1,14 +1,14 @@
 import logging
 from datetime import datetime, timezone
 
-import dateutil.parser
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from .suricata import receive_suricata_alert
 from ...application.normalization import map_wazuh, to_pipeline_payload
 from ...application.pipeline import ingest_alert
-from ...auth import get_api_key_or_jwt
+from ...application.source_control import is_source_enabled
+from ...auth import webhook_token_auth
 from ...core.broadcaster import broadcaster
 from ...db import get_db, get_tenant_id
 
@@ -21,8 +21,10 @@ router = APIRouter()
 router.add_api_route("/webhook", receive_suricata_alert, methods=["POST"])
 
 
-@router.post("/api/wazuh/webhook", dependencies=[Depends(get_api_key_or_jwt)])
+@router.post("/api/wazuh/webhook", dependencies=[Depends(webhook_token_auth("wazuh"))])
 async def wazuh_webhook(request: Request, db: Session = Depends(get_db)):
+    if not is_source_enabled(db, "wazuh", tenant_id=get_tenant_id(request)):
+        return {"status": "ignored", "source": "wazuh"}
     try:
         data = await request.json()
 

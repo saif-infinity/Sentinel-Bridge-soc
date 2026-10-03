@@ -6,9 +6,10 @@ from sqlalchemy import desc
 from ...db import get_db, get_tenant_id, query_with_tenant
 from ...models import SuricataAlert
 from ...schemas import SuricataAlertRead
-from ...auth import get_api_key_or_jwt
+from ...auth import get_api_key_or_jwt, webhook_token_auth, webhook_slug_auth
 from ...application.normalization import map_suricata, to_pipeline_payload
 from ...application.pipeline import ingest_alert
+from ...application.source_control import is_source_enabled
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
@@ -52,11 +53,13 @@ def get_suricata_alerts(request: Request, db: Session = Depends(get_db)):
     return result
 
 
-@router.post("/webhook", dependencies=[Depends(get_api_key_or_jwt)])
+@router.post("/webhook", dependencies=[Depends(webhook_token_auth("suricata"))])
 async def receive_suricata_alert(request: Request, db: Session = Depends(get_db)):
     """
     Receives alerts from Suricata (e.g., via a custom script or log forwarder sending eve.json items)
     """
+    if not is_source_enabled(db, "suricata", tenant_id=get_tenant_id(request)):
+        return {"status": "ignored", "source": "suricata"}
     try:
         body = await request.body()
         try:
@@ -135,3 +138,14 @@ async def receive_suricata_alert(request: Request, db: Session = Depends(get_db)
             logger.debug("Suricata Ignored Event Type: %s", data.get('event_type', 'still_unknown'))
             
     return {"status": "ignored"}
+
+
+# ── Slugged per-tenant webhook URL (F4 hardening) ─────────────────────
+# POST /api/suricata/webhook/{slug} — tenant résolu par slug (404 si
+# inconnu), X-SOC-Token optionnel validé contre le tenant résolu.
+router.add_api_route(
+    "/webhook/{slug}",
+    receive_suricata_alert,
+    methods=["POST"],
+    dependencies=[Depends(webhook_slug_auth("suricata"))],
+)

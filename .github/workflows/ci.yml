@@ -24,6 +24,8 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - run: pip install -r requirements.txt ruff
+      # insightface tire opencv-python (GUI) -> collision fichiers avec headless
+      - run: pip uninstall -y opencv-python && pip install --force-reinstall --no-deps opencv-python-headless==4.14.0.94
       - run: ruff check .
 
   lint-frontend:
@@ -76,6 +78,8 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - run: pip install -r requirements.txt pytest
+      # insightface tire opencv-python (GUI) -> collision fichiers avec headless
+      - run: pip uninstall -y opencv-python && pip install --force-reinstall --no-deps opencv-python-headless==4.14.0.94
       - run: pytest --tb=short -q
 
   build-backend:

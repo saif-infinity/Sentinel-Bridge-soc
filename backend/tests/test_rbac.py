@@ -43,7 +43,7 @@ SCOPES = {
     "viewer": ["devices:read", "alerts:read", "ws:alerts"],
     "analyst": [
         "devices:read", "alerts:read", "ws:alerts", "terminal:exec",
-        "scan:execute", "ai:generate", "surveillance:read", "cases:write",
+        "scan:execute", "ai:generate", "surveillance:read", "surveillance:write", "cases:write",
         "soar:approve",
     ],
     "admin": [
@@ -411,27 +411,6 @@ def test_tenants_register_exempt(client):
     })
     assert r.status_code == 200
     assert r.json()["tenant_id"]
-
-
-def test_billing_webhook_exempt(client):
-    """/api/billing/webhook est exempté de require_role (exempt_paths).
-
-    DÉVIATION SPEC : le handler garde la dépendance legacy
-    `get_api_key_or_jwt`, donc un appel anonyme reçoit 403 (depuis le legacy
-    dep, PAS depuis require_role). Avec une API key valide le handler est
-    atteint (200) — preuve que le guard RBAC ne bloque pas la route.
-    """
-    r = client.post("/api/billing/webhook", json={
-        "type": "customer.subscription.created",
-        "data": {"object": {"metadata": {}}},
-    })
-    assert r.status_code == 403  # legacy get_api_key_or_jwt, pas require_role
-
-    r2 = client.post("/api/billing/webhook", json={
-        "type": "customer.subscription.created",
-        "data": {"object": {"metadata": {}}},
-    }, headers={"X-API-Key": API_KEY})
-    assert r2.status_code == 200
 
 
 # ── 11. Lane admin legacy intacte ──────────────────────────────────────

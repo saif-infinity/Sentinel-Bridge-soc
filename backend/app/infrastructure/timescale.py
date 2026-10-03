@@ -25,10 +25,18 @@ def ensure_timescaledb(engine) -> None:
         logger.info("TimescaleDB: skipped (not PostgreSQL, dialect=%s)", engine.dialect.name)
         return
 
-    with engine.begin() as conn:
-        # 1. Create extension (idempotent)
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb"))
-        logger.info("TimescaleDB: extension ensured")
+    # 1. Create extension — non-fatal si TimescaleDB n'est pas installé sur ce serveur.
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb"))
+    except Exception as e:
+        logger.warning(
+            "TimescaleDB: extension indisponible (%s) — hypertables/compression/retention désactivés, "
+            "le backend continue sur PostgreSQL standard.",
+            e,
+        )
+        return
+    logger.info("TimescaleDB: extension ensured")
 
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())

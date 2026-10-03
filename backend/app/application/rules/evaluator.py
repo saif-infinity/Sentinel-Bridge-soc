@@ -90,6 +90,7 @@ DEFAULT_SEVERITY_MAPPING: Dict[str, Any] = {
     "suricata": {1: 15, 2: 10, 3: 5, 4: 2},   # Suricata : 1 = le plus critique
     "wazuh": "clamp",                          # niveau 0-15 conservé tel quel
     "manual": "clamp",
+    "host-agent": {"critical": 12, "high": 10, "medium": 6, "low": 3, "info": 1, "error": 8, "warning": 5, "default": 5},
     "default": 5,
 }
 
@@ -99,23 +100,27 @@ OPS = {"eq", "ne", "gt", "ge", "lt", "le", "in", "contains", "startswith", "rege
 def normalize_severity(source: str, raw: Optional[int], mapping: Optional[dict] = None) -> int:
     """Normalise une sévérité source vers l'échelle uniforme 0-15."""
     m = mapping or DEFAULT_SEVERITY_MAPPING
-    try:
-        raw = int(raw)
-    except (TypeError, ValueError):
-        raw = None
     src = (source or "manual").lower()
     rule = m.get(src, m.get("default", 5))
+    # Preserve the original raw value for string-keyed dict lookup before coercion.
+    original_raw = raw
+    try:
+        raw_int = int(raw)
+    except (TypeError, ValueError):
+        raw_int = None
     if isinstance(rule, dict):
-        # Les clés peuvent être int (mapping par défaut) ou str (mapping JSON via SystemConfig)
-        val = rule.get(raw)
-        if val is None:
-            val = rule.get(str(raw))
+        # Lookup order: original value → coerced int → str(int) → default
+        val = rule.get(original_raw)
+        if val is None and raw_int is not None:
+            val = rule.get(raw_int)
+        if val is None and raw_int is not None:
+            val = rule.get(str(raw_int))
         if val is None:
             val = m.get("default", 5)
         return int(val)
-    if raw is None:
+    if raw_int is None:
         return int(m.get("default", 5))
-    return max(0, min(15, raw))
+    return max(0, min(15, raw_int))
 
 
 def _get_field(alert: Dict[str, Any], path: str) -> Any:
@@ -202,7 +207,7 @@ def build_normalized_alert(payload: Dict[str, Any], mapping: Optional[dict] = No
         "tenant_id": payload.get("tenant_id", "default"),
         "timestamp": payload.get("timestamp") or datetime.now(timezone.utc).isoformat(),
         "source": source,
-        "severity": int(raw_sev) if raw_sev is not None else None,
+        "severity": int(raw_sev) if isinstance(raw_sev, (int, float)) else (norm if raw_sev is not None else None),
         "normalized_severity": int(norm),
         "signature": str(payload.get("signature") or payload.get("description") or "")[:255] or None,
         "category": str(payload.get("category") or "")[:100] or None,

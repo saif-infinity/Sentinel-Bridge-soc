@@ -1,11 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Header, Request, status, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from datetime import datetime, timezone
 
 from ...services.face_service import face_service
 from ...jwt_utils import verify_token
 from ...admin_auth import verify_admin_token
 from ...auth import has_scopes_or_api_key
+from ...core.broadcaster import broadcaster
+from ...db import get_db, get_tenant_id
+from ...models import FaceLoginRequest, UnverifiedFaceAttempt
 
 router = APIRouter(prefix="/api/faces", tags=["faces"])
 
@@ -18,6 +23,10 @@ class FaceRegisterRequest(BaseModel):
 class FaceVerifyRequest(BaseModel):
     image: str
     username: str
+
+
+class FaceIdentifyRequest(BaseModel):
+    image: str
 
 
 def _require_jwt_user(authorization: str = Header(None, alias="Authorization")):
@@ -89,6 +98,34 @@ async def verify_face(
     return {"status": "success", "message": message, "verified": True}
 
 
+@router.post("/identify")
+async def identify_face(
+    request: FaceIdentifyRequest,
+    req: Request,
+):
+    """Identifie un visage parmi les utilisateurs enregistrés du tenant.
+    Public (pré-auth) : comme capture-unknown, permet de savoir si un visage
+    présent correspond à un utilisateur enregistré OU à un visiteur non autorisé.
+    Retourne l'utilisateur reconnu, ou signale un visiteur non autorisé (inconnu)."""
+    tenant_id = get_tenant_id(req)
+    username, similarity, message = face_service.identify_face(request.image, tenant_id=tenant_id)
+    if username is None:
+        return {
+            "status": "unknown",
+            "username": None,
+            "similarity": round(float(similarity), 3),
+            "message": message,
+            "authorized": False,
+        }
+    return {
+        "status": "recognized",
+        "username": username,
+        "similarity": round(float(similarity), 3),
+        "message": message,
+        "authorized": True,
+    }
+
+
 @router.get("/status/{username}", dependencies=[Depends(has_scopes_or_api_key(["devices:read"]))])
 async def face_status(username: str, request: Request):
     from ...db import get_tenant_id
@@ -106,3 +143,94 @@ async def face_image(username: str, request: Request):
     if not path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Face image not found")
     return FileResponse(path, media_type="image/jpeg")
+
+
+class FaceLoginRequestBody(BaseModel):
+    username: str
+    image: str
+
+
+class UnverifiedFaceCaptureRequest(BaseModel):
+    username: str | None = None
+    face_image: str
+
+
+@router.post("/capture-unknown")
+async def capture_unknown_face(
+    body: UnverifiedFaceCaptureRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Capture silencieux d'un visage inconnu (pas d'authentification)."""
+    tenant_id = get_tenant_id(request)
+    attempt = UnverifiedFaceAttempt(
+        tenant_id=tenant_id,
+        username=body.username,
+        face_image=body.face_image,
+    )
+    db.add(attempt)
+    db.commit()
+    db.refresh(attempt)
+
+    await broadcaster.broadcast({
+        "type": "unknown_face_attempt",
+        "attempt_id": attempt.id,
+        "tenant_id": attempt.tenant_id,
+        "username": attempt.username,
+        "capture_time": attempt.capture_time.isoformat() if attempt.capture_time else None,
+    })
+    return {"status": "success"}
+
+
+@router.post("/request-login")
+async def request_login(
+    body: FaceLoginRequestBody,
+    db: Session = Depends(get_db),
+    auth_data: tuple = Depends(_require_jwt_user),
+):
+    """Analyste : vérifie le visage puis crée une demande d'approbation admin (pending)."""
+    username, tenant_id = auth_data
+    if not body.username.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username requis")
+    if body.username.strip().lower() != username.lower():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Vous ne pouvez demander une connexion que pour votre propre compte",
+        )
+    success, message = face_service.verify_face(body.username, body.image, tenant_id=tenant_id)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=message)
+
+    login_request = FaceLoginRequest(
+        tenant_id=tenant_id,
+        username=body.username,
+        status="pending",
+    )
+    db.add(login_request)
+    db.commit()
+    db.refresh(login_request)
+
+    await broadcaster.broadcast({
+        "type": "face_login_request",
+        "request_id": login_request.id,
+        "username": login_request.username,
+        "created_at": login_request.created_at.isoformat() if login_request.created_at else None,
+    })
+    return {"request_id": login_request.id, "status": login_request.status}
+
+
+@router.get("/login-request/{request_id}")
+async def login_request_status(
+    request_id: int,
+    db: Session = Depends(get_db),
+    auth_data: tuple = Depends(_require_jwt_user),
+):
+    """Analyste : interroge le statut de sa demande d'approbation de connexion."""
+    login_request = db.query(FaceLoginRequest).filter(FaceLoginRequest.id == request_id).first()
+    if not login_request:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Requête de connexion introuvable")
+    return {
+        "request_id": login_request.id,
+        "status": login_request.status,
+        "resolved_at": login_request.resolved_at.isoformat() if login_request.resolved_at else None,
+    }

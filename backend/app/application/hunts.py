@@ -9,7 +9,9 @@ import time
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
+from sqlalchemy.orm import Session
 
+from ..infrastructure.ollama.client import _sanitize
 from ..models import Alert, Hunt, SuricataAlert
 from .action_logger import log_action
 from .rules.evaluator import OPS, evaluate_conditions
@@ -18,6 +20,12 @@ from .rules.engine import build_normalized_from_row
 logger = logging.getLogger(__name__)
 
 HUNT_TARGETS = ("alert", "suricata", "both")
+
+VALID_FIELDS = {"src_ip", "dest_ip", "proto", "severity", "normalized_severity",
+                "signature", "event_type", "agent_id", "source"}
+VALID_OPS = {"eq", "ne", "gt", "ge", "lt", "le", "in", "contains",
+             "startswith", "regex", "exists"}
+PRIMITIVE_TYPES = (str, int, float, bool, type(None))
 
 
 def _jloads(s, fallback):
@@ -247,3 +255,129 @@ def run_hunt(db, tenant_id: str, username: str,
         "error": last_error,
         "results": matched,
     }
+
+
+# ── AI-Generated Hunt Proposals (non-persisting) ────────────────
+
+def _build_prompt(wazuh_alerts: list, suricata_alerts: list) -> str:
+    wazuh_lines = []
+    for a in wazuh_alerts:
+        wazuh_lines.append(
+            f"- Level {a.severity}: {_sanitize(a.description)} "
+            f"(src: {a.src_ip}, agent: {a.agent_id})"
+        )
+    suricata_lines = []
+    for a in suricata_alerts:
+        suricata_lines.append(
+            f"- S{a.severity}: {_sanitize(a.alert_msg)} "
+            f"({a.src_ip}->{a.dest_ip} {a.proto})"
+        )
+    return f"""Tu es un analyste SOC senior. Génère des propositions de chasses aux menaces basées sur les alertes critiques récentes.
+
+Alertes Wazuh critiques:
+{chr(10).join(wazuh_lines) if wazuh_lines else "Aucune"}
+
+Alertes Suricata critiques:
+{chr(10).join(suricata_lines) if suricata_lines else "Aucune"}
+
+Règles strictes :
+- Réponds UNIQUEMENT un tableau JSON d'exemples de propositions de chasse. Aucun markdown, aucun texte autour.
+- Chaque proposition : {{"name": str, "description": str, "target": "alert"|"suricata"|"both", "conditions": [{{"field": str, "op": str, "value": object}}]}}
+- Champ autorisés : src_ip, dest_ip, proto, severity, normalized_severity, signature, event_type, agent_id, source
+- Opérateurs autorisés : eq, ne, gt, ge, lt, le, in, contains, startswith, regex, exists
+- 1 à 5 propositions max
+- Conditions basées sur les patterns observés (même src_ip, même signature, proto suspect, etc.)
+
+Exemple de sortie valide :
+[{{"name": "Même IP source répétée", "description": "Détecte les alertes depuis une IP source apparaissant plusieurs fois dans les alertes critiques", "target": "alert", "conditions": [{{"field": "src_ip", "op": "in", "value": "10.0.0.5"}}]}}]"""
+
+
+def _parse_ollama_response(text: str) -> list:
+    """Extrait un JSON tableau de la réponse Ollama, très tolérant."""
+    if not text:
+        return []
+    first_bracket = text.find("[")
+    last_bracket = text.rfind("]")
+    if first_bracket == -1 or last_bracket == -1 or last_bracket <= first_bracket:
+        return []
+    json_str = text[first_bracket:last_bracket + 1]
+    try:
+        return json.loads(json_str)
+    except (json.JSONDecodeError, ValueError):
+        return []
+
+
+def _normalize_proposals(raw: list) -> list:
+    """Norme les propositions du LLM : filtre, tronque, force les champs."""
+    proposals = []
+    for p in raw:
+        if not isinstance(p, dict):
+            continue
+        name = p.get("name")
+        if not isinstance(name, str) or not name.strip():
+            continue
+        desc = p.get("description")
+        if not isinstance(desc, str):
+            desc = str(desc) if desc is not None else ""
+        desc = desc[:500]
+        target = p.get("target")
+        if target not in HUNT_TARGETS:
+            target = "both"
+        raw_conds = p.get("conditions", [])
+        if not isinstance(raw_conds, list):
+            raw_conds = []
+        conds = []
+        for c in raw_conds[:10]:
+            if not isinstance(c, dict):
+                continue
+            field = c.get("field")
+            op = c.get("op")
+            if field not in VALID_FIELDS or op not in VALID_OPS:
+                continue
+            value = c.get("value")
+            if value is not None and not isinstance(value, PRIMITIVE_TYPES):
+                value = str(value)
+            conds.append({"field": str(field)[:100], "op": str(op), "value": value})
+        proposals.append({
+            "name": name.strip()[:200],
+            "description": desc,
+            "target": target,
+            "conditions": conds[:10],
+        })
+    return proposals[:5]
+
+
+def generate_ai_hunt_proposals(db: Session, tenant_id: str) -> dict:
+    """Génère des propositions de chasse via Ollama sans persister.
+
+    Retourne {"proposals": [...]} ou {"proposals": [], "notice": "..."}
+    si aucune alerte critique. Lève HTTPException 503 si Ollama est down.
+    """
+    wazuh_alerts = (
+        db.query(Alert)
+        .filter(Alert.severity >= 7, Alert.tenant_id == tenant_id)
+        .order_by(Alert.timestamp.desc())
+        .limit(5)
+        .all()
+    )
+    suricata_alerts = (
+        db.query(SuricataAlert)
+        .filter(SuricataAlert.severity >= 7, SuricataAlert.tenant_id == tenant_id)
+        .order_by(SuricataAlert.timestamp.desc())
+        .limit(5)
+        .all()
+    )
+    if not wazuh_alerts and not suricata_alerts:
+        return {"proposals": [], "notice": "Aucune alerte critique récente (Wazuh/Suricata ≥ 7) à analyser"}
+
+    prompt = _build_prompt(wazuh_alerts, suricata_alerts)
+
+    from ..infrastructure.ollama.client import _call_ollama
+    try:
+        raw_text = _call_ollama(prompt)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail="IA indisponible : lancez ollama serve")
+
+    raw_proposals = _parse_ollama_response(raw_text)
+    proposals = _normalize_proposals(raw_proposals)
+    return {"proposals": proposals}

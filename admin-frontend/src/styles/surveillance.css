@@ -1,5 +1,41 @@
-@layer base {
-/* Surveillance dashboard styles */
+/* Surveillance dashboard styles — ported from SOC frontend, preserved intentionally */
+:root {
+  --accent-blue: #0ea5e9;
+}
+
+/* Scope wrapper ensures CSS vars resolve inside admin theme */
+.admin-surveillance {
+  --accent-blue: #0ea5e9;
+  --text-secondary: #b8a8d0;
+  --text-muted: #6b5a8a;
+  --success: #10b981;
+  --warning: #fbbf24;
+}
+
+/* Generic helpers required by SurveillanceView (no collision with admin App.css) */
+.tab-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+@keyframes animate-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: animate-fade-in 0.4s ease-out both;
+}
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(168,85,247,0.2);
+  border-top-color: #a855f7;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
 /* ===== Surveillance Dashboard ===== */
 .surveillance-loading {
@@ -477,4 +513,9 @@
   font-size: 14px;
   color: var(--text-muted);
 }
+
+@media (max-width: 900px) {
+  .surveillance-overview {
+    grid-template-columns: 1fr;
+  }
 }

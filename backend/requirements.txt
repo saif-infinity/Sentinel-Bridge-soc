@@ -19,6 +19,12 @@ passlib>=1.7,<2.0
 bcrypt>=4.2,<6.0
 urllib3>=2.3,<3.0
 opencv-python-headless>=4.8,<5.0
+# NOTE: insightface declare opencv-python (full GUI) en dependance -> il entre en
+# collision fichiers avec opencv-python-headless (meme paquet cv2). Apres tout
+# `pip install -r requirements.txt`, executer :
+#   pip uninstall -y opencv-python && pip install --force-reinstall opencv-python-headless==4.14.0.94
+insightface==1.0.1
+onnxruntime==1.29.0
 numpy>=2.2,<3.0
 Pillow>=11.0,<12.0
 syslog-rfc5424-parser>=0.3.0

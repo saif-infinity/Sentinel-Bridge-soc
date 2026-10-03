@@ -11,10 +11,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, extract
 
 from ...db import get_db, get_tenant_id, query_with_tenant
-from ...models import ActionLog, AccessLog, TenantUser
+from ...models import ActionLog, AccessLog, TenantUser, FaceLoginRequest, RegistrationRequest, UnverifiedFaceAttempt
 from ...schemas import ActionLogCreate
 from ...config import settings
 from ...admin_auth import create_admin_token, get_current_admin, verify_admin_password
+from ...core.broadcaster import broadcaster
 from ...core.rbac import ADMIN_ASSIGNABLE, ROLE_RANK, ROLE_WHITELIST, require_role
 
 logger = logging.getLogger(__name__)
@@ -386,3 +387,255 @@ async def update_user_role(
     s[f"role:{username}"] = new_role
     _write_store(s)
     return {"username": username, "role": new_role, "tenant_id": tenant_id}
+
+
+@router.get("/attempts")
+async def list_face_attempts(
+    request: Request,
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    attempts = query_with_tenant(UnverifiedFaceAttempt, request, db).order_by(desc(UnverifiedFaceAttempt.id)).all()
+    return [
+        {
+            "id": a.id,
+            "tenant_id": a.tenant_id,
+            "username": a.username,
+            "face_image": a.face_image,
+            "capture_time": a.capture_time.isoformat() if a.capture_time else None,
+            "resolved": a.resolved,
+            "resolved_by": a.resolved_by,
+            "resolved_at": a.resolved_at.isoformat() if a.resolved_at else None,
+        }
+        for a in attempts
+    ]
+
+
+@router.get("/face-login-requests")
+async def list_face_login_requests(
+    request: Request,
+    status: str = Query("pending"),
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    """Liste des demandes de connexion faciale, filtrées par statut (défaut: pending)."""
+    query = query_with_tenant(FaceLoginRequest, request, db)
+    if status:
+        query = query.filter(FaceLoginRequest.status == status)
+    items = query.order_by(desc(FaceLoginRequest.created_at)).all()
+    return {
+        "items": [
+            {
+                "id": r.id,
+                "username": r.username,
+                "status": r.status,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "resolved_at": r.resolved_at.isoformat() if r.resolved_at else None,
+                "resolved_by": r.resolved_by,
+            }
+            for r in items
+        ]
+    }
+
+
+@router.post("/face-login-requests/{request_id}/approve")
+async def approve_face_login_request(
+    request_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    """Approuve une demande de connexion faciale en attente."""
+    login_request = (
+        query_with_tenant(FaceLoginRequest, request, db)
+        .filter(FaceLoginRequest.id == request_id)
+        .first()
+    )
+    if not login_request:
+        raise HTTPException(status_code=404, detail="Requête de connexion introuvable")
+    if login_request.status != "pending":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Requête déjà résolue (statut: {login_request.status})",
+        )
+    admin_username = admin.get("sub", "admin")
+    login_request.status = "approved"
+    login_request.resolved_at = datetime.now(timezone.utc)
+    login_request.resolved_by = admin_username
+    db.commit()
+    await broadcaster.broadcast({
+        "type": "face_login_resolved",
+        "request_id": login_request.id,
+        "status": "approved",
+    })
+    return {"request_id": login_request.id, "status": "approved"}
+
+
+@router.post("/face-login-requests/{request_id}/refuse")
+async def refuse_face_login_request(
+    request_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    """Refuse une demande de connexion faciale en attente."""
+    login_request = (
+        query_with_tenant(FaceLoginRequest, request, db)
+        .filter(FaceLoginRequest.id == request_id)
+        .first()
+    )
+    if not login_request:
+        raise HTTPException(status_code=404, detail="Requête de connexion introuvable")
+    if login_request.status != "pending":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Requête déjà résolue (statut: {login_request.status})",
+        )
+    admin_username = admin.get("sub", "admin")
+    login_request.status = "refused"
+    login_request.resolved_at = datetime.now(timezone.utc)
+    login_request.resolved_by = admin_username
+    db.commit()
+    await broadcaster.broadcast({
+        "type": "face_login_resolved",
+        "request_id": login_request.id,
+        "status": "refused",
+    })
+    return {"request_id": login_request.id, "status": "refused"}
+
+
+@router.get("/registration-requests")
+async def list_registration_requests(
+    request: Request,
+    status: str = Query("pending"),
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    """Liste des demandes d'inscription, filtrées par statut (défaut: pending)."""
+    query = query_with_tenant(RegistrationRequest, request, db)
+    if status:
+        query = query.filter(RegistrationRequest.status == status)
+    items = query.order_by(desc(RegistrationRequest.created_at)).all()
+    return {
+        "items": [
+            {
+                "id": r.id,
+                "username": r.username,
+                "role": r.role,
+                "status": r.status,
+                "face_image": r.face_image,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "resolved_at": r.resolved_at.isoformat() if r.resolved_at else None,
+                "resolved_by": r.resolved_by,
+            }
+            for r in items
+        ]
+    }
+
+
+@router.post("/registration-requests/{request_id}/approve")
+async def approve_registration_request(
+    request_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    """Approuve une demande d'inscription en attente et active le compte."""
+    reg_request = (
+        query_with_tenant(RegistrationRequest, request, db)
+        .filter(RegistrationRequest.id == request_id)
+        .first()
+    )
+    if not reg_request:
+        raise HTTPException(status_code=404, detail="Demande d'inscription introuvable")
+    if reg_request.status != "pending":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Demande déjà résolue (statut: {reg_request.status})",
+        )
+
+    admin_username = admin.get("sub", "admin")
+    tenant_id = reg_request.tenant_id or "default"
+
+    from ...services.password_manager import _read_store, _write_store
+    store = _read_store()
+    store[f"user:{reg_request.username}"] = reg_request.password_hash
+    store[f"role:{reg_request.username}"] = reg_request.role
+    _write_store(store)
+
+    tenant_user = (
+        db.query(TenantUser)
+        .filter(TenantUser.username == reg_request.username, TenantUser.tenant_id == tenant_id)
+        .first()
+    )
+    if tenant_user:
+        tenant_user.password_hash = reg_request.password_hash
+        tenant_user.role = reg_request.role
+        tenant_user.is_active = True
+    else:
+        tenant_user = TenantUser(
+            tenant_id=tenant_id,
+            username=reg_request.username,
+            password_hash=reg_request.password_hash,
+            role=reg_request.role,
+            is_active=True,
+        )
+        db.add(tenant_user)
+
+    reg_request.status = "approved"
+    reg_request.resolved_at = datetime.now(timezone.utc)
+    reg_request.resolved_by = admin_username
+    db.commit()
+
+    if reg_request.face_image and reg_request.face_image.strip():
+        try:
+            from ...services.face_service import face_service
+            ok, msg = face_service.register_face(
+                reg_request.username, reg_request.face_image, tenant_id=tenant_id
+            )
+            if ok:
+                logger.info("Registered face for %s (tenant=%s) on approval", reg_request.username, tenant_id)
+            else:
+                logger.warning("Face registration skipped on approval for %s: %s", reg_request.username, msg)
+        except Exception as e:
+            logger.warning("Face registration failed on approval for %s: %s", reg_request.username, e)
+
+    await broadcaster.broadcast({
+        "type": "registration_resolved",
+        "request_id": reg_request.id,
+        "status": "approved",
+    })
+    return {"request_id": reg_request.id, "status": "approved"}
+
+
+@router.post("/registration-requests/{request_id}/refuse")
+async def refuse_registration_request(
+    request_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    """Refuse une demande d'inscription en attente."""
+    reg_request = (
+        query_with_tenant(RegistrationRequest, request, db)
+        .filter(RegistrationRequest.id == request_id)
+        .first()
+    )
+    if not reg_request:
+        raise HTTPException(status_code=404, detail="Demande d'inscription introuvable")
+    if reg_request.status != "pending":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Demande déjà résolue (statut: {reg_request.status})",
+        )
+    admin_username = admin.get("sub", "admin")
+    reg_request.status = "refused"
+    reg_request.resolved_at = datetime.now(timezone.utc)
+    reg_request.resolved_by = admin_username
+    db.commit()
+    await broadcaster.broadcast({
+        "type": "registration_resolved",
+        "request_id": reg_request.id,
+        "status": "refused",
+    })
+    return {"request_id": reg_request.id, "status": "refused"}

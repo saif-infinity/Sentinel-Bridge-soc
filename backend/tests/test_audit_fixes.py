@@ -41,7 +41,7 @@ SCOPES = {
     "viewer": ["devices:read", "alerts:read", "ws:alerts"],
     "analyst": [
         "devices:read", "alerts:read", "ws:alerts", "terminal:exec",
-        "scan:execute", "ai:generate", "surveillance:read", "cases:write",
+        "scan:execute", "ai:generate", "surveillance:read", "surveillance:write", "cases:write",
         "soar:approve",
     ],
     "admin": [
@@ -309,25 +309,24 @@ def test_register_anonymous_uses_default_tenant(client, monkeypatch):
         return None
     monkeypatch.setattr(auth_api, "check_rate_limit", _no_rate_limit)
     username = f"anonreg_{uuid.uuid4().hex[:8]}"
-    # Header X-Tenant-ID fourni par le client → ignoré car non authentifié
+    # Header X-Tenant-ID fourni par le client → ignoré car non authentifié.
+    # Mode approbation admin par défaut : la demande pending est créée.
     r = client.post("/auth/register",
                     json={"username": username, "password": "Str0ngPass!"},
                     headers={"X-Tenant-ID": "evil-tenant"})
     assert r.status_code == 200
     body = r.json()
-    assert body["username"] == username
-    # Le token émis porte le tenant par défaut (résolu depuis TenantUser)
-    from app.core.jwt_utils import verify_token
-    payload = verify_token(body["access_token"])
-    assert payload is not None
-    # TenantUser créé (ou inexistant) → resolved default
+    assert body["status"] == "pending"
+    assert "access_token" not in body
+    # La demande d'inscription est rattachée au tenant par défaut (pas "evil-tenant")
+    from app.models import RegistrationRequest
     db = SessionLocal()
     try:
-        row = db.query(TenantUser).filter_by(username=username).first()
+        row = db.query(RegistrationRequest).filter_by(id=body["request_id"]).first()
     finally:
         db.close()
-    # L'utilisateur n'est pas rattaché à "evil-tenant"
-    assert row is None or row.tenant_id == "default"
+    assert row is not None
+    assert row.tenant_id == "default"
 
 
 # ── 8. Subscribe response includes plan + status ──────────────────────

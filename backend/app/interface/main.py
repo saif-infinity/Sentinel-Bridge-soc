@@ -2,15 +2,15 @@ import logging
 import ssl
 
 import urllib3
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api import (
     admin,
     alerts,
     analyse,
+    agent,
     auth,
-    billing,
     database,
     devices,
     faces,
@@ -18,6 +18,7 @@ from .api import (
     scan,
     sensors,
     settings as settings_router,
+    sources,
     super_admin,
     surveillance,
     suricata,
@@ -25,6 +26,9 @@ from .api import (
     tenants,
     terminal,
     wazuh,
+    investigations,
+    honeypot,
+    ai_auto,
 )
 from .api.realtime import (
     get_bandwidth,
@@ -41,12 +45,15 @@ from .api.cases import router as cases_router
 from .api.hunts import router as hunts_router
 from .api.playbooks import router as playbooks_router
 from .api.intel import router as intel_router
+from .api.investigations import router as investigations_router
+from .api.response import router as response_router
+from .api.reporting import router as reporting_router
 from .api.exports import router as exports_router
 from .api.auth import me_router
 from .middleware.action_log import ActionLogMiddleware
 from .middleware.tenant import TenantMiddleware
 from ..application.bootstrap import run_startup
-from ..auth import get_api_key_or_jwt
+from ..auth import get_api_key_or_jwt, webhook_token_auth, webhook_slug_auth
 from ..config import settings
 from ..core import logging_setup  # noqa: F401
 from ..core.rbac import DEFAULT_POLICY, apply_role_guard, require_role  # noqa: F401
@@ -107,15 +114,22 @@ app.include_router(database.router)
 app.include_router(network_config.router)
 app.include_router(tenants.router)
 app.include_router(super_admin.router)
-app.include_router(billing.router)
+
 app.include_router(alerts.router)
+app.include_router(agent.router)
+app.include_router(sources.router)
 app.include_router(rules_router)
 app.include_router(pipeline_router)
 app.include_router(cases_router)
 app.include_router(hunts_router)
 app.include_router(playbooks_router)
 app.include_router(intel_router)
+app.include_router(investigations_router)
+app.include_router(response_router)
+app.include_router(reporting_router)
 app.include_router(exports_router)
+app.include_router(honeypot.router)
+app.include_router(ai_auto.router)
 
 # ────────────────────────────────────────────────────────────────────
 # F4 — RBAC: apply role guards to every router (runs at import time,
@@ -125,15 +139,16 @@ ROUTER_POLICIES = {
     "devices": {}, "analyse": {"read": "analyst", "write": "analyst"}, "scan": {"read": "analyst", "write": "analyst"},
     "tasks": {}, "wazuh": {}, "suricata": {}, "terminal": {},
     "auth": {"exempt": True}, "faces": {"exempt": True}, "surveillance": {},
-    "admin": {"exempt": True}, "settings": {"read": "admin", "write": "admin"}, "sensors": {},
+    "admin": {"exempt": True}, "settings": {"read": "admin", "write": "admin"}, "sources": {"read": "analyst", "write": "analyst"}, "sensors": {},
     "database": {"exempt": True}, "network_config": {},
     "tenants": {"read": "viewer", "write": "admin", "exempt_paths": ["/api/tenants/register"]},
     "super_admin": {"exempt": True},
-    "billing": {"read": "admin", "write": "admin", "exempt_paths": ["/api/billing/webhook"]},
-    "alerts": {}, "rules": {"read": "admin", "write": "admin"}, "pipeline": {}, "cases": {}, "hunts": {},
-    "playbooks": {"read": "analyst", "write": "admin"}, "intel": {},
+    "agent": {"exempt": True},
+    "alerts": {}, "rules": {"read": "admin", "write": "admin", "exempt_paths": ["/api/rules/coverage"]}, "pipeline": {}, "cases": {}, "hunts": {},
+    "playbooks": {"read": "analyst", "write": "admin"}, "intel": {}, "investigations": {}, "response": {"read": "analyst", "write": "admin"}, "reporting": {"read": "analyst", "write": "admin"}, "honeypot": {},
+    "ai_auto": {"read": "analyst", "write": "analyst"},
 }
-for name, router in [( "devices", devices.router), ("analyse", analyse.router), ("scan", scan.router), ("tasks", tasks.router), ("wazuh", wazuh.router), ("suricata", suricata.router), ("terminal", terminal.router), ("auth", auth.router), ("faces", faces.router), ("surveillance", surveillance.router), ("admin", admin.router), ("settings", settings_router.router), ("sensors", sensors.router), ("database", database.router), ("network_config", network_config.router), ("tenants", tenants.router), ("super_admin", super_admin.router), ("billing", billing.router), ("alerts", alerts.router), ("rules", rules_router), ("pipeline", pipeline_router), ("cases", cases_router), ("hunts", hunts_router), ("playbooks", playbooks_router), ("intel", intel_router) ]:
+for name, router in [("agent", agent.router), ("sources", sources.router), ("devices", devices.router), ("analyse", analyse.router), ("scan", scan.router), ("tasks", tasks.router), ("wazuh", wazuh.router), ("suricata", suricata.router), ("terminal", terminal.router), ("auth", auth.router), ("faces", faces.router), ("surveillance", surveillance.router), ("admin", admin.router), ("settings", settings_router.router), ("sensors", sensors.router), ("database", database.router), ("network_config", network_config.router), ("tenants", tenants.router), ("super_admin", super_admin.router), ("alerts", alerts.router), ("rules", rules_router), ("pipeline", pipeline_router), ("cases", cases_router), ("hunts", hunts_router), ("playbooks", playbooks_router), ("intel", intel_router), ("investigations", investigations_router), ("response", response_router), ("reporting", reporting_router), ("honeypot", honeypot.router), ("ai_auto", ai_auto.router) ]:
     policy = ROUTER_POLICIES.get(name, DEFAULT_POLICY)
     if not policy.get("exempt"):
         apply_role_guard(router, policy)
@@ -145,12 +160,22 @@ for name, router in [( "devices", devices.router), ("analyse", analyse.router), 
 # so the formerly-direct routes must stay direct to keep the route count
 # identical). The endpoint modules still own the handlers.
 # ────────────────────────────────────────────────────────────────────
+
 app.add_api_route("/webhook", receive_suricata_alert, methods=["POST"])
 app.add_api_route(
     "/api/wazuh/webhook",
     wazuh_webhook,
     methods=["POST"],
-    dependencies=[Depends(get_api_key_or_jwt)],
+    dependencies=[Depends(webhook_token_auth("wazuh"))],
+)
+# F4 — Slugged per-tenant webhook URL (le slug résout le tenant ; X-SOC-Token
+# optionnel validé contre le tenant résolu). Enregistrée APRÈS la route
+# statique pour que /api/wazuh/webhook exact reste prioritaire.
+app.add_api_route(
+    "/api/wazuh/webhook/{slug}",
+    wazuh_webhook,
+    methods=["POST"],
+    dependencies=[Depends(webhook_slug_auth("wazuh"))],
 )
 
 # /api/real-alerts, /ws/status, /, /api/stats/bandwidth, /api/wazuh/investigate/{agent_id}

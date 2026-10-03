@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import text
 
+from ..core.config import settings
 from ..db import SessionLocal, engine
 from ..domain.models import Alert, SuricataAlert, SystemConfig
 from ..domain.pipeline_models import PipelineEvent
@@ -29,7 +30,7 @@ DEFAULT_PIPELINE_CONFIG = {
     "dedup_window_seconds": "60",
     "buffer_size": "10000",
     "suppress_after": "5",
-    "persist_events": "false",
+    "persist_events": "true",
     "severity_mapping": json.dumps(DEFAULT_SEVERITY_MAPPING),
 }
 
@@ -170,6 +171,9 @@ def ensure_columns(engine):
             ("pipeline_source", "VARCHAR(30)"),
             ("pipeline_processed_at", "TIMESTAMP WITH TIME ZONE"),
         ],
+        "agents": [
+            ("capabilities", "TEXT"),
+        ],
     }
     with engine.begin() as conn:
         for table, cols in adds.items():
@@ -185,9 +189,31 @@ def ensure_columns(engine):
                 except Exception as e:
                     logger.warning("Pipeline: ADD COLUMN %s.%s échoué: %s", table, col, e)
                     conn.rollback()
+        # Idempotent widening of alerts.agent_id from VARCHAR(10) to VARCHAR(64)
+        if "alerts" in inspector.get_table_names():
+            try:
+                conn.execute(text("ALTER TABLE alerts ALTER COLUMN agent_id TYPE VARCHAR(64)"))
+                logger.info("Pipeline: colonne alerts.agent_id élargie à VARCHAR(64)")
+            except Exception as e:
+                logger.warning("Pipeline: ALTER COLUMN alerts.agent_id TYPE VARCHAR(64) échoué: %s", e)
 
 
 # ── Persistance ─────────────────────────────────────────────────────
+
+def _safe_severity(payload: dict, default: int = 5) -> int:
+    """Coerce severity defensively: try int(), fall back to normalized_severity, then 5."""
+    raw = payload.get("severity")
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        pass
+    norm = payload.get("normalized_severity")
+    try:
+        return int(norm)
+    except (TypeError, ValueError):
+        pass
+    return default
+
 
 def _create_alert_row(db, payload: dict, source: str, normalized_severity: int) -> int:
     ts = payload.get("timestamp")
@@ -207,7 +233,7 @@ def _create_alert_row(db, payload: dict, source: str, normalized_severity: int) 
             dest_ip=str(payload.get("dest_ip") or "")[:45] or None,
             proto=str(payload.get("proto") or "")[:20] or None,
             alert_msg=desc[:255] or None,
-            severity=int(payload.get("severity") or 3),
+            severity=_safe_severity(payload, normalized_severity),
             normalized_severity=normalized_severity,
             pipeline_source=source,
             pipeline_processed_at=processed_at,
@@ -218,9 +244,9 @@ def _create_alert_row(db, payload: dict, source: str, normalized_severity: int) 
             tenant_id=payload.get("tenant_id", "default"),
             timestamp=ts,
             description=desc,
-            severity=int(payload.get("severity") or 5),
+            severity=_safe_severity(payload, normalized_severity),
             src_ip=str(payload.get("src_ip") or "")[:45] or None,
-            agent_id=str(payload.get("agent_id") or "")[:10] or None,
+            agent_id=str(payload.get("agent_id") or "")[:64] or None,
             normalized_severity=normalized_severity,
             pipeline_source=source,
             pipeline_processed_at=processed_at,
@@ -250,7 +276,7 @@ def _persist_pipeline_event(db, payload: dict, normalized_severity: int, key: st
             signature=str(payload.get("signature") or payload.get("description") or "")[:255] or None,
             src_ip=str(payload.get("src_ip") or "")[:45] or None,
             dest_ip=str(payload.get("dest_ip") or "")[:45] or None,
-            severity=int(payload.get("severity") or 5),
+            severity=_safe_severity(payload, normalized_severity),
             normalized_severity=normalized_severity,
             dedup_key=key,
             deduped=deduped,
@@ -282,6 +308,16 @@ def ingest_alert(payload: dict, db=None, alert_id: Optional[int] = None) -> dict
         dest_ip = str(payload.get("dest_ip") or "")[:45] or None
         mapping = cfg.get("severity_mapping", DEFAULT_SEVERITY_MAPPING)
         normalized_severity = normalize_severity(source, payload.get("severity"), mapping)
+
+        # Threat Intel enrichment
+        if settings.THREAT_INTEL_ENABLED and payload.get("src_ip"):
+            try:
+                from ..infrastructure.threat_intel.client import lookup_ip
+                intel = lookup_ip(db, payload.get("tenant_id", "default"), payload["src_ip"])
+                if intel.get("verdict") in ("malicious", "suspicious"):
+                    payload["description"] = f"[IoC {intel['verdict'].upper()} (score:{intel.get('risk_score','?')})] {payload.get('description', '')}"
+            except Exception:
+                pass  # fail open — TI ne doit jamais bloquer le pipeline
 
         key = make_dedup_key(src_ip, dest_ip, signature)
         verdict = _dedup.check(key, cfg["dedup_window_seconds"], cfg["suppress_after"])
@@ -327,6 +363,22 @@ def ingest_alert(payload: dict, db=None, alert_id: Optional[int] = None) -> dict
             _stats["rule_matches_total"] += rule_count
         except Exception as e:
             logger.warning("Pipeline: évaluation des règles échouée: %s", e)
+
+        # F5 — Auto-analyse IA : publie l'ingestion acceptée sur le bus local.
+        # Les lanes abonnées (ai_auto) font leur propre garde (enabled,
+        # seuil, single-flight). Jamais bloquant pour le pipeline.
+        try:
+            from .events import CHANNEL_ALERT_INGESTED, event_bus
+            event_bus.publish_local(CHANNEL_ALERT_INGESTED, {
+                "tenant_id": payload.get("tenant_id", "default"),
+                "alert_id": resolved_alert_id,
+                "agent_id": normalized.get("agent_id"),
+                "severity": int(normalized.get("normalized_severity", 0) or 0),
+                "source": source,
+                "timestamp": normalized.get("timestamp"),
+            })
+        except Exception as e:
+            logger.debug("Pipeline: publication CHANNEL_ALERT_INGESTED ignorée: %s", e)
 
         return {
             "status": "accepted",

@@ -2,13 +2,18 @@ import asyncio
 import logging
 
 from ..config import settings
+from ..infrastructure.honeypot.service import HoneypotService
+from ..config import settings
 from ..core.broadcaster import broadcaster
 from ..db import Base, SessionLocal, engine
 from ..domain.models import TenantUser
+from ..domain.investigations import Investigation, InvestigationEvidence, InvestigationRecommendation  # noqa: F401
 from ..scanner import background_scanner
 from ..services.password_manager import hash_password
 from .system_config import _init_defaults
 from .wazuh.service import wazuh_service
+
+honeypot_service = HoneypotService()
 
 logger = logging.getLogger(__name__)
 
@@ -43,18 +48,26 @@ async def run_startup():
     from ..infrastructure.timescale import ensure_timescaledb
     ensure_timescaledb(engine)
 
+    from ..domain.rule_models import ensure_mitre_columns
+
     db = SessionLocal()
     try:
         pipeline_module.ensure_defaults(db)
         retention_module.ensure_retention_defaults(db)
+        ensure_mitre_columns(db)
     finally:
         db.close()
 
     # F3-SOAR-WIRE-IN: lane mini-SOAR (F3) — abonnement au bus d'événements F1
-    from .events import CHANNEL_RULE_MATCH, event_bus
+    from .events import CHANNEL_ALERT_INGESTED, CHANNEL_RULE_MATCH, event_bus
     from .soar.executor import on_rule_match
+    from .investigations.handler import on_rule_match_investigate
+    from .ai_auto.handler import on_alert_ingested
 
     event_bus.subscribe(CHANNEL_RULE_MATCH, on_rule_match)
+    event_bus.subscribe(CHANNEL_RULE_MATCH, on_rule_match_investigate)
+    # F5 — Auto-analyse IA : écoute les ingestions acceptées par le pipeline.
+    event_bus.subscribe(CHANNEL_ALERT_INGESTED, on_alert_ingested)
 
     try:
         db = SessionLocal()
@@ -80,6 +93,15 @@ async def run_startup():
             logger.error("Background scanner crashed: %s", e)
     asyncio.create_task(safe_scanner())
 
+    async def safe_honeypot():
+        try:
+            await honeypot_service.start(SessionLocal, broadcaster.broadcast, ports=[2323, 3389, 8443, 5555])
+            from ..interface.api.honeypot import set_honeypot_service
+            set_honeypot_service(honeypot_service)
+        except Exception as e:
+            logger.error("Honeypot crashed: %s", e)
+    asyncio.create_task(safe_honeypot())
+
     async def safe_bandwidth_sampler():
         try:
             from ..interface.api.sensors import sample_bandwidth_for_online_analysts
@@ -89,24 +111,35 @@ async def run_startup():
     asyncio.create_task(safe_bandwidth_sampler())
 
     async def wazuh_sync_task():
+        from .source_control import is_source_enabled
+        from ..db import SessionLocal
         refresh_counter = 0
         while True:
-            if wazuh_service._wazuh_available or wazuh_service._indexer_available:
-                try:
-                    await wazuh_service.sync_alerts(SessionLocal)
-                except Exception as e:
-                    logger.warning("Alert sync error: %s", e)
-
-                refresh_counter += 1
-                if refresh_counter >= 10:
-                    refresh_counter = 0
+            db = SessionLocal()
+            try:
+                if not is_source_enabled(db, "wazuh"):
+                    await asyncio.sleep(60)
+                    continue
+                if wazuh_service._wazuh_available or wazuh_service._indexer_available:
                     try:
-                        await wazuh_service.refresh_agent_cache()
+                        await wazuh_service.sync_alerts(db)
                     except Exception as e:
-                        logger.warning("Cache refresh error: %s", e)
-            else:
-                await asyncio.sleep(120)
-                continue
+                        logger.warning("Alert sync error: %s", e)
 
+                    refresh_counter += 1
+                    if refresh_counter >= 10:
+                        refresh_counter = 0
+                        try:
+                            await wazuh_service.refresh_agent_cache()
+                        except Exception as e:
+                            logger.warning("Cache refresh error: %s", e)
+                else:
+                    await asyncio.sleep(120)
+                    continue
+            finally:
+                db.close()
             await asyncio.sleep(60)
-    asyncio.create_task(wazuh_sync_task())
+    if settings.ENABLE_WAZUH_SOURCE:
+        asyncio.create_task(wazuh_sync_task())
+    else:
+        logger.info("Source Wazuh désactivée — sync ignoré")

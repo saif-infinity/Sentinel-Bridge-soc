@@ -109,6 +109,9 @@ if errorlevel 1 (
     popd
     pause & exit /b 1
 )
+REM insightface tire opencv-python (GUI) -> collision fichiers avec headless; on remet headless en dernier
+call venv\Scripts\pip uninstall -y opencv-python >nul 2>&1
+call venv\Scripts\pip install --force-reinstall --no-deps opencv-python-headless==4.14.0.94 >nul 2>&1
 :backend_pip_done
 popd
 echo [ OK ] Environnement Python installe.

@@ -23,6 +23,8 @@ from ..domain.rule_models import RuleMatchOutbox
 logger = logging.getLogger(__name__)
 
 CHANNEL_RULE_MATCH = "rules.match"
+CHANNEL_INVESTIGATION_COMPLETE = "investigations.complete"
+CHANNEL_ALERT_INGESTED = "alerts.ingested"
 EVENT_VERSION = 1
 
 
@@ -37,6 +39,33 @@ class RuleMatchEvent:
     source: str                          # "pipeline" | "catch_up"
     normalized_alert: Dict[str, Any]     # forme canonique F1 (voir evaluator.NORMALIZED_KEYS)
     matched_rules: List[Dict[str, Any]]  # [{rule_id, rule_name, rule_severity, tags, correlation, matched_conditions}]
+
+
+@dataclass
+class InvestigationCompleteEvent:
+    """Event published when an investigation reaches awaiting_response status."""
+    event_id: str
+    timestamp: str
+    tenant_id: str
+    channel: str
+    version: int
+    source: str
+    investigation_id: int
+    case_id: int | None
+    risk_level: str | None
+    matched_rules: List[Dict[str, Any]] | None = None
+
+    def __post_init__(self):
+        if self.matched_rules is None:
+            self.matched_rules = []
+        if not self.channel:
+            self.channel = CHANNEL_INVESTIGATION_COMPLETE
+        if not self.version:
+            self.version = EVENT_VERSION
+        if not self.source:
+            self.source = "response_agent"
+        if not self.timestamp:
+            self.timestamp = datetime.now(timezone.utc).isoformat()
 
 
 class EventBus:
@@ -56,7 +85,7 @@ class EventBus:
                 except ValueError:
                     pass
 
-    def _dispatch(self, channel: str, event: RuleMatchEvent) -> None:
+    def _dispatch(self, channel: str, event: Any) -> None:
         with self._lock:
             handlers = list(self._handlers.get(channel, []))
         for handler in handlers:
@@ -66,13 +95,13 @@ class EventBus:
                     if loop is not None:
                         loop.create_task(handler(channel, event))
                     else:
-                        logger.warning("events: handler async %s sans loop actif — outbox dispo",
-                                       getattr(handler, "__name__", handler))
+                        logger.warning("events: handler async %s sans loop actif — dispatch local",
+                                        getattr(handler, "__name__", handler))
                 else:
                     handler(channel, event)
             except Exception as e:
                 logger.warning("events: handler %s a échoué: %s",
-                               getattr(handler, "__name__", handler), e)
+                                getattr(handler, "__name__", handler), e)
 
     async def publish(self, channel: str, event: RuleMatchEvent) -> None:
         """Publication depuis un contexte async : écrit l'outbox puis dispatch."""
@@ -88,6 +117,10 @@ class EventBus:
             _insert_outbox(channel, event)
         except Exception as e:
             logger.warning("events: écriture outbox échouée: %s", e)
+        self._dispatch(channel, event)
+
+    def publish_local(self, channel: str, event: Any) -> None:
+        """Dispatch in-process uniquement, sans outbox."""
         self._dispatch(channel, event)
 
 

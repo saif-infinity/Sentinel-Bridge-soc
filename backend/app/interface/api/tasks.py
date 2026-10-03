@@ -7,7 +7,7 @@ from ...models import IaReport, Asset, Device, Alert
 from ...schemas import TaskResponse, ThreatAnalysisRequest
 from ...core.broadcaster import broadcaster
 from ...worker import analyze_threat_task, analyze_network_global_task
-from ...nmap_worker import deep_nmap_scan_task
+from ...infrastructure.jobs.nmap_tasks import deep_nmap_scan_task
 from celery.result import AsyncResult
 from pydantic import BaseModel
 from typing import Optional, List

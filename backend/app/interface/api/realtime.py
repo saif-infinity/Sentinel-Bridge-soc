@@ -52,6 +52,7 @@ async def get_real_alerts(request: Request, limit: int = 50, db: Session = Depen
                  logger.error(f"Error querying device for IP {item.src_ip}: {e}")
                 
         enriched_data.append({
+            "ID": item.id,
             "Timestamp": item.timestamp.isoformat(),
             "Description": item.description,
             "Severity": item.severity,

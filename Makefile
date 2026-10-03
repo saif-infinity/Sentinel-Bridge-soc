@@ -24,6 +24,8 @@ install: install-backend install-frontend
 
 install-backend:
 	cd backend && python -m venv venv && .\venv\Scripts\pip install -r requirements.txt
+	# insightface tire opencv-python (GUI) -> entre en collision fichiers avec headless.
+	./backend/venv/Scripts/pip uninstall -y opencv-python && ./backend/venv/Scripts/pip install --force-reinstall --no-deps opencv-python-headless==4.14.0.94
 
 install-frontend:
 	cd frontend && npm install
@@ -33,7 +35,7 @@ dev:
 	start "ollama" cmd /c "$(OLLAMA) serve"
 	start "wazuh" cmd /c "cd /d $(WAZUH_DIR) && docker-compose up -d"
 	start "backend" cmd /c "cd /d $(CURDIR)\backend & .\venv\Scripts\uvicorn app.main:app --reload --host 127.0.0.1 --port 8001"
-	start "worker" cmd /c "cd /d $(CURDIR)\backend & .\venv\Scripts\celery -A app.worker.celery_app worker --loglevel=info --pool=solo"
+	start "worker" cmd /c "cd /d $(CURDIR)\backend & .\venv\Scripts\celery -A app.worker.celery_app worker --loglevel=info --pool=solo -B"
 	start "frontend" cmd /c "cd /d $(CURDIR)\frontend & npm run dev"
 
 dev-backend:
@@ -43,7 +45,7 @@ dev-frontend:
 	cd frontend && npm run dev
 
 dev-worker:
-	cd backend && .\venv\Scripts\celery -A app.worker.celery_app worker --loglevel=info --pool=solo
+	cd backend && .\venv\Scripts\celery -A app.worker.celery_app worker --loglevel=info --pool=solo -B
 
 dev-wazuh:
 	cd "$(WAZUH_DIR)" && docker-compose up -d

@@ -1,8 +1,24 @@
 import { memo } from "react";
-import { ShieldAlert, Shield, Search } from "lucide-react";
+import { ShieldAlert, Shield, Search, FileSearch } from "lucide-react";
 import IntelBadge from "./IntelBadge";
+import { useData } from "../contexts/DataContext";
+
+const RISK_PILL = {
+  critical: "bg-red-500/10 text-red-400 border border-red-500/20",
+  high: "bg-orange-500/10 text-orange-400 border border-orange-500/20",
+  medium: "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20",
+  low: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+};
+const VISIBLE_INV_STATUSES = ["running", "scoring", "summarizing", "awaiting_response", "complete"];
 
 const AlertRow = memo(({ alert, onInvestigate, t }) => {
+  const { investigations } = useData();
+  const alertId = alert.id ?? alert.alert_id ?? alert.ID ?? null;
+  const inv = (() => {
+    if (alertId == null || !investigations?.length) return null;
+    const sid = String(alertId);
+    return investigations.find((it) => String(it.trigger_alert_id) === sid && (it.trigger_alert_type === "alert" || !it.trigger_alert_type) && VISIBLE_INV_STATUSES.includes(it.status)) || null;
+  })();
   const sev = parseInt(alert.Severity || alert.severity || 0);
   const isCritical = sev >= 12;
   const isHigh = sev >= 7 && sev < 12;
@@ -45,7 +61,19 @@ const AlertRow = memo(({ alert, onInvestigate, t }) => {
         <strong>{alert["Source IP"] || alert.srcip || "0.0.0.0"}</strong>
       </td>
       <td>
-        <IntelBadge alert={alert} />
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+          <IntelBadge alert={alert} />
+          {inv && (
+            <span
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${inv.risk_level ? (RISK_PILL[inv.risk_level] || "bg-gray-500/10 text-gray-400 border border-gray-500/20") : "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"} ${inv.status === "awaiting_response" ? "ring-1 ring-amber-400/40" : ""}`}
+              title={`Enquête #${inv.id} — ${inv.status}${inv.risk_level ? ` · ${inv.risk_level} ${inv.risk_score ?? ""}/100` : ""}`}
+            >
+              <FileSearch size={11} />
+              Enquête
+              {inv.risk_level && <span className="opacity-80">· {inv.risk_level}</span>}
+            </span>
+          )}
+        </div>
       </td>
       <td style={{ fontFamily: "monospace", color: "var(--accent-cyan)", fontSize: "12px" }}>
         {alert["MAC Address"] || alert.mac || "N/A"}

@@ -3,7 +3,7 @@ import { Shield, User, Lock, ScanFace, Camera, CameraOff, LogIn, AlertCircle, Ch
 
 const FACES_API_BASE = "/api/faces";
 const DETECT_INTERVAL = 100;
-const REQUIRED_HITS = 8;
+const REQUIRED_HITS = 2;
 const DETECT_TIMEOUT = 30000;
 
 export default function LoginPage({ onLogin }) {
@@ -27,6 +27,17 @@ export default function LoginPage({ onLogin }) {
   const [detectProgress, setDetectProgress] = useState(0);
   const [slideDir, setSlideDir] = useState("forward");
   const [faceVerifying, setFaceVerifying] = useState(false);
+
+  // Identification faciale sans identifiants (POST /api/faces/identify)
+  const [identifyActive, setIdentifyActive] = useState(false);
+  const [identifyResult, setIdentifyResult] = useState(null);
+  const [identifyLoading, setIdentifyLoading] = useState(false);
+  const [identifyError, setIdentifyError] = useState("");
+
+  // Inscription en attente d'approbation admin
+  const [pendingRegId, setPendingRegId] = useState(null);
+  const [pendingRegStatus, setPendingRegStatus] = useState("pending"); // pending | approved | refused
+  const [pendingRegChecking, setPendingRegChecking] = useState(false);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -54,6 +65,8 @@ export default function LoginPage({ onLogin }) {
   useEffect(() => {
     setError(""); setFaceVerifyResult(null); setFaceImage(null); setFaceScanned(false); setFaceStatus(null); setFaceRegisterMode(false);
     setDetectState("idle"); setDetectProgress(0); setStep("credentials"); setSlideDir("forward"); setFaceVerifying(false);
+    setIdentifyActive(false); setIdentifyResult(null); setIdentifyLoading(false); setIdentifyError("");
+    setPendingRegId(null); setPendingRegStatus("pending"); setPendingRegChecking(false);
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
     setIsCameraOpen(false);
     pendingTokenRef.current = null;
@@ -61,6 +74,33 @@ export default function LoginPage({ onLogin }) {
     autoVerifyRef.current = false;
     faceScannedRef.current = false;
   }, [mode]);
+
+  // Polling du statut de la demande d'inscription (GET /auth/register-request/{id}) toutes les 5-6s
+  useEffect(() => {
+    if (!pendingRegId || pendingRegStatus !== "pending") return;
+    let alive = true;
+    const poll = async () => {
+      if (!alive) return;
+      setPendingRegChecking(true);
+      try {
+        const res = await fetch(`/auth/register-request/${encodeURIComponent(pendingRegId)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!alive) return;
+        const s = data.status;
+        if (s === "approved" || s === "refused") {
+          setPendingRegStatus(s);
+        }
+      } catch {
+        // silencieux, on retentera au prochain tick
+      } finally {
+        if (alive) setPendingRegChecking(false);
+      }
+    };
+    poll();
+    const id = setInterval(poll, 5500);
+    return () => { alive = false; clearInterval(id); };
+  }, [pendingRegId, pendingRegStatus]);
 
   useEffect(() => {
     if (!videoRef.current || !streamRef.current) return;
@@ -122,10 +162,8 @@ export default function LoginPage({ onLogin }) {
         sumSq += gray * gray;
 
         // Broader skin colour model (works for more skin tones)
-        const isSkin = r > 50 && g > 30 && b > 15
-          && r > g && r > b
-          && (r - g) > 8
-          && Math.abs(g - b) < 40;
+        const isSkin = r > 40 && g > 25 && b > 10
+          && r >= g && r >= b;
         if (isSkin) skinPx++;
 
         brightSum += gray;
@@ -144,7 +182,7 @@ export default function LoginPage({ onLogin }) {
       totalContrast += stdDev;
       zoneCount++;
 
-      if (stdDev > 12 && avgBright > 35 && avgBright < 240) zonesPassed++;
+      if (stdDev > 6 && avgBright > 35 && avgBright < 240) zonesPassed++;
     }
 
     if (zoneCount === 0) return false;
@@ -164,15 +202,15 @@ export default function LoginPage({ onLogin }) {
       }
     }
 
-    // Primary: 3+ zones pass (strict for high confidence)
-    if (zonesPassed >= 3) return true;
+    // Primary: 2+ zones pass (relaxed for real webcam conditions)
+    if (zonesPassed >= 2) return true;
 
-    // Secondary: 2 zones + skin + good brightness
-    if (zonesPassed >= 2 && avgSkin > 0.02 && avgBright > 50 && avgBright < 220) return true;
+    // Secondary: 1 zone + skin + good brightness
+    if (zonesPassed >= 1 && avgSkin > 0.01 && avgBright > 40 && avgBright < 230) return true;
 
     // Fallback: edge density + skin + brightness (for faces with less contrast)
     const edgeDensity = highFreqPx / vw;
-    if (edgeDensity > 0.15 && avgSkin > 0.015 && avgBright > 45 && avgBright < 220) return true;
+    if (edgeDensity > 0.08 && avgSkin > 0.008 && avgBright > 40 && avgBright < 230) return true;
 
     return false;
   }, []);
@@ -196,6 +234,77 @@ export default function LoginPage({ onLogin }) {
     detectExpiredRef.current = false;
     if (!faceScannedRef.current) setFaceImage(null);
   }, [stopDetect]);
+
+  // ── Identification faciale publique (POST /api/faces/identify) ──
+  const callIdentify = useCallback(async (imageData) => {
+    setIdentifyLoading(true);
+    setIdentifyError("");
+    try {
+      const res = await fetch(`${FACES_API_BASE}/identify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: imageData }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setIdentifyResult(data.status ? data : { status: "unknown", username: null, similarity: 0, message: data.detail || "Erreur du service d'identification.", authorized: false });
+      } else {
+        setIdentifyResult(data);
+      }
+      // Garder caméra fermée, afficher résultat par-dessus l'aperçu
+      if (mountedRef.current) {
+        // Ne pas effacer faceImage : utile pour feedback visuel
+        closeCamera();
+        setDetectState("idle");
+        setDetectProgress(0);
+      }
+    } catch {
+      if (mountedRef.current) {
+        setIdentifyError("Erreur de connexion");
+        setIdentifyResult({ status: "unknown", username: null, similarity: 0, message: "Erreur de connexion", authorized: false });
+        closeCamera();
+      }
+    } finally {
+      if (mountedRef.current) setIdentifyLoading(false);
+    }
+  }, [closeCamera]);
+
+  const startIdentify = useCallback(async () => {
+    setError(""); setSuccessMessage(""); setIdentifyError(""); setIdentifyResult(null);
+    setFaceImage(null); setFaceScanned(false); faceScannedRef.current = false;
+    setDetectState("idle"); setDetectProgress(0); detectExpiredRef.current = false;
+    setIdentifyActive(true);
+    // openCamera réutilise le flux existant
+    if (isCameraOpen || streamRef.current) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      streamRef.current = stream;
+      setIsCameraOpen(true);
+      setIdentifyError("");
+    } catch {
+      setIdentifyError("Impossible d'accéder à la caméra. Vérifiez les permissions.");
+      setIdentifyActive(false);
+    }
+  }, [isCameraOpen]);
+
+  const cancelIdentify = useCallback(() => {
+    closeCamera();
+    setIdentifyActive(false);
+    setIdentifyResult(null);
+    setIdentifyLoading(false);
+    setIdentifyError("");
+    setFaceImage(null); setFaceScanned(false); faceScannedRef.current = false;
+    setDetectState("idle"); setDetectProgress(0);
+  }, [closeCamera]);
+
+  const continueWithIdentified = useCallback(() => {
+    const name = identifyResult?.username;
+    if (name) setUsername(name);
+    setSuccessMessage(identifyResult?.username ? `Visage identifié : ${identifyResult.username} — entrez votre mot de passe` : "Visage identifié");
+    cancelIdentify();
+  }, [identifyResult, cancelIdentify]);
 
   const verifyFaceAndLogin = useCallback(async (image, user, token) => {
     setFaceVerifying(true);
@@ -247,10 +356,15 @@ export default function LoginPage({ onLogin }) {
     setFaceImage(imageData);
     setFaceScanned(true);
     faceScannedRef.current = true;
+    if (identifyActive) {
+      setDetectState("capturing");
+      setTimeout(() => callIdentify(imageData), 200);
+      return;
+    }
     closeCamera();
     setSuccessMessage("Visage capturé !");
     setTimeout(() => { if (mountedRef.current) setSuccessMessage(""); }, 3000);
-  }, [closeCamera, stopDetect]);
+  }, [closeCamera, stopDetect, identifyActive, callIdentify]);
 
   const retakeFace = useCallback(() => {
     setFaceImage(null); setFaceScanned(false); faceScannedRef.current = false; setFaceVerifyResult(null); setError("");
@@ -270,6 +384,11 @@ export default function LoginPage({ onLogin }) {
     faceScannedRef.current = true;
     setDetectState("done");
 
+    if (identifyActive) {
+      callIdentify(dataUrl);
+      return;
+    }
+
     const token = pendingTokenRef.current;
     if (token) {
       verifyFaceAndLogin(dataUrl, username.trim(), token);
@@ -282,7 +401,7 @@ export default function LoginPage({ onLogin }) {
         }
       }, 1200);
     }
-  }, [closeCamera, verifyFaceAndLogin, username, onLogin]);
+  }, [closeCamera, verifyFaceAndLogin, username, onLogin, identifyActive, callIdentify]);
 
   const startAutoDetect = useCallback(() => {
     stopDetect();
@@ -321,6 +440,22 @@ export default function LoginPage({ onLogin }) {
       }
     }, DETECT_INTERVAL);
   }, [analyzeFrame, stopDetect, doCapture]);
+
+  // relance la caméra pour une nouvelle identification (déclaré après startAutoDetect : en dépend)
+  const retryIdentify = useCallback(() => {
+    setIdentifyResult(null); setIdentifyError(""); setIdentifyLoading(false);
+    setFaceImage(null); setFaceScanned(false); faceScannedRef.current = false;
+    setDetectState("idle"); setDetectProgress(0); detectExpiredRef.current = false;
+    // relance caméra
+    if (!streamRef.current) {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } } })
+        .then((stream) => { streamRef.current = stream; setIsCameraOpen(true); })
+        .catch(() => setIdentifyError("Impossible d'accéder à la caméra. Vérifiez les permissions."));
+    } else {
+      setIsCameraOpen(true);
+      setTimeout(() => { if (mountedRef.current) startAutoDetect(); }, 400);
+    }
+  }, [startAutoDetect]);
 
   const openCamera = useCallback(async () => {
     setError(""); setFaceVerifyResult(null);
@@ -366,6 +501,7 @@ export default function LoginPage({ onLogin }) {
     closeCamera();
     setSlideDir("back");
     setStep("credentials");
+    setIdentifyActive(false); setIdentifyResult(null); setIdentifyError(""); setIdentifyLoading(false);
   }, [closeCamera]);
 
   const handleRegisterFace = async () => {
@@ -388,14 +524,48 @@ export default function LoginPage({ onLogin }) {
     if (password.length < 4) { setError("Minimum 4 caractères."); return; }
     setIsLoading(true);
     try {
-      const res = await fetch("/auth/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: username.trim(), password }) });
+      const body = { username: username.trim(), password, face_image: faceImage || null };
+      const res = await fetch("/auth/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!res.ok) { const errData = await res.json().catch(() => ({})); throw new Error(errData.detail || "Erreur d'inscription"); }
       const data = await res.json();
-      if (faceImage) { try { await fetch(`${FACES_API_BASE}/register`, { method: "POST", headers: { Authorization: `Bearer ${data.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ image: faceImage, username: username.trim() }) }); } catch {} }
-      onLogin(data.access_token, username.trim(), undefined, data.role);
+      if (data.status === "pending" && data.request_id) {
+        setPendingRegId(data.request_id);
+        setPendingRegStatus("pending");
+        setPendingRegChecking(false);
+        setError(""); setSuccessMessage("");
+        return;
+      }
+      if (data.status === "pending" && !data.access_token) {
+        // fallback ancien contrat sans request_id : on affiche quand même en erreur info (ne devrait plus arriver)
+        setError("Inscription envoyée : en attente d'approbation par l'administrateur.");
+      } else if (data.access_token) {
+        if (faceImage) { try { await fetch(`${FACES_API_BASE}/register`, { method: "POST", headers: { Authorization: `Bearer ${data.access_token}`, "Content-Type": "application/json" }, body: JSON.stringify({ image: faceImage, username: username.trim() }) }); } catch {} }
+        onLogin(data.access_token, username.trim(), undefined, data.role);
+      } else {
+        setError("Erreur d'inscription");
+      }
     } catch (err) { setError(err.message); }
     finally { setIsLoading(false); }
   };
+
+  const handleCancelPending = useCallback(() => {
+    setPendingRegId(null);
+    setPendingRegStatus("pending");
+    setPendingRegChecking(false);
+    setError("");
+  }, []);
+
+  const handleGoToSigninFromPending = useCallback(() => {
+    const keep = username.trim();
+    setPendingRegId(null);
+    setPendingRegStatus("pending");
+    setPendingRegChecking(false);
+    setMode("signin");
+    // username déjà gardé, on nettoie juste messages et pré-remplit
+    setTimeout(() => { if (keep) setUsername(keep); }, 0);
+    setSuccessMessage("Compte approuvé — vous pouvez vous connecter");
+    setError("");
+  }, [username]);
 
   const handleSignIn = async (e) => {
     e.preventDefault(); setError(""); setFaceVerifyResult(null);
@@ -478,18 +648,24 @@ export default function LoginPage({ onLogin }) {
           </div>
         )}
 
-        {detectState === "idle" && detectExpiredRef.current && !faceScanned && (
+        {detectState === "idle" && detectExpiredRef.current && !faceScanned && !identifyLoading && (
           <div className="detect-retry-overlay">
             <p>Détection interrompue</p>
-            <button type="button" className="face-capture-btn" onClick={startAutoDetect}><Camera size={18} /> Réessayer</button>
+            <button type="button" className="face-capture-btn" onClick={identifyActive ? retryIdentify : startAutoDetect}><Camera size={18} /> Réessayer</button>
+          </div>
+        )}
+        {identifyLoading && (
+          <div className="detect-retry-overlay" style={{ background: "rgba(0,0,0,0.55)" }}>
+            <Loader2 size={22} className="spin" style={{ color: "#00ff88" }} />
+            <p>Identification en cours...</p>
           </div>
         )}
       </div>
       <canvas ref={canvasRef} style={{ display: "none" }} />
       <canvas ref={detectCanvasRef} style={{ display: "none" }} />
       <div className="camera-actions">
-        <button type="button" className="face-capture-btn" onClick={captureFace} disabled={detectState === "done"}><Camera size={18} /> Capturer</button>
-        <button type="button" className="face-cancel-btn" onClick={closeCamera} disabled={detectState === "done"}><CameraOff size={18} /> Annuler</button>
+        <button type="button" className="face-capture-btn" onClick={captureFace} disabled={detectState === "done" || identifyLoading}><Camera size={18} /> Capturer</button>
+        <button type="button" className="face-cancel-btn" onClick={identifyActive ? cancelIdentify : closeCamera} disabled={detectState === "done"}><CameraOff size={18} /> Annuler</button>
       </div>
     </div>
   );
@@ -572,24 +748,162 @@ export default function LoginPage({ onLogin }) {
           {/* ───── STEP 1 : Identifiants ───── */}
           <div className={`login-step-panel ${step === "credentials" ? "active" : "hidden"}`}>
             {mode === "signin" ? (
-              <form className="login-form" onSubmit={handleSignIn}>
-                <div className="step-indicator">Étape 1 sur 2 — Identifiants</div>
-                <div className="login-field">
-                  <label><User size={16} /> <span>Nom d'utilisateur</span></label>
-                  <input type="text" placeholder="Entrez votre identifiant" value={username} onChange={(e) => setUsername(e.target.value)} onBlur={handleUsernameBlur} disabled={isLoading} autoFocus />
-                  {faceStatus === "checking" && <span className="field-hint"><Loader2 size={12} className="spin" /> Vérification...</span>}
-                  {faceStatus === "registered" && <span className="field-hint hint-success"><CheckCircle2 size={12} /> Visage enregistré</span>}
-                  {faceStatus === "unregistered" && <span className="field-hint hint-warn"><AlertCircle size={12} /> Aucun visage enregistré</span>}
+              identifyActive ? (
+                <div className="login-form identify-mode">
+                  <div className="step-indicator">Identification faciale</div>
+
+                  {!identifyResult && !identifyLoading && !identifyError && (
+                    <div className="identify-camera-wrap">
+                      {!isCameraOpen ? (
+                        <div className="identify-starting">
+                          <Loader2 size={20} className="spin" />
+                          <span>Ouverture de la caméra...</span>
+                        </div>
+                      ) : renderCameraPreview()}
+                      {identifyError && <div className="login-error-msg"><AlertCircle size={16} /> {identifyError}</div>}
+                    </div>
+                  )}
+
+                  {identifyLoading && (
+                    <div className="identify-loading">
+                      <div className="camera-preview">
+                        <div className="camera-frame" style={{ minHeight: 220, display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0a" }}>
+                          {faceImage && <img src={faceImage} alt="capture" style={{ width: "100%", maxHeight: 260, objectFit: "cover", opacity: 0.6 }} />}
+                          <div className="detect-retry-overlay" style={{ background: "rgba(0,0,0,0.55)" }}>
+                            <Loader2 size={22} className="spin" style={{ color: "#00ff88" }} />
+                            <p>Identification en cours...</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {identifyResult && identifyResult.status === "recognized" && identifyResult.username && (
+                    <div className="identify-result identify-recognized">
+                      <div className="identify-badge identify-badge--success">
+                        <CheckCircle2 size={18} />
+                        <span>Visage identifié : {identifyResult.username} · similarité {Math.round((identifyResult.similarity || 0) * 100)}%</span>
+                      </div>
+                      <p className="identify-message">{identifyResult.message}</p>
+                      <div className="identify-actions">
+                        <button type="button" className="login-submit-btn" onClick={continueWithIdentified}>
+                          <LogIn size={16} /> Continuer avec {identifyResult.username}
+                        </button>
+                        <div className="identify-secondary-actions">
+                          <button type="button" className="face-capture-btn" onClick={retryIdentify}><Camera size={16} /> Réessayer</button>
+                          <button type="button" className="face-cancel-btn" onClick={cancelIdentify}><User size={16} /> Retour aux identifiants</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {identifyResult && (identifyResult.status !== "recognized" || !identifyResult.username) && (
+                    <div className="identify-result identify-unknown">
+                      <div className="identify-badge identify-badge--danger">
+                        <AlertCircle size={18} />
+                        <span>VISITEUR NON AUTORISÉ — Accès refusé</span>
+                      </div>
+                      <p className="identify-message">{identifyResult.message || "Visiteur non autorisé : aucun utilisateur enregistré ne correspond."}</p>
+                      {identifyResult.similarity > 0.01 && (
+                        <span className="identify-sim">Similarité {Math.round(identifyResult.similarity * 100)}%</span>
+                      )}
+                      {identifyError && <div className="login-error-msg"><AlertCircle size={16} /> {identifyError}</div>}
+                      <div className="identify-actions">
+                        <button type="button" className="face-capture-btn" onClick={retryIdentify}><Camera size={16} /> Réessayer</button>
+                        <button type="button" className="face-cancel-btn" onClick={cancelIdentify}><User size={16} /> Retour aux identifiants</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {!identifyResult && !identifyLoading && identifyError && (
+                    <div className="identify-result identify-unknown">
+                      <div className="identify-badge identify-badge--danger">
+                        <AlertCircle size={18} />
+                        <span>Erreur d'identification</span>
+                      </div>
+                      <p className="identify-message">{identifyError}</p>
+                      <div className="identify-actions">
+                        <button type="button" className="face-capture-btn" onClick={retryIdentify}><Camera size={16} /> Réessayer</button>
+                        <button type="button" className="face-cancel-btn" onClick={cancelIdentify}><User size={16} /> Retour aux identifiants</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {!identifyResult && !identifyLoading && (
+                    <button type="button" className="identify-back-btn" onClick={cancelIdentify}>
+                      Retour aux identifiants
+                    </button>
+                  )}
                 </div>
-                <div className="login-field">
-                  <label><Lock size={16} /> <span>Mot de passe</span></label>
-                  <input type="password" placeholder="Entrez votre mot de passe" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} />
-                </div>
-                {error && <div className="login-error-msg"><AlertCircle size={16} /> {error}</div>}
-                <button type="submit" className="login-submit-btn" disabled={isLoading}>
-                  {isLoading ? <><Loader2 size={18} className="spin" /> Vérification...</> : <><LogIn size={18} /> Se connecter</>}
-                </button>
-              </form>
+              ) : (
+                <>
+                  <form className="login-form" onSubmit={handleSignIn}>
+                    <div className="step-indicator">Étape 1 sur 2 — Identifiants</div>
+                    <div className="login-field">
+                      <label><User size={16} /> <span>Nom d'utilisateur</span></label>
+                      <input type="text" placeholder="Entrez votre identifiant" value={username} onChange={(e) => setUsername(e.target.value)} onBlur={handleUsernameBlur} disabled={isLoading} autoFocus />
+                      {faceStatus === "checking" && <span className="field-hint"><Loader2 size={12} className="spin" /> Vérification...</span>}
+                      {faceStatus === "registered" && <span className="field-hint hint-success"><CheckCircle2 size={12} /> Visage enregistré</span>}
+                      {faceStatus === "unregistered" && <span className="field-hint hint-warn"><AlertCircle size={12} /> Aucun visage enregistré</span>}
+                    </div>
+                    <div className="login-field">
+                      <label><Lock size={16} /> <span>Mot de passe</span></label>
+                      <input type="password" placeholder="Entrez votre mot de passe" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} />
+                    </div>
+                    {error && <div className="login-error-msg"><AlertCircle size={16} /> {error}</div>}
+                    {successMessage && <div className="login-success-msg"><CheckCircle2 size={16} /> {successMessage}</div>}
+                    <button type="submit" className="login-submit-btn" disabled={isLoading}>
+                      {isLoading ? <><Loader2 size={18} className="spin" /> Vérification...</> : <><LogIn size={18} /> Se connecter</>}
+                    </button>
+                  </form>
+                  <div className="identify-divider">
+                    <span>ou</span>
+                  </div>
+                  <button type="button" className="identify-trigger-btn" onClick={startIdentify}>
+                    <ScanFace size={16} /> Identifier par visage
+                  </button>
+                </>
+              )
+            ) : pendingRegId ? (
+              <div className="pending-reg-panel">
+                {pendingRegStatus === "pending" && (
+                  <>
+                    <div className="pending-reg-head">
+                      <div className="pending-reg-icon">
+                        <Loader2 size={22} className="spin" style={{ color: "#00e5ff" }} />
+                      </div>
+                      <h3 className="pending-reg-title">Demande envoyée — en attente de validation par l'administrateur</h3>
+                      <p className="pending-reg-sub">Un administrateur doit approuver votre compte avant de pouvoir vous connecter. Cela peut prendre quelques minutes.</p>
+                    </div>
+                    <div className="pending-reg-status">
+                      <span className={`pending-reg-dot ${pendingRegChecking ? "checking" : ""}`} />
+                      <span className="pending-reg-checking">{pendingRegChecking ? "Vérification du statut..." : "Vérification du statut..."} </span>
+                      <span className="pending-reg-hint">actualisation toutes les 5 secondes</span>
+                    </div>
+                    <div className="pending-reg-id">Demande #{String(pendingRegId).slice(0, 8)}</div>
+                    <button type="button" className="pending-reg-cancel" onClick={handleCancelPending}>Annuler la demande</button>
+                  </>
+                )}
+                {pendingRegStatus === "approved" && (
+                  <>
+                    <div className="login-success-msg" style={{ justifyContent: "center" }}><CheckCircle2 size={16} /> Compte approuvé par l'administrateur</div>
+                    <p className="pending-reg-sub" style={{ textAlign: "center" }}>Votre compte a été validé. Vous pouvez maintenant vous connecter.</p>
+                    <button type="button" className="login-submit-btn" onClick={handleGoToSigninFromPending}>
+                      <LogIn size={16} /> Se connecter
+                    </button>
+                    <button type="button" className="pending-reg-cancel" onClick={handleCancelPending}>Fermer</button>
+                  </>
+                )}
+                {pendingRegStatus === "refused" && (
+                  <>
+                    <div className="login-error-msg" style={{ justifyContent: "center" }}><AlertCircle size={16} /> Demande refusée par l'administrateur</div>
+                    <p className="pending-reg-sub" style={{ textAlign: "center" }}>Votre demande a été refusée. Vous pouvez réessayer avec d'autres informations.</p>
+                    <button type="button" className="login-submit-btn" onClick={handleCancelPending}>
+                      Nouvelle tentative
+                    </button>
+                  </>
+                )}
+              </div>
             ) : (
               <div className="login-form">
                 <div className="step-indicator">Étape 1 sur 2 — Identifiants</div>

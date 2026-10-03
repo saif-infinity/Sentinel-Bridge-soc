@@ -10,4 +10,6 @@ from .core.auth import (  # noqa: F401
     get_token_from_request,
     has_scopes,
     has_scopes_or_api_key,
+    webhook_token_auth,
+    webhook_slug_auth,
 )

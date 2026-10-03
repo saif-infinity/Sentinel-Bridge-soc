@@ -126,7 +126,7 @@ sleep 2
 
 # ── 4. Celery Worker ───────────────────────────────────────────────
 info "Celery worker..."
-celery -A app.worker.celery_app worker --loglevel=info --pool=solo \
+celery -A app.worker.celery_app worker --loglevel=info --pool=solo -B \
   2>&1 | sed 's/^/[celery]  /' &
 PIDS+=($!)
 ok "Celery worker started (PID ${PIDS[-1]})"

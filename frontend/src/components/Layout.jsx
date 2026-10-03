@@ -9,7 +9,7 @@ import {
   Cpu, Clock, Zap, Lock, Network, Database, Globe, AlertTriangle,
   Volume2, VolumeX, Printer, LayoutDashboard, Monitor, Laptop, HardDrive,
   Terminal, Radio, FileText, X, LogIn, Users, Fingerprint, Settings, ScrollText,
-  FolderKanban, Crosshair, Workflow, Camera, Target,
+  FolderKanban, Crosshair, Workflow, Target,
 } from "lucide-react";
 
 const SystemClock = memo(() => {
@@ -22,8 +22,18 @@ const SystemClock = memo(() => {
 });
 
 // Single lazy AudioContext reused across beeps (browsers cap concurrent contexts).
+// L'autoplay navigateur interdit de créer/resumer un AudioContext avant un geste
+// utilisateur : on débloque l'audio au premier clic/touche/clavier (once).
 let sharedAudioCtx = null;
+let audioUnlocked = false;
+function unlockAudio() {
+  audioUnlocked = true;
+  if (sharedAudioCtx && sharedAudioCtx.state === "suspended") {
+    sharedAudioCtx.resume().catch(() => {});
+  }
+}
 function getAudioContext() {
+  if (!audioUnlocked) return null; // pas encore autorisé par le navigateur
   if (!sharedAudioCtx) {
     try {
       sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -33,26 +43,30 @@ function getAudioContext() {
   }
   return sharedAudioCtx;
 }
+if (typeof window !== "undefined") {
+  window.addEventListener("pointerdown", unlockAudio, { once: true });
+  window.addEventListener("pointerup", unlockAudio, { once: true });
+  window.addEventListener("keydown", unlockAudio, { once: true });
+}
 
 const NAV_ITEMS = [
   { group: "command_center", items: [
     { key: "dashboard", icon: LayoutDashboard, path: "/", minRole: "viewer" },
     { key: "topology", icon: Network, path: "/topology", minRole: "viewer" },
-    { key: "surveillance", icon: Camera, path: "/surveillance", minRole: "analyst" },
   ]},
   { group: "asset_management", items: [
     { key: "inventory", icon: Database, path: "/inventory", minRole: "viewer" },
     { key: "radar", icon: Radar, path: "/radar", minRole: "analyst" },
-    { key: "tasks", icon: Clock, path: "/tasks", minRole: "analyst" },
+    { key: "host_agents", icon: HardDrive, path: "/host-agents", minRole: "analyst" },
   ]},
   { group: "terminal_ops", items: [
-    { key: "terminal", icon: Terminal, path: "/terminal", minRole: "viewer" },
-    { key: "remediation", icon: ShieldCheck, path: "/remediation", minRole: "analyst" },
-    { key: "alerts", icon: ShieldAlert, path: "/alerts", minRole: "viewer" },
+    { key: "terminal", icon: Terminal, path: "/terminal", minRole: "viewer", source: "wazuh" },
+    { key: "remediation", icon: ShieldCheck, path: "/remediation", minRole: "analyst", source: "wazuh" },
+    { key: "alerts", icon: ShieldAlert, path: "/alerts", minRole: "viewer", source: "wazuh" },
   ]},
   { group: "network_ops", items: [
-    { key: "suricata", icon: Radio, path: "/suricata", minRole: "viewer" },
-    { key: "network_control", icon: Globe, path: "/network-control", minRole: "analyst" },
+    { key: "suricata", icon: Radio, path: "/suricata", minRole: "viewer", source: "suricata" },
+    { key: "network_control", icon: Globe, path: "/network-control", minRole: "analyst", source: "suricata" },
     { key: "network_devices", icon: Monitor, path: "/network-devices", minRole: "analyst" },
   ]},
   { group: "intelligence", items: [
@@ -69,7 +83,7 @@ const NAV_ITEMS = [
     { key: "playbooks", icon: Workflow, path: "/playbooks", minRole: "analyst" },
   ]},
   { group: "system", items: [
-    { key: "settings", icon: Settings, path: "/settings", minRole: "admin" },
+    { key: "settings", icon: Settings, path: "/settings", minRole: "analyst" },
     { key: "admin", icon: ShieldCheck, path: "/admin", minRole: "admin" },
     { key: "super_admin", icon: ShieldAlert, path: "/super-admin", minRole: "super_admin" },
   ]},
@@ -79,7 +93,7 @@ const NAV_ITEMS = [
 const canSee = (hasRole, minRole) => hasRole(minRole);
 
 export default function Layout({ children }) {
-  const { username, logout, isAuthenticated, hasRole } = useAuth();
+  const { username, logout, isAuthenticated, hasRole, fetchWithAuth, headers } = useAuth();
   const { wazuhAlerts, suricataAlerts } = useData();
   const { lang, t, switchLang } = useTranslation();
   const navigate = useNavigate();
@@ -87,6 +101,58 @@ export default function Layout({ children }) {
   const [isMuted, setIsMuted] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(window.innerWidth < 768);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sources, setSources] = useState({
+    wazuh: { enabled: true, configured: true },
+    suricata: { enabled: true, configured: true },
+  });
+
+  const fetchSources = async () => {
+    if (!isAuthenticated) return;
+    try {
+      const r1 = await fetchWithAuth("/api/settings/sources", { headers, silent: true });
+      const r2 = await fetchWithAuth("/api/settings/sources/config", { headers, silent: true });
+      let wEnabled = true, wConfigured = true, sEnabled = true, sConfigured = true;
+      let hasData = false;
+      if (r1.ok) {
+        const d1 = await r1.json();
+        wEnabled = typeof d1.wazuh === "boolean" ? d1.wazuh : true;
+        sEnabled = typeof d1.suricata === "boolean" ? d1.suricata : true;
+        hasData = true;
+      } else if (r1.status === 404) {
+        // backend pas à jour -> non bloquant: on affiche tout
+        hasData = true;
+      }
+      if (r2.ok) {
+        const d2 = await r2.json();
+        wConfigured = d2.wazuh?.configured !== false;
+        sConfigured = d2.suricata?.configured !== false;
+        // si configured undefined, on considère true pour ne pas bloquer
+        if (d2.wazuh?.configured === undefined) wConfigured = true;
+        if (d2.suricata?.configured === undefined) sConfigured = true;
+        hasData = true;
+      } else if (r2.status === 404) {
+        hasData = true;
+      }
+      if (hasData) {
+        setSources({
+          wazuh: { enabled: wEnabled, configured: wConfigured },
+          suricata: { enabled: sEnabled, configured: sConfigured },
+        });
+      }
+    } catch {
+      // réseau -> on garde l'état non bloquant (affiche tout)
+    }
+  };
+
+  useEffect(() => {
+    fetchSources();
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    const h = () => fetchSources();
+    window.addEventListener("sources-changed", h);
+    return () => window.removeEventListener("sources-changed", h);
+  }, [isAuthenticated]);
 
   const criticalCount = wazuhAlerts.filter((a) => (a.Severity || a.severity || 0) >= 8).length;
   const networkCriticalCount = suricataAlerts.filter(
@@ -142,7 +208,12 @@ export default function Layout({ children }) {
 
         <nav className="flex-1 overflow-y-auto py-2">
           {NAV_ITEMS.map((section) => {
-            const visibleItems = section.items.filter((item) => canSee(hasRole, item.minRole));
+            const visibleItems = section.items.filter((item) => {
+              if (!canSee(hasRole, item.minRole)) return false;
+              if (item.source === "wazuh") return sources.wazuh.enabled && sources.wazuh.configured;
+              if (item.source === "suricata") return sources.suricata.enabled && sources.suricata.configured;
+              return true;
+            });
             if (visibleItems.length === 0) return null;
             return (
             <div key={section.group} className="mb-2">

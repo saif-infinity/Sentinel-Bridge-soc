@@ -10,3 +10,7 @@ from .infrastructure.jobs import soar_tasks  # noqa: F401
 from .infrastructure.jobs import intel_tasks  # noqa: F401
 from .infrastructure.jobs import syslog_process  # noqa: F401
 from .infrastructure.jobs import notification_tasks  # noqa: F401
+from .infrastructure.jobs import investigation_tasks  # noqa: F401
+from .infrastructure.jobs import response_tasks  # noqa: F401
+from .infrastructure.jobs import reporting_tasks  # noqa: F401
+from .infrastructure.jobs import ai_alert_burst  # noqa: F401  # enregistre jobs.ai_alert_burst

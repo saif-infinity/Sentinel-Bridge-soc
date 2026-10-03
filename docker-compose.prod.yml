@@ -21,7 +21,7 @@ services:
   worker:
     build: ./backend
     container_name: sentinel-worker
-    command: celery -A app.worker.celery_app worker --loglevel=info --pool=solo
+    command: celery -A app.worker.celery_app worker --loglevel=info --pool=solo -B
     env_file:
       - ./backend/.env
     environment:

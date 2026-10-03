@@ -11,7 +11,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ...application.hunts import (
-    create_hunt, delete_hunt, get_hunt, list_hunts, run_hunt, update_hunt,
+    create_hunt, delete_hunt, generate_ai_hunt_proposals, get_hunt,
+    list_hunts, run_hunt, update_hunt,
 )
 from ...application.rules.evaluator import OPS
 from ...auth import get_api_key_or_jwt, has_scopes_or_api_key
@@ -70,7 +71,7 @@ def create_hunt_route(body: HuntCreate, request: Request, db: Session = Depends(
     return create_hunt(db, get_tenant_id(request), _principal_username(principal), data)
 
 
-# ── Preview (déclarée AVANT /{hunt_id}) ─────────────────────────────
+# ── Preview / IA génération ─────────────────────────────
 
 @router.post("/preview")
 def preview_hunt(body: HuntRunRequest, request: Request, db: Session = Depends(get_db),
@@ -80,7 +81,13 @@ def preview_hunt(body: HuntRunRequest, request: Request, db: Session = Depends(g
                     target=body.target, limit=body.limit, preview=True)
 
 
-# ── CRUD d'une chasse enregistrée ───────────────────────────────────
+@router.post("/ai-generate")
+def ai_generate_hunts(request: Request, db: Session = Depends(get_db),
+                       principal: dict = Depends(has_scopes_or_api_key(HUNTS_WRITE))):
+    return generate_ai_hunt_proposals(db, get_tenant_id(request))
+
+
+# ── CRUD d'une chasse enregistrée ───────────────────────────
 
 @router.get("/{hunt_id}")
 def get_hunt_route(hunt_id: int, request: Request, db: Session = Depends(get_db)):

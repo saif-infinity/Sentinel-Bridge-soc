@@ -1,4 +1,5 @@
-from fastapi import Header, HTTPException, status, Query, Depends
+import secrets
+from fastapi import Header, HTTPException, Request, status, Query, Depends
 from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPAuthorizationCredentials
 from .jwt_utils import verify_token
 from .config import settings
@@ -103,7 +104,7 @@ async def get_token_from_request(request: Request):
     )
 
 # Now we create a dependency that uses the get_token_from_request and then verifies the token and checks scopes.
-from typing import List, Set
+from typing import List, Set, Optional
 
 def has_scopes(required_scopes: List[str]):
     async def scope_verifier(token: str = Depends(get_token_from_request)):
@@ -160,3 +161,107 @@ def has_scopes_or_api_key(required_scopes: List[str]):
             headers={"WWW-Authenticate": "Bearer"},
         )
     return scope_verifier
+
+
+def webhook_token_auth(source: str):
+    """Factory returning a FastAPI dependency for webhook endpoint auth.
+
+    X-SOC-Token header (if present) is matched against stored tokens across
+    all tenants (constant-time compare). On match, request.state.tenant_id
+    is set. If no match but X-SOC-Token present → 401 immediately.
+    If X-SOC-Token absent → fall back to get_api_key_or_jwt.
+    Never logs the token value.
+    """
+    from app.application.system_config import get_config_value
+    from app.db import SessionLocal
+    from app.domain.models import Tenant
+
+    async def _auth(
+        x_soc_token: str = Header(None, alias="X-SOC-Token"),
+        api_key: str = Header(None, alias="X-API-Key"),
+        authorization: str = Header(None, alias="Authorization"),
+        request: Request = None,
+    ):
+        if request is not None:
+            if x_soc_token:
+                db = SessionLocal()
+                try:
+                    webhook_section = f"{source}_webhook"
+                    tenants = db.query(Tenant).all()
+                    for tenant in tenants:
+                        stored_token = get_config_value(
+                            db, webhook_section, "token", tenant_id=tenant.id
+                        )
+                        if stored_token and secrets.compare_digest(
+                            str(x_soc_token), str(stored_token)
+                        ):
+                            request.state.tenant_id = tenant.id
+                            return
+                    # Token present but matched no tenant → 401
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Invalid webhook token",
+                    )
+                finally:
+                    db.close()
+
+        # No X-SOC-Token → fall back to existing auth
+        await get_api_key_or_jwt(api_key=api_key, authorization=authorization)
+
+    return _auth
+
+
+def webhook_slug_auth(source: str):
+    """Factory returning a FastAPI dependency for SLUGGED per-tenant webhook URLs.
+
+    POST /api/{source}/webhook/{slug} — l'URL elle-même est un secret partagé
+    (revocable via rotation du slug). Résout le tenant par match du slug
+    (constante de temps) et fixe request.state.tenant_id. Slug inconnu → 404
+    (ne pas fuir l'existence). Si X-SOC-Token est fourni, il doit matcher le
+    token du tenant résolu (constante de temps) → sinon 401.
+    Ne journalise jamais ni slug ni token.
+    """
+    from app.application.system_config import get_config_value
+    from app.db import SessionLocal
+    from app.domain.models import Tenant
+
+    async def _auth(
+        slug: str,
+        x_soc_token: str | None = Header(None, alias="X-SOC-Token"),
+        request: Request = None,
+    ):
+        if request is not None:
+            db = SessionLocal()
+            try:
+                webhook_section = f"{source}_webhook"
+                tenants = db.query(Tenant).all()
+                matched_tenant_id = None
+                for tenant in tenants:
+                    stored_slug = get_config_value(db, webhook_section, "slug", tenant_id=tenant.id)
+                    if stored_slug and secrets.compare_digest(str(slug), str(stored_slug)):
+                        matched_tenant_id = tenant.id
+                        break
+                if matched_tenant_id is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Unknown webhook URL",
+                    )
+                if x_soc_token:
+                    stored_token = get_config_value(db, webhook_section, "token", tenant_id=matched_tenant_id)
+                    if not stored_token or not secrets.compare_digest(
+                        str(x_soc_token), str(stored_token)
+                    ):
+                        raise HTTPException(
+                            status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Invalid webhook token",
+                        )
+                request.state.tenant_id = matched_tenant_id
+                return
+            finally:
+                db.close()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Unknown webhook URL",
+        )
+
+    return _auth

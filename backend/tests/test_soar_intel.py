@@ -307,9 +307,9 @@ def test_dispatch_honors_trigger_filters(db):
 
 # ── Threat intel ──────────────────────────────────────────────────────
 
-def test_intel_enrich_skipped_when_disabled():
-    """THREAT_INTEL_ENABLED=False (défaut) -> skipped, ZERO appel réseau."""
-    assert settings.THREAT_INTEL_ENABLED is False
+def test_intel_enrich_skipped_when_disabled(monkeypatch):
+    """THREAT_INTEL_ENABLED=False -> skipped, ZERO appel réseau."""
+    monkeypatch.setattr(settings, "THREAT_INTEL_ENABLED", False)
     with patch("app.infrastructure.threat_intel.client.fetch_abuseipdb") as mock_fetch:
         result = enrich_alerts_intel()
     assert result["status"] == "skipped"

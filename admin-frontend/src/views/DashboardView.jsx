@@ -1,6 +1,6 @@
 // src/views/DashboardView.jsx
 // Dashboard — main overview + analyst detail panel.
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Users,
   Activity,
@@ -14,7 +14,12 @@ import {
   Eye,
   AlertCircle,
   FileText,
+  Shield,
+  Crosshair,
+  Target,
+  Zap,
 } from "lucide-react";
+import { apiFetch } from "../api";
 
 const ACTION_ICONS = {
   view: Eye,
@@ -85,6 +90,27 @@ export default function DashboardView({
   forceLogout,
 }) {
   const onlineCount = analysts.filter((a) => a.is_online).length;
+  const [socMetrics, setSocMetrics] = useState(null);
+  const [socMetricsLoading, setSocMetricsLoading] = useState(false);
+
+  // Fetch SOC metrics
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchMetrics() {
+      setSocMetricsLoading(true);
+      try {
+        const res = await apiFetch("/api/reporting/metrics");
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled) setSocMetrics(data);
+        }
+      } catch { /* silencieux */ }
+      if (!cancelled) setSocMetricsLoading(false);
+    }
+    fetchMetrics();
+    const id = setInterval(fetchMetrics, 30000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
 
   // Group actions by hour for the chart
   const hourlyData = useMemo(() => {
@@ -215,6 +241,58 @@ export default function DashboardView({
         </div>
       )}
 
+      {/* ── SOC Metrics Cards ── */}
+      {socMetrics && (
+        <div className="admin-stats-grid">
+          <div className="admin-stat-card">
+            <div className="admin-stat-icon purple"><Target size={20} /></div>
+            <div>
+              <div className="admin-stat-value">
+                {socMetrics.mttd_minutes != null ? `${socMetrics.mttd_minutes} min` : "—"}
+              </div>
+              <div className="admin-stat-label">MTTD (Temps moyen de détection)</div>
+            </div>
+          </div>
+          <div className="admin-stat-card">
+            <div className="admin-stat-icon blue"><Crosshair size={20} /></div>
+            <div>
+              <div className="admin-stat-value">
+                {socMetrics.mttr_minutes != null ? `${socMetrics.mttr_minutes} min` : "—"}
+              </div>
+              <div className="admin-stat-label">MTTR (Temps moyen de résolution)</div>
+            </div>
+          </div>
+          <div className="admin-stat-card">
+            <div className="admin-stat-icon orange"><Zap size={20} /></div>
+            <div>
+              <div className="admin-stat-value">{socMetrics.total_alerts_30d ?? "--"}</div>
+              <div className="admin-stat-label">Alertes (30j)</div>
+            </div>
+          </div>
+          <div className="admin-stat-card">
+            <div className="admin-stat-icon green"><Shield size={20} /></div>
+            <div>
+              <div className="admin-stat-value">{socMetrics.total_cases ?? "--"}</div>
+              <div className="admin-stat-label">Cases totales</div>
+            </div>
+          </div>
+          <div className="admin-stat-card">
+            <div className="admin-stat-icon purple"><AlertTriangle size={20} /></div>
+            <div>
+              <div className="admin-stat-value">{socMetrics.open_cases ?? "--"}</div>
+              <div className="admin-stat-label">Cases ouvertes</div>
+            </div>
+          </div>
+          <div className="admin-stat-card">
+            <div className="admin-stat-icon blue"><Activity size={20} /></div>
+            <div>
+              <div className="admin-stat-value">{socMetrics.resolved_cases ?? "--"}</div>
+              <div className="admin-stat-label">Cases résolues</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Dashboard Grid ── */}
       <div className="admin-dashboard-grid">
         {/* Online Analysts */}
@@ -280,20 +358,44 @@ export default function DashboardView({
         </div>
       </div>
 
-      {/* ── Hourly Chart ── */}
-      <div className="admin-section-card">
-        <h3><BarChart3 size={16} /> Activité par heure (24h)</h3>
-        <div className="admin-hourly-chart">
-          {hourlyData.hours.map(({ hour, count }) => (
-            <div key={hour} className="admin-hour-bar-wrapper">
-              <div className="admin-hour-bar" style={{ height: `${(count / hourlyData.maxCount) * 100}%` }}>
-                {count > 0 && <span className="admin-hour-count">{count}</span>}
-              </div>
-              <span className="admin-hour-label">{String(hour).padStart(2, "0")}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+       {/* ── Hourly Chart ── */}
+       <div className="admin-section-card">
+         <h3><BarChart3 size={16} /> Activité par heure (24h)</h3>
+         <div className="admin-hourly-chart">
+           {hourlyData.hours.map(({ hour, count }) => (
+             <div key={hour} className="admin-hour-bar-wrapper">
+               <div className="admin-hour-bar" style={{ height: `${(count / hourlyData.maxCount) * 100}%` }}>
+                 {count > 0 && <span className="admin-hour-count">{count}</span>}
+               </div>
+               <span className="admin-hour-label">{String(hour).padStart(2, "0")}</span>
+             </div>
+           ))}
+         </div>
+       </div>
+
+       {/* ── Sévérité Breakdown ── */}
+       {socMetrics && (
+         <div className="admin-section-card full-width">
+           <h3><Shield size={16} /> Répartition sévérité (30j)</h3>
+           <div className="admin-severity-grid">
+             {[
+               { key: "critical", label: "Critique", color: "#ef4444" },
+               { key: "high", label: "Élevée", color: "#f97316" },
+               { key: "medium", label: "Moyenne", color: "#eab308" },
+               { key: "low", label: "Faible", color: "#22c55e" },
+               { key: "info", label: "Information", color: "#3b82f6" },
+             ].map(({ key, label, color }) => (
+               <div key={key} className="admin-severity-item">
+                 <div className="admin-severity-dot" style={{ background: color }} />
+                 <div className="admin-severity-value" style={{ color }}>
+                   {socMetrics.severity_breakdown[key] ?? 0}
+                 </div>
+                 <div className="admin-severity-label">{label}</div>
+               </div>
+             ))}
+           </div>
+         </div>
+       )}
+     </div>
+   );
+ }

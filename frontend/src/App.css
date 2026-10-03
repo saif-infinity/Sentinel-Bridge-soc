@@ -5,7 +5,6 @@
 @import './styles/ai.css';
 @import './styles/suricata.css';
 @import './styles/login.css';
-@import './styles/surveillance.css';
 
 /* ── F3 — Intel badges (AlertRow / IntelBadge) ─────────────────────── */
 .intel-badge {

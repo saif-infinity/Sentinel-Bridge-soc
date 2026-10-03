@@ -3,6 +3,30 @@ from ..models import SystemConfig
 from ..config import settings
 
 DEFAULT_CONFIGS = {
+    "sources": {
+        "label": "Source Toggles",
+        "fields": {
+            "host_agent": {"label": "Activer la source host-agent", "default": str(settings.ENABLE_HOST_AGENT_SOURCE), "is_secret": False},
+            "wazuh": {"label": "Activer la source Wazuh", "default": str(settings.ENABLE_WAZUH_SOURCE), "is_secret": False},
+            "suricata": {"label": "Activer la source Suricata", "default": str(settings.ENABLE_SURICATA_SOURCE), "is_secret": False},
+            "wazuh_method": {"label": "Méthode de connexion Wazuh (webhook/api_indexer)", "default": "", "is_secret": False},
+            "suricata_method": {"label": "Méthode de connexion Suricata (webhook/ssh)", "default": "", "is_secret": False},
+        },
+    },
+    "wazuh_webhook": {
+        "label": "Token+Suffix webhook Wazuh",
+        "fields": {
+            "token": {"label": "Token webhook Wazuh", "default": "", "is_secret": True},
+            "slug": {"label": "Suffix secret de l'URL webhook (généré)", "default": "", "is_secret": False},
+        },
+    },
+    "suricata_webhook": {
+        "label": "Token+Suffix webhook Suricata",
+        "fields": {
+            "token": {"label": "Token webhook Suricata", "default": "", "is_secret": True},
+            "slug": {"label": "Suffix secret de l'URL webhook (généré)", "default": "", "is_secret": False},
+        },
+    },
     "wazuh_api": {
         "label": "Wazuh API",
         "fields": {
@@ -68,6 +92,69 @@ DEFAULT_CONFIGS = {
             "api_key": {"label": "Clé API AbuseIPDB", "default": "", "is_secret": True},
         },
     },
+    "investigation": {
+        "label": "Automated Investigation",
+        "fields": {
+            "enabled": {"label": "Activer l'investigation automatique", "default": "true", "is_secret": False},
+            "min_severity": {"label": "Sévérité minimale pour investigation", "default": "8", "is_secret": False},
+            "dedup_window_hours": {"label": "Fenêtre de déduplication (heures)", "default": "24", "is_secret": False},
+            "max_per_day": {"label": "Investigations max par jour et par tenant", "default": "20", "is_secret": False},
+            "max_concurrent": {"label": "Investigations concurrentes max par tenant", "default": "3", "is_secret": False},
+            "related_window_minutes": {"label": "Fenêtre d'alertes corrélées (minutes)", "default": "60", "is_secret": False},
+            "llm_enabled": {"label": "Activer le résumé LLM", "default": "true", "is_secret": False},
+            "llm_timeout_seconds": {"label": "Timeout LLM (secondes)", "default": "120", "is_secret": False},
+            "critical_departments": {"label": "Départements critiques", "default": "it,admin,finance,management", "is_secret": False},
+            "weights": {"label": "Poids personnalisés (JSON)", "default": "{}", "is_secret": False},
+        },
+    },
+    "response": {
+        "label": "Automated Response Agent",
+        "fields": {
+            "enabled": {"label": "Activer la réponse automatique", "default": "true", "is_secret": False},
+            "auto_approve_actions": {"label": "Actions auto-approuvées", "default": "notify,monitor,escalate,run_playbook", "is_secret": False},
+            "approval_timeout_hours": {"label": "Timeout approbation (heures)", "default": "24", "is_secret": False},
+            "quarantine_dir": {"label": "Répertoire quarantine", "default": "/var/quarantine", "is_secret": False},
+            "max_concurrent": {"label": "Réponses concurrentes max", "default": "3", "is_secret": False},
+        },
+    },
+    "reporting": {
+        "label": "Reporting",
+        "fields": {
+            "enabled": {"label": "Activer les rapports automatiques", "default": "true", "is_secret": False},
+            "default_channel": {"label": "Canal de livraison par défaut", "default": "email", "is_secret": False},
+            "default_recipient": {"label": "Destinataire par défaut", "default": "", "is_secret": False},
+            "max_daily_reports": {"label": "Rapports quotidiens max", "default": "10", "is_secret": False},
+            "retention_days": {"label": "Jours de rétention des rapports", "default": "90", "is_secret": False},
+        },
+    },
+    "host_agent": {
+        "label": "Agent hôte (Rust)",
+        "fields": {
+            "api_url": {"label": "URL du backend SOC", "default": "http://127.0.0.1:8001", "is_secret": False},
+            "api_key": {"label": "Clé API", "default": "", "is_secret": True},
+            "tenant_id": {"label": "Tenant ID", "default": "default", "is_secret": False},
+            "agent_id": {"label": "ID de l'agent", "default": "host-01", "is_secret": False},
+            "telemetry_interval_secs": {"label": "Intervalle télémétrie (s)", "default": "30", "is_secret": False},
+            "orders_interval_secs": {"label": "Intervalle ordres (s)", "default": "10", "is_secret": False},
+            "register_retry_backoff_secs": {"label": "Backoff ré-enregistrement (s)", "default": "5", "is_secret": False},
+            "quarantine_dir": {"label": "Répertoire de quarantaine", "default": "/var/quarantine", "is_secret": False},
+            "max_processes": {"label": "Processus max surveillés", "default": "500", "is_secret": False},
+            "http_timeout_secs": {"label": "Timeout HTTP (s)", "default": "15", "is_secret": False},
+        },
+    },
+    "ai_auto": {
+        "label": "Auto-analyse IA (agent)",
+        "fields": {
+            "enabled": {"label": "Activer l'auto-analyse IA", "default": str(settings.AI_AUTO_DEFAULTS["enabled"]).lower(), "is_secret": False},
+            "threshold": {"label": "Alertes déclenchant l'analyse (seuil)", "default": str(settings.AI_AUTO_DEFAULTS["threshold"]), "is_secret": False},
+            "send_count": {"label": "Alertes max envoyées au LLM", "default": str(settings.AI_AUTO_DEFAULTS["send_count"]), "is_secret": False},
+            "severity_min": {"label": "Sévérité minimale prise en compte", "default": str(settings.AI_AUTO_DEFAULTS["severity_min"]), "is_secret": False},
+            "window_minutes": {"label": "Fenêtre de burst (minutes)", "default": str(settings.AI_AUTO_DEFAULTS["window_minutes"]), "is_secret": False},
+            "model": {"label": "Modèle HF", "default": settings.AI_AUTO_DEFAULTS["model"], "is_secret": False},
+            "url": {"label": "URL routeur HF", "default": settings.AI_AUTO_DEFAULTS["url"], "is_secret": False},
+            "token": {"label": "Token HF (secret)", "default": "", "is_secret": True},
+        },
+    },
 }
 
 
@@ -97,7 +184,7 @@ def get_all_settings(db: Session, tenant_id: str = "default") -> dict:
             result[row.section] = {"label": DEFAULT_CONFIGS.get(row.section, {}).get("label", row.section), "fields": {}}
         field_def = DEFAULT_CONFIGS.get(row.section, {}).get("fields", {}).get(row.key, {})
         result[row.section]["fields"][row.key] = {
-            "value": "" if row.is_secret and not row.value else row.value,
+            "value": "" if row.is_secret else row.value,
             "is_secret": row.is_secret,
             "label": row.label or field_def.get("label", row.key),
             "has_value": bool(row.value),

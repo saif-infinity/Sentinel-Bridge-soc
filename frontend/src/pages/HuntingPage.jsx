@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2, Edit, Crosshair, X, Save, Play, FlaskConical, Download } from "lucide-react";
+import { Plus, Trash2, Edit, Crosshair, X, Save, Play, FlaskConical, Download, Sparkles, Loader2 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useData } from "../contexts/DataContext";
 import { toast } from "react-toastify";
@@ -57,6 +57,8 @@ export default function HuntingPage() {
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiProposals, setAiProposals] = useState(null);
 
   const setCond = (idx, patch) =>
     setForm((f) => ({
@@ -68,6 +70,7 @@ export default function HuntingPage() {
     setEditingId(null);
     setForm(emptyForm());
     setResult(null);
+    setAiProposals(null);
   };
 
   const openEdit = (h) => {
@@ -77,6 +80,46 @@ export default function HuntingPage() {
       description: h.description || "",
       target: h.target || "both",
       conditions: h.conditions && h.conditions.length ? h.conditions : [{ ...EMPTY_COND }],
+    });
+    setResult(null);
+  };
+
+  const targetLabel = (t) => {
+    if (t === "alert") return "Alertes SIEM";
+    if (t === "suricata") return "Suricata";
+    return "Les deux";
+  };
+
+  const generateAi = async () => {
+    setAiLoading(true);
+    try {
+      const res = await fetchWithAuth("/api/hunts/ai-generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setAiProposals(json.proposals || []);
+        if (json.notice) toast.info(json.notice);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.detail || "Erreur lors de la génération IA");
+      }
+    } catch {
+      toast.error("Erreur réseau");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const useProposal = (p) => {
+    setEditingId(null);
+    setForm({
+      name: p.name || "",
+      description: p.description || "",
+      target: p.target || "both",
+      conditions: p.conditions?.length ? p.conditions : [{ ...EMPTY_COND }],
     });
     setResult(null);
   };
@@ -196,10 +239,60 @@ export default function HuntingPage() {
             Requêtes enregistrées évaluées sur les alertes SIEM et Suricata (moteur F1)
           </p>
         </div>
-        <button onClick={openNew} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg">
-          <Plus size={16} /> Nouvelle chasse
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={generateAi}
+            disabled={aiLoading}
+            title="Générer des propositions de chasses via l'IA à partir des alertes récentes"
+            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-white"
+          >
+            {aiLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+            {aiLoading ? "Analyse IA…" : "Générer par IA"}
+          </button>
+          <button onClick={openNew} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg">
+            <Plus size={16} /> Nouvelle chasse
+          </button>
+        </div>
       </div>
+
+      {aiProposals !== null && (
+        <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+            <div className="font-semibold flex items-center gap-2">
+              <Sparkles size={16} className="text-purple-400" /> Propositions IA
+              <span className="text-xs font-normal text-gray-400 ml-2">Chargez une proposition puis modifiez-la avant d'enregistrer</span>
+            </div>
+            <button onClick={() => setAiProposals(null)} className="text-gray-500 hover:text-white" title="Fermer">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="p-4">
+            {aiProposals.length === 0 ? (
+              <div className="text-center text-gray-500 text-sm py-6">Aucune proposition IA pour le moment</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {aiProposals.map((p, idx) => (
+                  <div key={idx} className="bg-gray-800 border border-gray-700 rounded-lg p-4 space-y-2">
+                    <div className="font-medium text-white">{p.name}</div>
+                    <div className="text-xs text-gray-500 line-clamp-2">{p.description || "—"}</div>
+                    <div className="flex flex-wrap gap-2 text-xs text-gray-400">
+                      <span className="bg-gray-900 border border-gray-700 rounded px-2 py-0.5">{targetLabel(p.target)}</span>
+                      <span className="bg-gray-900 border border-gray-700 rounded px-2 py-0.5">{p.conditions?.length || 0} condition(s)</span>
+                    </div>
+                    <button
+                      onClick={() => useProposal(p)}
+                      title="Charger cette proposition dans l'éditeur"
+                      className="mt-2 flex items-center gap-1.5 bg-purple-600 hover:bg-purple-500 text-white text-sm px-3 py-1.5 rounded-lg"
+                    >
+                      <Plus size={14} /> Utiliser
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Chasses enregistrées */}

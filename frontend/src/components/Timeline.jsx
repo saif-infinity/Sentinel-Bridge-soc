@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   Send, History, FilePlus2, RefreshCcw, Link2, Unlink,
   CheckCircle2, XCircle, MessageSquare, UserCheck,
+  Search, Layers, Gauge, FileText, Lightbulb,
 } from "lucide-react";
 
 const TYPE_ICON = {
@@ -14,6 +15,11 @@ const TYPE_ICON = {
   closed: XCircle,
   reopened: RefreshCcw,
   assigned: UserCheck,
+  investigation_started: Search,
+  evidence_added: Layers,
+  scored: Gauge,
+  summary_generated: FileText,
+  recommendations_ready: Lightbulb,
 };
 
 const TYPE_LABEL = {
@@ -26,6 +32,11 @@ const TYPE_LABEL = {
   closed: "Clôture",
   reopened: "Réouverture",
   assigned: "Assignation",
+  investigation_started: "Enquête démarrée",
+  evidence_added: "Preuves collectées",
+  scored: "Score calculé",
+  summary_generated: "Résumé généré",
+  recommendations_ready: "Recommandations prêtes",
 };
 
 export default function Timeline({

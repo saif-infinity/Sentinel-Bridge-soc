@@ -21,6 +21,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
+import { getToken } from "../api";
 
 const API_BASE = "/api/surveillance";
 
@@ -44,7 +45,8 @@ function timeAgo(dateStr) {
   return `il y a ${Math.floor(hours / 24)}j`;
 }
 
-export default function SurveillanceDashboard({ token }) {
+export default function SurveillanceView({ token: propToken }) {
+  const token = propToken || getToken();
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [logs, setLogs] = useState([]);
   const [totalLogs, setTotalLogs] = useState(0);
@@ -64,6 +66,10 @@ export default function SurveillanceDashboard({ token }) {
   }, []);
 
   const fetchData = useCallback(async () => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     try {
       const [onlineRes, logsRes, statsRes] = await Promise.all([
         fetch(`${API_BASE}/online`, { headers }),
@@ -92,7 +98,7 @@ export default function SurveillanceDashboard({ token }) {
 
   if (loading) {
     return (
-      <div className="tab-pane animate-fade-in">
+      <div className="admin-surveillance tab-pane animate-fade-in">
         <div className="surveillance-loading">
           <div className="spinner" />
           <span>Chargement du tableau de bord...</span>
@@ -102,7 +108,7 @@ export default function SurveillanceDashboard({ token }) {
   }
 
   return (
-    <div className="tab-pane animate-fade-in">
+    <div className="admin-surveillance tab-pane animate-fade-in">
       <div className="surveillance-header">
         <div className="surveillance-title">
           <Users size={22} />

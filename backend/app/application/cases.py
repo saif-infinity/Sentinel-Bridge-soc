@@ -14,6 +14,7 @@ from sqlalchemy import func, or_
 
 from ..models import Alert, Case, CaseAlertLink, SuricataAlert, TimelineEvent
 from .action_logger import log_action
+from ..domain.reporting import ReportLog
 
 logger = logging.getLogger(__name__)
 
@@ -281,6 +282,14 @@ def close_case(db, tenant_id: str, username: str, case_id: int,
     log_action(db, username, "cases.close",
                details=f"Affaire #{case.id} clôturée",
                resource=f"case:{case.id}", tenant_id=tenant_id)
+    # F5 — Close_case hook: generate case_closure report
+    try:
+        from ..application.reporting import generate_case_closure_report
+        generate_case_closure_report(db, tenant_id=tenant_id, case_id=case_id, generated_by=username)
+        db.commit()
+    except Exception as e:
+        logger.warning("Case closure report generation failed for case %s: %s", case_id, e)
+        db.rollback()
     return result
 
 

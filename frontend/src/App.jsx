@@ -9,13 +9,13 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { DataProvider } from "./contexts/DataContext";
 import Layout from "./components/Layout";
 import LoginPage from "./components/LoginPage";
+import SplashScreen from "./components/SplashScreen";
+import "./styles/splash.css";
 
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const TopologyPage = lazy(() => import("./pages/TopologyPage"));
-const SurveillancePage = lazy(() => import("./pages/SurveillancePage"));
 const InventoryPage = lazy(() => import("./pages/InventoryPage"));
 const RadarPage = lazy(() => import("./pages/RadarPage"));
-const TasksPage = lazy(() => import("./pages/TasksPage"));
 const TerminalPage = lazy(() => import("./pages/TerminalPage"));
 const RemediationPage = lazy(() => import("./pages/RemediationPage"));
 const TerminalAlertsPage = lazy(() => import("./pages/TerminalAlertsPage"));
@@ -34,6 +34,7 @@ const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const PricingPage = lazy(() => import("./pages/PricingPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const SuperAdminPage = lazy(() => import("./pages/SuperAdminPage"));
+const HostAgentsPage = lazy(() => import("./pages/HostAgentsPage"));
 
 const PageLoader = () => (
   <div className="page-loader">
@@ -96,10 +97,14 @@ function RequireRole({ minRole, children }) {
 
 function AppRoutes() {
   const { isAuthenticated, login } = useAuth();
+  const [splashDone, setSplashDone] = React.useState(false);
 
   // Login gate: default behavior requires authentication. Dev escape hatch is
   // only active when VITE_AUTOLOGIN=1 is set in the environment.
   if (!isAuthenticated && import.meta.env.VITE_AUTOLOGIN !== "1") {
+    if (!splashDone) {
+      return <SplashScreen onDone={() => setSplashDone(true)} />;
+    }
     return <LoginPage onLogin={login} />;
   }
 
@@ -111,10 +116,8 @@ function AppRoutes() {
             <Routes>
               <Route path="/" element={<DashboardPage />} />
               <Route path="/topology" element={<TopologyPage />} />
-              <Route path="/surveillance" element={<SurveillancePage />} />
               <Route path="/inventory" element={<InventoryPage />} />
               <Route path="/radar" element={<RadarPage />} />
-              <Route path="/tasks" element={<TasksPage />} />
               <Route path="/terminal" element={<TerminalPage />} />
               <Route path="/remediation" element={<RemediationPage />} />
               <Route path="/alerts" element={<TerminalAlertsPage />} />
@@ -129,6 +132,7 @@ function AppRoutes() {
               <Route path="/cases" element={<CasesPage />} />
               <Route path="/hunting" element={<HuntingPage />} />
               <Route path="/playbooks" element={<PlaybooksPage />} />
+              <Route path="/host-agents" element={<HostAgentsPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/pricing" element={<PricingPage />} />
               <Route

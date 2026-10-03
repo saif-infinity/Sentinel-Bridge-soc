@@ -20,8 +20,9 @@ from ...application.rules.evaluator import (
     mitre_technique_info,
 )
 from ...auth import get_api_key_or_jwt, has_scopes_or_api_key
+from ...core.rbac import require_role
 from ...db import get_db, get_tenant_id
-from ...domain.rule_models import Rule, RuleMatchOutbox
+from ...domain.rule_models import Rule, RuleMatchOutbox, ensure_mitre_columns
 
 logger = logging.getLogger(__name__)
 
@@ -237,7 +238,7 @@ def recent_matches(request: Request, db: Session = Depends(get_db), limit: int =
     return out
 
 
-@router.get("/coverage")
+@router.get("/coverage", dependencies=[Depends(require_role("analyst"))])
 def mitre_coverage(request: Request, db: Session = Depends(get_db)):
     """R2 — Couverture MITRE ATT&CK des règles ENABLED (scoping tenant).
 
@@ -245,6 +246,7 @@ def mitre_coverage(request: Request, db: Session = Depends(get_db)):
     {"tactics": {"<tactic>": {"total_rules": int,
                               "techniques": {"<TID>": {"name": str, "rule_count": int}}}}}
     """
+    ensure_mitre_columns(db)
     tenant_id = get_tenant_id(request)
     rules = (
         db.query(Rule)

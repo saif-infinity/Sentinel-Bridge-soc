@@ -26,6 +26,7 @@ export function DataProvider({ children }) {
   const [cases, setCases] = useState([]);
   const [caseStats, setCaseStats] = useState(null);
   const [hunts, setHunts] = useState([]);
+  const [investigations, setInvestigations] = useState([]);
 
   const prevOnlineCount = useRef(0);
 
@@ -91,9 +92,20 @@ export function DataProvider({ children }) {
     } catch (e) {}
   }, [fetchWithAuth]);
 
+  const fetchInvestigations = useCallback(async () => {
+    try {
+      const res = await fetchWithAuth("/api/investigations?limit=100", { silent: true });
+      if (res.ok) {
+        const data = await res.json();
+        setInvestigations(data.items || []);
+      }
+    } catch (e) {}
+  }, [fetchWithAuth]);
+
   const refreshCases = useCallback(() => { fetchCases(); }, [fetchCases]);
   const refreshCaseStats = useCallback(() => { fetchCaseStats(); }, [fetchCaseStats]);
   const refreshHunts = useCallback(() => { fetchHunts(); }, [fetchHunts]);
+  const refreshInvestigations = useCallback(() => { fetchInvestigations(); }, [fetchInvestigations]);
 
   useEffect(() => {
     if (!jwtToken) return;
@@ -208,6 +220,7 @@ export function DataProvider({ children }) {
     fetchCases();
     fetchCaseStats();
     fetchHunts();
+    fetchInvestigations();
 
     const criticalInterval = setInterval(fetchCritical, 15000);
     const suricataInterval = setInterval(fetchSuricata, 30000);
@@ -220,6 +233,7 @@ export function DataProvider({ children }) {
     const casesInterval = setInterval(fetchCases, 30000);
     const caseStatsInterval = setInterval(fetchCaseStats, 30000);
     const huntsInterval = setInterval(fetchHunts, 60000);
+    const investigationsInterval = setInterval(fetchInvestigations, 30000);
 
     return () => {
       clearInterval(criticalInterval);
@@ -232,6 +246,7 @@ export function DataProvider({ children }) {
       clearInterval(casesInterval);
       clearInterval(caseStatsInterval);
       clearInterval(huntsInterval);
+      clearInterval(investigationsInterval);
     };
   }, [jwtToken, fetchWithAuth]);
 
@@ -275,8 +290,15 @@ export function DataProvider({ children }) {
 
       ws.onerror = () => {};
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         if (disposed) return;
+        // 4001 = auth refusée (JWT expiré/invalide) : le backend ne nous acceptera
+        // plus avec ce token — arrêter la boucle de reconnexion (la couche HTTP
+        // 401 gère la déconnexion de session).
+        if (event && event.code === 4001) {
+          if (reconnectTimer) clearTimeout(reconnectTimer);
+          return;
+        }
         // Reconnect with backoff (3s -> 30s, doubling, capped) only while still authenticated.
         if (isAuthenticatedRef.current) {
           reconnectTimer = setTimeout(() => {
@@ -319,6 +341,8 @@ export function DataProvider({ children }) {
     refreshCases,
     refreshCaseStats,
     refreshHunts,
+    investigations,
+    refreshInvestigations,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

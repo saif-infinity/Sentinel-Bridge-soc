@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Shield,
   ShieldCheck,
+  ShieldAlert,
   BarChart3,
   Radio,
   Settings,
@@ -14,6 +15,9 @@ import {
   CheckCircle2,
   Loader2,
   AlertTriangle,
+  UserPlus,
+  Users,
+  Bug,
 } from "lucide-react";
 import { apiFetch, onUnauthorized, getToken, setToken, clearToken } from "./api";
 import {
@@ -27,6 +31,11 @@ import DashboardView from "./views/DashboardView";
 import SensorsView from "./views/SensorsView";
 import SettingsView from "./views/SettingsView";
 import DatabaseView from "./views/DatabaseView";
+import FaceLoginRequestsView from "./views/FaceLoginRequestsView";
+import RegistrationRequestsView from "./views/RegistrationRequestsView";
+import IntrusionAttemptsView from "./views/IntrusionAttemptsView";
+import HoneypotView from "./views/HoneypotView";
+import SurveillanceView from "./views/SurveillanceView";
 import MatrixRain from "./MatrixRain";
 
 const API = "/api/admin";
@@ -62,6 +71,10 @@ export default function App() {
   const [actionFilter, setActionFilter] = useState("");
   const [sensorData, setSensorData] = useState([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [pendingRequestCount, setPendingRequestCount] = useState(0);
+  const [pendingRegistrationCount, setPendingRegistrationCount] = useState(0);
+  const [pendingIntrusionCount, setPendingIntrusionCount] = useState(0);
+  const [honeypotTotal, setHoneypotTotal] = useState(0);
 
   // Settings tab state
   const [currentPw, setCurrentPw] = useState("");
@@ -236,6 +249,48 @@ export default function App() {
     }
   }, [isAuthenticated, fetchData]);
 
+  // Badges — polling 10s des 3 compteurs (intrusions non résolues, connexions faciales, inscriptions)
+  const fetchBadgeCounts = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const [attemptsRes, faceRes, regRes] = await Promise.all([
+        apiFetch(`${API}/attempts`),
+        apiFetch(`${API}/face-login-requests?status=pending`),
+        apiFetch(`${API}/registration-requests?status=pending`),
+      ]);
+      if (attemptsRes.ok) {
+        const data = await attemptsRes.json();
+        const items = Array.isArray(data) ? data : data.items || data.attempts || [];
+        const unresolved = items.filter((a) => !(a.resolved || a.status === "resolved" || a.resolved_at)).length;
+        setPendingIntrusionCount(unresolved);
+      } else if (attemptsRes.status === 404 || attemptsRes.status === 501) {
+        setPendingIntrusionCount(0);
+      }
+      if (faceRes.ok) {
+        const d = await faceRes.json();
+        setPendingRequestCount((d.items || []).length);
+      }
+      if (regRes.ok) {
+        const d = await regRes.json();
+        setPendingRegistrationCount((d.items || []).length);
+      }
+    } catch {
+      // silencieux — garde la dernière valeur
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchBadgeCounts();
+      const id = setInterval(fetchBadgeCounts, 10000);
+      return () => clearInterval(id);
+    } else {
+      setPendingIntrusionCount(0);
+      setPendingRequestCount(0);
+      setPendingRegistrationCount(0);
+    }
+  }, [isAuthenticated, fetchBadgeCounts]);
+
   const selectAnalyst = async (user) => {
     setSelectedAnalyst(user);
     try {
@@ -250,12 +305,12 @@ export default function App() {
     }
   };
 
-  const forceLogout = async (username) => {
-    if (!confirm(`Forcer la déconnexion de ${username} ?`)) return;
+  const forceLogout = async (targetUsername) => {
+    if (!confirm(`Forcer la déconnexion de ${targetUsername} ?`)) return;
     try {
-      await apiForceLogout(username);
+      await apiForceLogout(targetUsername);
       fetchData();
-      if (selectedAnalyst?.username === username) setSelectedAnalyst(null);
+      if (selectedAnalyst?.username === targetUsername) setSelectedAnalyst(null);
     } catch (err) {
       console.error("Force logout error:", err);
     }
@@ -450,9 +505,33 @@ export default function App() {
             <Radio size={16} /> Capteurs
             <span className="admin-badge">{onlineCount}</span>
           </button>
+          <button className={`admin-nav-item ${activeTab === "surveillance" ? "active" : ""}`}
+            onClick={() => { setActiveTab("surveillance"); setSelectedAnalyst(null); setSidebarOpen(false); }}>
+            <Camera size={16} /> Surveillance
+          </button>
+          <button className={`admin-nav-item ${activeTab === "intrusions" ? "active" : ""}`}
+            onClick={() => { setActiveTab("intrusions"); setSelectedAnalyst(null); setSidebarOpen(false); }}>
+            <ShieldAlert size={16} /> Tentatives d'intrusion
+            {isAuthenticated && pendingIntrusionCount > 0 && <span className="admin-badge alert">{pendingIntrusionCount}</span>}
+          </button>
+          <button className={`admin-nav-item ${activeTab === "connexions" ? "active" : ""}`}
+            onClick={() => { setActiveTab("connexions"); setSelectedAnalyst(null); setSidebarOpen(false); }}>
+            <ScanFace size={16} /> Connexions faciales
+            {isAuthenticated && pendingRequestCount > 0 && <span className="admin-badge success">{pendingRequestCount}</span>}
+          </button>
+          <button className={`admin-nav-item ${activeTab === "inscriptions" ? "active" : ""}`}
+            onClick={() => { setActiveTab("inscriptions"); setSelectedAnalyst(null); setSidebarOpen(false); }}>
+            <UserPlus size={16} /> Demandes d'inscription
+            {isAuthenticated && pendingRegistrationCount > 0 && <span className="admin-badge alert">{pendingRegistrationCount}</span>}
+          </button>
           <button className={`admin-nav-item ${activeTab === "settings" ? "active" : ""}`}
             onClick={() => { setActiveTab("settings"); setSelectedAnalyst(null); setSidebarOpen(false); }}>
             <Settings size={16} /> Paramètres
+          </button>
+          <button className={`admin-nav-item ${activeTab === "honeypot" ? "active" : ""}`}
+            onClick={() => { setActiveTab("honeypot"); setSelectedAnalyst(null); setSidebarOpen(false); }}>
+            <Bug size={16} /> Honeypot
+            {isAuthenticated && honeypotTotal > 0 && <span className="admin-badge alert">{honeypotTotal}</span>}
           </button>
           <button className={`admin-nav-item ${activeTab === "database" ? "active" : ""}`}
             onClick={() => { setActiveTab("database"); setSelectedAnalyst(null); setSidebarOpen(false); }}>
@@ -492,6 +571,18 @@ export default function App() {
         {activeTab === "capteurs" && (
           <SensorsView sensorData={sensorData} />
         )}
+        {activeTab === "surveillance" && (
+          <SurveillanceView token={token} />
+        )}
+        {activeTab === "intrusions" && (
+          <IntrusionAttemptsView onCountChange={setPendingIntrusionCount} />
+        )}
+        {activeTab === "connexions" && (
+          <FaceLoginRequestsView onCountChange={setPendingRequestCount} />
+        )}
+        {activeTab === "inscriptions" && (
+          <RegistrationRequestsView onCountChange={setPendingRegistrationCount} />
+        )}
         {activeTab === "settings" && (
           <SettingsView
             username={adminUsername}
@@ -505,6 +596,9 @@ export default function App() {
         )}
         {activeTab === "database" && (
           <DatabaseView />
+        )}
+        {activeTab === "honeypot" && (
+          <HoneypotView />
         )}
       </main>
     </div>

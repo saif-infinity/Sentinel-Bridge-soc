@@ -9,7 +9,9 @@ from sqlalchemy.orm import Session
 from ...config import settings
 from ...db import get_db
 from ...jwt_utils import create_access_token, verify_token
-from ...services.password_manager import store_password_hash, check_password, user_exists
+from ...core.broadcaster import broadcaster
+from ...models import RegistrationRequest
+from ...services.password_manager import check_password, user_exists, hash_password, store_password_hash, _read_store, _write_store
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +19,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 me_router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 _redis_client = _redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+
+# Si True → register crée une RegistrationRequest pending (approbation admin requise avant login)
+REGISTRATION_REQUIRES_APPROVAL = settings.REGISTRATION_REQUIRES_APPROVAL
 
 ADMIN_SCOPES = [
     "devices:read", "devices:write", "alerts:read", "ws:alerts",
@@ -28,7 +33,7 @@ ADMIN_SCOPES = [
 ANALYST_SCOPES = [
     "devices:read", "alerts:read", "ws:alerts",
     "terminal:exec", "scan:execute", "ai:generate",
-    "surveillance:read", "cases:write",
+    "surveillance:read", "surveillance:write", "cases:write",
     "soar:approve",
 ]
 
@@ -68,10 +73,11 @@ class RegisterRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=64)
     password: str = Field(..., min_length=8, max_length=128)
     role: str = Field(default="analyst")
+    face_image: str | None = None  # base64 face image (optional)
 
 
 @router.post("/register")
-async def register_user(data: RegisterRequest, request: Request):
+async def register_user(data: RegisterRequest, request: Request, db: Session = Depends(get_db)):
     await check_rate_limit(request, max_attempts=3, window_seconds=300)
     if not data.username.strip():
         raise HTTPException(
@@ -107,26 +113,69 @@ async def register_user(data: RegisterRequest, request: Request):
             detail="Cet utilisateur existe déjà",
         )
 
+    # ── Mode pending : création d'une RegistrationRequest en attente ──
+    pending_header = request.headers.get("X-Registration-Mode")
+    if REGISTRATION_REQUIRES_APPROVAL or pending_header == "pending":
+        pending = (
+            db.query(RegistrationRequest)
+            .filter(
+                RegistrationRequest.username == data.username,
+                RegistrationRequest.tenant_id == tenant_id,
+                RegistrationRequest.status == "pending",
+            )
+            .first()
+        )
+        if pending:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Demande déjà en attente",
+            )
+
+        hashed = hash_password(data.password)
+        req = RegistrationRequest(
+            tenant_id=tenant_id,
+            username=data.username,
+            password_hash=hashed,
+            role=data.role,
+            face_image=data.face_image,
+            status="pending",
+        )
+        db.add(req)
+        db.commit()
+        db.refresh(req)
+
+        logger.info("Registration request created: %s (role: %s)", data.username, data.role)
+
+        await broadcaster.broadcast({
+            "type": "registration_request",
+            "request_id": req.id,
+            "username": req.username,
+        })
+
+        return {
+            "request_id": req.id,
+            "status": "pending",
+            "message": "Inscription en attente d'approbation admin",
+        }
+
+    # ── Mode direct (défaut) : création immédiate du compte ──
     scopes = ANALYST_SCOPES if data.role == "analyst" else VIEWER_SCOPES
     store_password_hash(f"user:{data.username}", data.password, tenant_id=tenant_id)
 
-    # Store role
-    from ...services.password_manager import _read_store, _write_store
     role_store = _read_store()
     role_store[f"role:{data.username}"] = data.role
     _write_store(role_store)
 
     logger.info("New user registered: %s (role: %s)", data.username, data.role)
 
-    # Resolve tenant_id from TenantUser table
     from ...models import TenantUser
     from ...db import SessionLocal
-    db = SessionLocal()
+    db_local = SessionLocal()
     try:
-        tenant_user = db.query(TenantUser).filter(TenantUser.username == data.username).first()
+        tenant_user = db_local.query(TenantUser).filter(TenantUser.username == data.username).first()
         resolved_tenant_id = tenant_user.tenant_id if tenant_user else "default"
     finally:
-        db.close()
+        db_local.close()
 
     access_token = create_access_token(
         data={"sub": data.username, "role": data.role, "scopes": scopes, "tenant_id": resolved_tenant_id}
@@ -141,7 +190,11 @@ async def register_user(data: RegisterRequest, request: Request):
 
 @router.post("/token")
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), request: Request = None):
-    await check_rate_limit(request, max_attempts=5, window_seconds=60)
+    await check_rate_limit(
+        request,
+        max_attempts=settings.AUTH_LOGIN_RATE_LIMIT_MAX,
+        window_seconds=settings.AUTH_LOGIN_RATE_LIMIT_WINDOW,
+    )
 
     user_key = f"user:{form_data.username}"
     if check_password(user_key, form_data.password, tenant_id=None):
@@ -183,6 +236,15 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         detail="Identifiants incorrects",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+
+@router.get("/register-request/{request_id}")
+async def get_register_request_status(request_id: int, db: Session = Depends(get_db)):
+    """Analyst polls this to check if their registration was approved."""
+    req = db.query(RegistrationRequest).filter(RegistrationRequest.id == request_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Demande non trouvée")
+    return {"request_id": req.id, "status": req.status, "resolved_at": req.resolved_at}
 
 
 @me_router.get("/me")

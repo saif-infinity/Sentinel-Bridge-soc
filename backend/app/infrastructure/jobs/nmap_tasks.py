@@ -1,17 +1,11 @@
-from celery import Celery
+from ...core.celery import celery_app
 import logging
 import nmap
 from ...config import settings
 
 logger = logging.getLogger(__name__)
 
-nmap_celery = Celery(
-    "nmap_worker",
-    broker=settings.REDIS_URL,
-    backend=settings.REDIS_URL
-)
-
-nmap_celery.conf.update(
+celery_app.conf.update(
     task_serializer='json',
     accept_content=['json'],
     result_serializer='json',
@@ -20,10 +14,9 @@ nmap_celery.conf.update(
     task_track_started=True,
     task_time_limit=3600, # Les scans Nmap peuvent être longs
     task_soft_time_limit=3500,
-    task_routes={'tasks.deep_nmap_scan': {'queue': 'nmap_queue'}}
 )
 
-@nmap_celery.task(name="tasks.deep_nmap_scan")
+@celery_app.task(name="tasks.deep_nmap_scan")
 def deep_nmap_scan_task(target, scan_args):
     logger.info("Démarrage scan Nmap approfondi sur %s avec args: %s", target, scan_args)
 

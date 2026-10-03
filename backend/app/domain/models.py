@@ -1,5 +1,6 @@
 import uuid
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, Index, Integer, Text, Float, LargeBinary, PrimaryKeyConstraint
+import json
+from sqlalchemy import String, Boolean, DateTime, ForeignKey, Index, Integer, Text, Float, LargeBinary, PrimaryKeyConstraint, BigInteger, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime, timezone
 from ..db import Base
@@ -319,3 +320,140 @@ class NotificationDedup(Base):
     channel_id: Mapped[int] = mapped_column(Integer, index=True)
     first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
     __table_args__ = (Index("ix_dedup_fp_channel", "fingerprint", "channel_id", unique=True),)
+
+
+class FaceLoginRequest(Base):
+    """Demande d'approbation de connexion faciale — analyste requiert validation admin."""
+    __tablename__ = "face_login_requests"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True, default="default")
+    username: Mapped[str] = mapped_column(String(100), index=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolved_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+
+class UnverifiedFaceAttempt(Base):
+    """Capture silencieuse d'un visage inconnu lors d'une tentative de connexion faciale."""
+    __tablename__ = "unverified_face_attempts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True, default="default")
+    username: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    face_image: Mapped[str | None] = mapped_column(Text, nullable=True)
+    capture_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
+    resolved: Mapped[bool] = mapped_column(Boolean, default=False)
+    resolved_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    __table_args__ = (
+        Index("ix_unverified_face_attempts_tenant_capture", "tenant_id", "capture_time"),
+    )
+
+
+class RegistrationRequest(Base):
+    """Demande d'inscription — l'analyste requiert validation admin avant activation du compte."""
+    __tablename__ = "registration_requests"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True, default="default")
+    username: Mapped[str] = mapped_column(String(100), index=True)
+    password_hash: Mapped[str] = mapped_column(String(500))
+    role: Mapped[str] = mapped_column(String(20), default="analyst")
+    face_image: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolved_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+
+class HoneypotEvent(Base):
+    __tablename__ = "honeypot_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True, default="default")
+    port: Mapped[int] = mapped_column(Integer, nullable=False)
+    src_ip: Mapped[str] = mapped_column(String(45), index=True)
+    src_port: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
+    payload_preview: Mapped[str | None] = mapped_column(Text, nullable=True)
+    alert_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    __table_args__ = (Index("ix_honeypot_tenant_port", "tenant_id", "port"),)
+
+
+class Agent(Base):
+    __tablename__ = "agents"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    agent_id: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    hostname: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    os: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    arch: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), default="default")
+    registered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    last_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    seq: Mapped[int] = mapped_column(BigInteger, default=0)
+    capabilities: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class AgentTelemetryEvent(Base):
+    __tablename__ = "agent_telemetry_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    agent_id: Mapped[str] = mapped_column(String(64), index=True)
+    category: Mapped[str] = mapped_column(String(32), index=True)
+    payload: Mapped[str] = mapped_column(Text)
+    ts: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
+class AgentOrder(Base):
+    __tablename__ = "agent_orders"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), default="default")
+    agent_id: Mapped[str] = mapped_column(String(64), index=True)
+    action_type: Mapped[str] = mapped_column(String(64))
+    target: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    params: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    output: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    dispatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AgentAiAnalysis(Base):
+    __tablename__ = "agent_ai_analyses"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True, default="default")
+    agent_id: Mapped[str] = mapped_column(String(64), index=True)
+    severity_count: Mapped[int] = mapped_column(Integer)
+    alert_ids: Mapped[str] = mapped_column(Text)  # JSON array serialized
+    model: Mapped[str] = mapped_column(String(255))
+    response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="running")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    analyzed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    @property
+    def alert_ids_parse(self) -> list[int]:
+        try:
+            return json.loads(self.alert_ids) if self.alert_ids else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+
+def ensure_agent_ai_analyses(db):
+    """Idempotent: verify agent_ai_analyses table columns exist."""
+    from sqlalchemy import inspect as sa_inspect
+    inspector = sa_inspect(db.bind)
+    if "agent_ai_analyses" not in inspector.get_table_names():
+        return
+    existing = {c["name"] for c in inspector.get_columns("agent_ai_analyses")}
+    for col in ["tenant_id", "agent_id", "severity_count", "alert_ids", "model",
+                 "response", "status", "error", "created_at", "analyzed_at"]:
+        if col not in existing:
+            try:
+                with db.bind.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE agent_ai_analyses ADD COLUMN {col} TEXT"))
+            except Exception:
+                pass
+    db.commit()

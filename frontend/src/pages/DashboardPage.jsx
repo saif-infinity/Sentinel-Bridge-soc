@@ -1,15 +1,62 @@
-import { ShieldAlert, Activity, Zap } from "lucide-react";
+import { ShieldAlert, Activity, Zap, FileSearch, BrainCircuit, RefreshCw, AlertCircle, Sparkles } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useData } from "../contexts/DataContext";
 import { useTranslation } from "../i18n";
 import { getHourlyAlertsData } from "../lib/formatters";
+import { useAuth } from "../contexts/AuthContext";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import SourceToggles from "../components/SourceToggles";
 
 export default function DashboardPage() {
-  const { wazuhAlerts, onlineHistory, throughputHistory, suricataHistory } = useData();
+  const { wazuhAlerts, onlineHistory, throughputHistory, suricataHistory, investigations } = useData();
   const { t } = useTranslation();
+  const { fetchWithAuth, headers, hasRole } = useAuth();
+  const navigate = useNavigate();
+  const canViewAI = hasRole ? hasRole("analyst") : false;
   const hourlyData = getHourlyAlertsData(wazuhAlerts);
+  const awaitingCount = (investigations || []).filter((inv) => inv.status === "awaiting_response").length;
 
   const tooltipStyle = { background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "8px" };
+
+  const [aiEnabled, setAiEnabled] = useState(null);
+  const [analyses, setAnalyses] = useState([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [expanded, setExpanded] = useState({});
+
+  const fetchAI = useCallback(async () => {
+    if (!canViewAI) return;
+    setAiLoading(true);
+    try {
+      const r1 = await fetchWithAuth("/api/settings/ai-auto", { headers, silent: true });
+      if (r1.ok) {
+        const d1 = await r1.json();
+        setAiEnabled(!!d1.enabled);
+      } else if (r1.status === 404 || r1.status === 403) {
+        setAiEnabled(false);
+      }
+      const r2 = await fetchWithAuth("/api/ai-auto/analyses?limit=10", { headers, silent: true });
+      if (r2.ok) {
+        const d2 = await r2.json();
+        setAnalyses(d2.analyses || []);
+      } else {
+        setAnalyses([]);
+      }
+    } catch {
+      setAnalyses([]);
+    } finally {
+      setAiLoading(false);
+    }
+  }, [fetchWithAuth, headers, canViewAI]);
+
+  useEffect(() => {
+    fetchAI();
+  }, [fetchAI]);
+  useEffect(() => {
+    const h = () => fetchAI();
+    window.addEventListener("sources-changed", h);
+    return () => window.removeEventListener("sources-changed", h);
+  }, [fetchAI]);
 
   return (
     <div className="tab-pane animate-fade-in">
@@ -52,6 +99,15 @@ export default function DashboardPage() {
               {suricataHistory[suricataHistory.length - 1]?.drops || "0"}
             </span>
             <span className="stat-label">IPS Drops</span>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon" style={{ background: "rgba(234, 179, 8, 0.1)", color: "#eab308" }}>
+            <FileSearch size={20} />
+          </div>
+          <div className="stat-info">
+            <span className="stat-value" style={{ color: awaitingCount > 0 ? "#eab308" : undefined }}>{awaitingCount}</span>
+            <span className="stat-label">En attente de réponse</span>
           </div>
         </div>
       </div>
@@ -170,7 +226,71 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </div>
         </div>
+
+        <SourceToggles variant="dashboard" />
       </div>
+
+      {canViewAI && (
+        <div className="section-card" style={{ padding: "20px 24px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+            <h2 style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "15px", margin: 0 }}>
+              <BrainCircuit size={18} color="var(--accent-cyan)" /> Analyses IA automatiques
+              {aiEnabled === false && <span style={{ fontSize: "10px", color: "var(--text-muted)", background: "rgba(255,255,255,0.06)", border: "1px solid var(--border)", padding: "2px 6px", borderRadius: "999px" }}>désactivée</span>}
+              {aiEnabled === true && <span style={{ fontSize: "10px", color: "var(--accent-cyan)", background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.2)", padding: "2px 6px", borderRadius: "999px" }}>activée</span>}
+            </h2>
+            <button onClick={fetchAI} disabled={aiLoading} title="Rafraîchir" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--border)", borderRadius: "8px", padding: "6px 8px", color: "var(--text-muted)", cursor: aiLoading ? "not-allowed" : "pointer", display: "flex", alignItems: "center" }}>
+              <RefreshCw size={14} style={{ animation: aiLoading ? "spin 0.8s linear infinite" : undefined }} />
+            </button>
+          </div>
+
+          {aiLoading && analyses.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "20px", color: "var(--text-muted)", fontSize: "13px" }}>Chargement…</div>
+          ) : aiEnabled === false ? (
+            <div style={{ textAlign: "center", padding: "20px" }}>
+              <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>Auto-analyse IA désactivée — activez-la dans Settings.</div>
+              <button onClick={() => navigate("/settings")} style={{ marginTop: "10px", padding: "6px 12px", background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.2)", borderRadius: "8px", color: "var(--accent-cyan)", cursor: "pointer", fontSize: "12px" }}>
+                Aller aux paramètres
+              </button>
+            </div>
+          ) : analyses.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "20px", color: "var(--text-muted)", fontSize: "13px" }}>Aucun burst critique à analyser.</div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "12px" }}>
+              {analyses.map((a) => {
+                const isExpanded = !!expanded[a.id];
+                const long = a.response && a.response.length > 400;
+                const text = !a.response ? "" : isExpanded || !long ? a.response : a.response.slice(0, 400) + "…";
+                return (
+                  <div key={a.id} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", borderRadius: "12px", padding: "14px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+                      <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text-main)" }}>{a.hostname || a.agent_id}</span>
+                      <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span style={{ fontSize: "10px", fontWeight: 700, background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.2)", color: "var(--accent-cyan)", padding: "2px 6px", borderRadius: "999px" }}>{a.severity_count} alertes critiques</span>
+                        {a.status === "running" && <span style={{ fontSize: "10px", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "4px" }}><RefreshCw size={10} style={{ animation: "spin 0.8s linear infinite" }} /> en cours</span>}
+                        {a.status === "error" && <span style={{ fontSize: "10px", color: "#ef4444", background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.2)", padding: "2px 6px", borderRadius: "999px", display: "flex", alignItems: "center", gap: "4px" }}><AlertCircle size={10} /> erreur</span>}
+                        {a.status === "done" && <span style={{ fontSize: "10px", color: "#10b981", background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.2)", padding: "2px 6px", borderRadius: "999px" }}>terminée</span>}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>{a.analyzed_at ? new Date(a.analyzed_at).toLocaleString("fr-FR") : a.created_at ? new Date(a.created_at).toLocaleString("fr-FR") : ""} · {a.model}</div>
+                    {a.status === "error" && a.error && <div style={{ fontSize: "12px", color: "#ef4444", background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)", padding: "8px", borderRadius: "8px" }}>{a.error}</div>}
+                    {a.status !== "error" && (
+                      <div style={{ fontSize: "12px", color: "var(--text-main)", background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", borderRadius: "8px", padding: "10px", whiteSpace: "pre-wrap", maxHeight: isExpanded ? "400px" : "180px", overflowY: "auto", lineHeight: 1.5 }}>
+                        {text || <span style={{ color: "var(--text-muted)" }}>—</span>}
+                      </div>
+                    )}
+                    {long && (
+                      <button onClick={() => setExpanded((p) => ({ ...p, [a.id]: !p[a.id] }))} style={{ alignSelf: "flex-start", background: "none", border: "none", color: "var(--accent-cyan)", cursor: "pointer", fontSize: "11px", display: "flex", alignItems: "center", gap: "4px" }}>
+                        <Sparkles size={12} /> {isExpanded ? "Voir moins" : "Voir plus"}
+                      </button>
+                    )}
+                    <div style={{ fontSize: "10px", color: "var(--text-muted)" }}>alert_ids: {a.alert_ids?.join(", ") || "—"}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

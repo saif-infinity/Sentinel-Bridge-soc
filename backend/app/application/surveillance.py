@@ -88,7 +88,11 @@ class SurveillanceService:
             now = datetime.now(timezone.utc)
             log_entry.logout_time = now
             log_entry.is_online = False
-            duration = (now - log_entry.login_time).total_seconds()
+            # login_time est relu depuis une colonne TIMESTAMP naive → normaliser en UTC-aware
+            login_time = log_entry.login_time
+            if login_time.tzinfo is None:
+                login_time = login_time.replace(tzinfo=timezone.utc)
+            duration = (now - login_time).total_seconds()
             log_entry.session_duration = int(duration)
             db.commit()
             db.refresh(log_entry)
