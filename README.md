@@ -1,476 +1,753 @@
-# Sentinel Bridge - SOC/IPS/SIEM/XDR Platform
+# 🛡️ Sentinel Bridge - SOC/IPS/SIEM/XDR Platform
 
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.139+-00ADD8.svg)](https://fastapi.tiangolo.com)
-[![React](https://img.shields.io/badge/React-18.2+-61DAFB.svg)](https://react.dev)
-[![Vite](https://img.shields.io/badge/Vite-5.0+-646CFF.svg)](https://vitejs.dev)
-[![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg)](https://www.python.org)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-TimescaleDB-blue.svg)](https://www.timescale.com)
+<div align="center">
 
-A unified Security Operations Center (SOC), Intrusion Prevention System (IPS), Security Information and Event Management (SIEM), and Extended Detection and Response (XDR) platform built with FastAPI and React. The project is designed as a multi-tenant, role-based security platform with real-time monitoring, threat detection, incident response, and automation capabilities.
+![FastAPI](https://img.shields.io/badge/FastAPI-0.139%2B-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-18.2%2B-61DAFB?style=for-the-badge&logo=react&logoColor=black)
+![Vite](https://img.shields.io/badge/Vite-5.0%2B-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL%20%2B%20TimescaleDB-336791?style=for-the-badge&logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)
+![Celery](https://img.shields.io/badge/Celery-37814A?style=for-the-badge&logo=celery&logoColor=white)
 
-## Table of Contents
+**Unified Security Operations Platform — Detection • Investigation • Response • Automation**
 
-- [1. Architecture Overview](#1-architecture-overview)
-- [2. Project Structure](#2-project-structure)
-- [3. Core Components](#3-core-components)
-- [4. Advantages & Key Features](#4-advantages--key-features)
-- [5. Technologies & Libraries](#5-technologies--libraries)
-- [6. Working Logic](#6-working-logic)
-- [7. Getting Started](#7-getting-started)
-- [8. Configuration](#8-configuration)
-- [9. API & Access](#9-api--access)
-- [10. Project Status & Notes](#10-project-status--notes)
+[🚀 Get Started](#-getting-started) • [📐 Architecture](#-architecture-overview) • [🔄 Workflows](#-data-flow--workflows) • [📚 API Docs](#-api--access) • [⚙️ Configuration](#%EF%B8%8F-configuration)
 
-## 1. Architecture Overview
+</div>
 
-Sentinel Bridge follows a layered, microservices-oriented architecture with clear separation between presentation, application, domain, and infrastructure layers.
+---
 
-### 1.1 High-Level Architecture
+## 📖 Overview
+
+**Sentinel Bridge** is a next-generation, multi-tenant Security Operations Center (SOC) platform that unifies Intrusion Prevention (IPS), Security Information & Event Management (SIEM), and Extended Detection & Response (XDR) capabilities. Built with a modern **FastAPI + React** stack, it delivers real-time threat detection, intelligent correlation, automated response, and comprehensive security monitoring in a single, cohesive platform.
+
+> 🎯 **Mission**: Empower security teams to detect, investigate, triage, and respond to threats faster with automation, rich context, and auditable workflows.
+
+---
+
+## 🏗️ Architecture Overview
+
+Sentinel Bridge follows a **Clean Architecture** pattern with strict separation of concerns, ensuring maintainability, testability, and scalability.
+
+### High-Level System Architecture
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│                        FRONTEND LAYER                         │
-├─────────────────────────────┬─────────────────────────────────┤
-│      SOC Frontend (Vite)     │    Admin Frontend (Vite)       │
-│      - React + Tailwind     │    - React + Vite              │
-│      - React Router         │    - Surveillance UI           │
-│      - React Query          │    - Admin Supervision         │
-│      - Toast Notifications  │    - Recharts (Analytics)     │
-└──────────┬──────────────────┴─────────────────┬───────────────┘
-           │                                   │
-           └───────────────┬───────────────────┘
-                           │ HTTP/REST (JWT/API Key)
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        BACKEND LAYER                          │
-│                    FastAPI (Async/REST API)                   │
-├─────────────────────────────────────────────────────────────────┤
-│  Interface (API)  │  Application  │  Domain  │  Infrastructure │
-│  - Routers        │  - Services   │  - Models│  - DB/Repos     │
-│  - Middleware     │  - Bootstrap  │  - Rules │  - Adapters     │
-│  - Auth/RBAC      │  - Orchestr.  │         │  - External     │
-└──────────┬──────────────┬─────────────┬────────┴───────────────┘
-           │              │             │
-           ▼              ▼             ▼
-┌─────────────────┐ ┌─────────┐ ┌─────────────────────────────────┐
-│   PostgreSQL    │ │  Redis  │ │        External Systems        │
-│ (TimescaleDB)   │ │ (Cache/ │ │  - Wazuh SIEM/Indexer          │
-│ - Multi-tenant  │ │ Broker) │ │  - Suricata IDS/IPS           │
-│ - Hypertables   │ │ Celery  │ │  - Ollama (LLM/AI)            │
-│ - Audit Logs    │ │ Worker  │ │  - Threat Intel (AbuseIPDB)   │
-└─────────────────┘ └─────────┘ └─────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              PRESENTATION LAYER                              │
+├───────────────────────────────────┬─────────────────────────────────────────┤
+│           SOC Dashboard          │           Admin Supervision           │
+│           (frontend/)           │           (admin-frontend/)          │
+│  • React 18 + Vite + Tailwind   │  • React 18 + Vite                   │
+│  • React Router DOM 7           │  • Surveillance Monitoring           │
+│  • TanStack React Query         │  • Analytics with Recharts           │
+│  • Toast Notifications          │  • Administrative Controls           │
+└──────────────┬──────────────────┴──────────────────────────┬─────────────────┘
+               │                                             │
+               │  HTTPS/REST + JWT/API Key + Webhooks      │
+               ▼                                             ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                                 API GATEWAY LAYER                            │
+│                            FastAPI Application (:8001)                        │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│  Interface Layer        │  Application Layer      │  Domain Layer │ Infra. Layer│
+│  • REST Routers         │  • Business Services    │  • Entities   │ • DB/Repos  │
+│  • RBAC Middleware      │  • Orchestration        │  • Value Obj. │ • Adapters  │
+│  • Tenant Middleware    │  • Bootstrap/Startup    │  • Rules      │ • Integrat. │
+│  • Action Audit         │  • Event Handlers       │  • Policies   │ • External  │
+└──────────┬──────────────┬─────────────────────┬───────────┴──────┬────────────┘
+           │              │                     │                  │
+           ▼              ▼                     ▼                  ▼
+┌─────────────────┐ ┌─────────────┐ ┌─────────────────────┐ ┌─────────────────┐
+│  PostgreSQL     │ │    Redis    │ │  Async Processing   │ │ External Systems│
+│  + TimescaleDB  │ │  (Broker +  │ │  • Celery Worker    │ │ • Wazuh SIEM    │
+│  • Hypertables  │ │   Cache)    │ │  • Task Scheduler   │ │ • Suricata IPS  │
+│  • Multi-Tenant │ │             │ │  • Outbox Pattern   │ │ • Ollama LLM    │
+│  • Audit Trail  │ │             │ │                     │ │ • AbuseIPDB     │
+└─────────────────┘ └─────────────┘ └─────────────────────┘ └─────────────────┘
 ```
 
-### 1.2 Design Principles
+### Architectural Layers
 
-- **Layered Clean Architecture**: Separation of concerns with `interface/`, `application/`, `domain/`, and `infrastructure/` layers
-- **Multi-Tenancy**: Tenant isolation via `tenant_id` across all models, middleware, and queries
-- **RBAC (Role-Based Access Control)**: Hierarchical roles (`viewer < analyst < admin < super_admin`) with per-route policy enforcement
-- **Defense-in-Depth**: API key + JWT authentication, webhook token/slug auth, CORS, and tenant scoping
-- **Event-Driven**: Celery workers for asynchronous processing, outbox pattern for reliable event handling
-- **Data Integrity**: TimescaleDB hypertables for time-series data (alerts, suricata alerts), composite primary keys, and proper indexing
+| Layer | Directory | Responsibility |
+|---|---|---|
+| **🖥️ Interface** | `backend/app/interface/` | API contracts, HTTP routing, middleware, request/response validation, RBAC enforcement |
+| **⚙️ Application** | `backend/app/application/` | Use cases, business workflows, service orchestration, cross-cutting business logic |
+| **🎯 Domain** | `backend/app/domain/` | Core entities, domain models, business rules, invariants (technology-agnostic) |
+| **🔌 Infrastructure** | `backend/app/infrastructure/` | External integrations (DB, Wazuh, Suricata, Threat Intel), persistence, I/O operations |
 
-## 2. Project Structure
+---
+
+## 🗂️ Project Structure
 
 ```text
 projet-pfe-version4/
-├── backend/                        # FastAPI backend application
+│
+├── 📦 backend/                        # FastAPI Backend (Core Engine)
 │   ├── app/
-│   │   ├── interface/              # API layer (routers, middleware, schemas)
-│   │   │   ├── api/                # REST endpoint routers (alerts, auth, cases, etc.)
-│   │   │   ├── middleware/         # Cross-cutting concerns (tenant, action log)
-│   │   │   └── main.py             # Main FastAPI app composition
-│   │   ├── application/            # Business logic & orchestration
-│   │   │   ├── bootstrap.py        # Startup initialization
-│   │   │   ├── services/           # Application services
-│   │   │   └── system_config.py    # System configuration management
-│   │   ├── domain/                 # Domain models & business rules
-│   │   │   ├── models.py           # Core domain models (Alert, SuricataAlert, Case...)
-│   │   │   ├── rule_models.py      # Rule engine models (MITRE mapping)
-│   │   │   └── pipeline_models.py  # Event pipeline models
-│   │   ├── infrastructure/         # External integrations & persistence
-│   │   │   ├── persistence/        # DB repositories, password store
-│   │   │   ├── scanner.py          # Network scanning utilities
-│   │   │   └── integrations/       # Wazuh, Suricata, Threat Intel adapters
-│   │   ├── core/                   # Shared utilities (auth, config, RBAC, db)
-│   │   ├── auth.py                 # Authentication utilities (delegates to core)
-│   │   ├── models.py               # Model exports (re-exports domain models)
-│   │   └── worker.py               # Celery worker entry point
-│   ├── requirements.txt            # Python dependencies
-│   ├── start.sh / start.bat       # Startup scripts
-│   └── alembic/                    # Database migrations
-├── frontend/                      # SOC Dashboard (main frontend)
+│   │   ├── interface/                 # 🌐 API Layer
+│   │   │   ├── api/                   # REST endpoint routers (modular by domain)
+│   │   │   │   ├── alerts.py          # Alert management & enrichment
+│   │   │   │   ├── cases.py           # Incident case management
+│   │   │   │   ├── rules.py           # Detection rules + MITRE mapping
+│   │   │   │   ├── hunts.py           # Threat hunting
+│   │   │   │   ├── playbooks.py       # Automated response
+│   │   │   │   ├── intel.py           # Threat intelligence
+│   │   │   │   ├── investigations.py  # Investigation workflows
+│   │   │   │   ├── response.py        # Response actions & rollbacks
+│   │   │   │   ├── reporting.py       # Report generation
+│   │   │   │   ├── auth.py            # Authentication endpoints
+│   │   │   │   ├── tenants.py         # Multi-tenant management
+│   │   │   │   ├── surveillance.py    # Access surveillance
+│   │   │   │   ├── faces.py           # Face recognition
+│   │   │   │   └── ...                # Additional domain routers
+│   │   │   ├── middleware/            # HTTP middleware
+│   │   │   │   ├── tenant.py          # Tenant context enforcement
+│   │   │   │   └── action_log.py      # Audit/action logging
+│   │   │   └── main.py                # FastAPI app composition & RBAC setup
+│   │   │
+│   │   ├── application/               # ⚙️ Application Layer
+│   │   │   ├── bootstrap.py           # Startup initialization & migrations
+│   │   │   ├── services/              # Application services
+│   │   │   └── system_config.py       # System configuration
+│   │   │
+│   │   ├── domain/                    # 🎯 Domain Layer
+│   │   │   ├── models.py              # Core domain entities
+│   │   │   ├── rule_models.py         # Rule engine + MITRE ATT&CK
+│   │   │   └── pipeline_models.py     # Event pipeline models
+│   │   │
+│   │   ├── infrastructure/            # 🔌 Infrastructure Layer
+│   │   │   ├── persistence/           # Data persistence
+│   │   │   ├── integrations/          # External system adapters
+│   │   │   └── scanner.py             # Network scanning utilities
+│   │   │
+│   │   ├── core/                      # 🧩 Core Shared Utilities
+│   │   │   ├── auth.py                # Auth helpers & scope validation
+│   │   │   ├── rbac.py                # Role-based access control
+│   │   │   ├── config.py              # Pydantic settings
+│   │   │   ├── db.py                  # DB session management
+│   │   │   └── jwt_utils.py           # JWT utilities
+│   │   │
+│   │   ├── auth.py                    # Auth facade
+│   │   ├── models.py                  # Model re-exports
+│   │   └── worker.py                  # Celery worker entry point
+│   │
+│   ├── requirements.txt               # Python dependencies
+│   ├── alembic/                       # DB migrations
+│   ├── start.sh                       # 🚀 Linux/macOS startup
+│   └── start.bat                      # 🚀 Windows startup
+│
+├── 🎨 frontend/                       # SOC Dashboard (Primary UI)
 │   ├── src/
-│   │   ├── components/             # React UI components
-│   │   ├── pages/                  # Page components/routes
-│   │   ├── lib/                    # Utilities (api client, auth, context)
-│   │   ├── hooks/                  # Custom React hooks
-│   │   └── styles/                 # CSS/Tailwind styles
+│   │   ├── components/                # Reusable UI components
+│   │   ├── pages/                     # Route-level pages
+│   │   ├── lib/                       # Utils, API client, auth, context
+│   │   ├── hooks/                     # Custom React hooks
+│   │   └── styles/                    # Global styles & Tailwind
 │   ├── package.json
 │   └── vite.config.js
-├── admin-frontend/                # Admin/Supervision Dashboard
+│
+├── 🛠️ admin-frontend/                 # Admin & Surveillance UI
 │   ├── src/
-│   │   ├── components/             # Admin-specific components
-│   │   ├── views/                  # Admin views (Dashboard, Surveillance, etc.)
-│   │   ├── pages/                  # Page views
-│   │   ├── api.js                  # API client for admin
-│   │   └── styles/                 # Admin styles
+│   │   ├── components/                # Admin UI components
+│   │   ├── views/                     # Admin views
+│   │   ├── pages/                     # Page components
+│   │   ├── api.js                     # Admin API client
+│   │   └── styles/                    # Admin-specific styles
 │   ├── package.json
 │   └── vite.config.js
-├── docker-compose.yml             # Development Docker setup
-├── docker-compose.prod.yml        # Production Docker setup
-├── Makefile                       # Build/run shortcuts
-└── README.md                      # Project documentation
+│
+├── 🐳 docker-compose.yml              # Dev container orchestration
+├── 🐳 docker-compose.prod.yml         # Production deployment
+├── 📋 Makefile                        # Build & run automation
+└── 📖 README.md                       # This documentation
 ```
 
-## 3. Core Components
+---
 
-### 3.1 Backend Components
+## 🔧 Core Components
 
-#### 3.1.1 API Layer (`interface/`)
-- **Routers**: Modular REST endpoints organized by domain (alerts, cases, rules, hunts, playbooks, intel, investigations, response, reporting, exports, auth, tenants, surveillance, etc.)
-- **Middleware**:
-  - `TenantMiddleware`: Enforces tenant context on all requests (`request.state.tenant_id`)
-  - `ActionLogMiddleware`: Audits and logs user actions for compliance
-- **RBAC Enforcement**: Per-router policies with `apply_role_guard()` applied after router inclusion
+### 1. Backend Engine (FastAPI)
 
-#### 3.1.2 Application Layer (`application/`)
-- **Bootstrap**: `run_startup()` handles database initialization, migration checks (MITRE columns, intel columns), TimescaleDB hypertables, and service initialization
-- **Services**: Domain/application services for business logic (alert processing, case management, threat intel enrichment, surveillance, face recognition)
-- **System Config**: Centralized configuration management with tenant-scoped values
-
-#### 3.1.3 Domain Layer (`domain/`)
-- **Core Models**: `Alert`, `SuricataAlert`, `Device`, `Asset`, `Case`, `CaseAlertLink`, `TimelineEvent`, `Hunt`, `Tenant`, `TenantUser`, `AccessLog`, `ActionLog`, etc.
-- **Rule Models**: `Rule`, `RuleMatchOutbox` with MITRE ATT&CK integration (`mitre_attack_ids`, `tactics`)
-- **Pipeline Models**: Event normalization and processing pipeline
-
-#### 3.1.4 Core Services (`core/`)
-- **Auth & JWT**: Token verification, scope validation (`has_scopes`, `has_scopes_or_api_key`)
-- **RBAC**: Role hierarchy, `require_role()` dependency, policy enforcement (`ROUTER_POLICIES`)
-- **Database**: SQLAlchemy session management, tenant-scoped queries
-- **Config**: Pydantic settings with environment-based configuration
-
-### 3.2 Frontend Components (SOC Frontend)
-
-Located in `frontend/src/`, the main SOC dashboard includes:
-
-- **Authentication & Layout**: Login flow with JWT, protected routes, global layout
-- **Alert Management**: Real-time alert viewing, filtering, enrichment with threat intel
-- **Case Management (Cases)**: Incident case creation, linking alerts, triage workflow
-- **Hunting (Hunts)**: Threat hunting interface and queries
-- **Playbooks**: Automated response playbooks and execution tracking
-- **Threat Intelligence (Intel)**: IOC management and enrichment
-- **Investigations**: Investigation tracking and evidence management
-- **Response & Reporting**: Response actions and report generation
-- **Surveillance**: User access monitoring, face verification logs
-- **Settings & Admin**: System configuration, user management
-- **API Client**: `createFetchWithAuth()` with global toast error handling, 401/429 retry logic
-
-### 3.3 Admin Frontend (Admin Supervision)
-
-Located in `admin-frontend/src/`, provides administrative oversight:
-
-- **Admin Dashboard**: System metrics, overview, and analytics (Recharts)
-- **Surveillance View**: Real-time surveillance monitoring, access logs, face verification
-- **User & Tenant Management**: Tenant administration, user provisioning
-- **System Monitoring**: Performance metrics, alerts overview
-- **Styles**: Dedicated CSS for surveillance/admin views (`styles/surveillance.css`)
-
-### 3.4 Background Processing
-
-- **Celery Worker** (`worker.py`): Asynchronous task processing (alert enrichment, playbook execution, reports, etc.)
-- **Redis**: Message broker for Celery, caching layer, and rate-limiting (fallback to in-memory)
-- **Outbox Pattern**: `RuleMatchOutbox`, `PipelineEvent` for reliable event delivery and replay
-
-## 4. Advantages & Key Features
-
-### 4.1 Security & Compliance
-
-- **Multi-Tenant Isolation**: Strict tenant scoping on all data models and queries
-- **Granular RBAC**: Role-based access with hierarchical permissions (viewer/analyst/admin/super_admin)
-- **Dual Authentication**: Support for JWT Bearer tokens and API keys; console admin tokens for operator access
-- **Audit Trail**: Comprehensive action logging (`ActionLog`, `TimelineEvent`) with actor, resource, IP, and timestamp tracking
-- **Webhook Security**: Token-based and slug-based per-tenant webhook authentication
-- **CORS & SSL Control**: Configurable CORS origins; SSL verification based on environment
-
-### 4.2 Detection & Response (SOC/IPS/SIEM/XDR)
-
-- **Alert Normalization**: Unified alert model with pipeline processing (`normalized_severity`, `pipeline_source`, `pipeline_processed_at`)
-- **Threat Intelligence Enrichment**: Automatic enrichment of alerts with AbuseIPDB/other intel providers (score, verdict, source, checked timestamp)
-- **Case Management**: Triage workflow via `CaseAlertLink` (status/note/triaged_by/triaged_at) - triage lives on links, not on raw alerts
-- **MITRE ATT&CK Mapping**: Rules mapped to MITRE techniques/tactics (`mitre_attack_ids`, `tactics`)
-- **Playbook Automation**: Automated incident response with execution tracking (`PlaybookRun`) and outbox guard for idempotency
-- **Hunting Capabilities**: Proactive threat hunting interface and workflows
-- **Suricata Integration**: Native Suricata alert ingestion and processing
-
-### 4.3 Monitoring & Access Control
-
-- **Face Recognition**: InsightFace-based face recognition engine (`buffalo_s` model: SCRFD detector + ArcFace, 512-dim embeddings, cosine threshold 0.45). Lazy-loaded, thread-safe
-- **Access Surveillance**: Login/logout tracking, face verification status, session duration, IP tracking
-- **Device & Asset Inventory**: Track network devices, assets with employee/department mapping
-- **Network Sensor Monitoring**: Bandwidth and traffic metrics per sensor
-- **Wazuh Integration**: SIEM log ingestion and correlation
-
-### 4.4 Architecture & Operations
-
-- **Time-Series Optimization**: TimescaleDB hypertables for high-volume alert data with composite PKs (`(id, timestamp)`)
-- **Scalable Background Jobs**: Celery + Redis for async processing (enrichment, reports, playbook runs)
-- **Idempotent Processing**: Outbox pattern with unique constraints prevents duplicate processing
-- **Multi-Tenant Ready**: All tables include `tenant_id`; middleware enforces tenant context
-- **Developer-Friendly**: Auto-setup scripts (`start.sh`), Docker compose for dev/prod, Makefile targets, hot-reload in dev mode
-- **Port Flexibility**: Backend runs on `:8001` (avoids conflict with Coolify on `:8000`); frontends configured accordingly
-
-### 4.5 Data & Analytics
-
-- **Rich Alert Enrichment**: Alerts enriched with asset/device metadata (employee name, department, MAC address)
-- **Reporting**: Report generation (PDF/XHTML) with templates, schedules, recipients, and logs
-- **Investigation Management**: Structured investigations with evidence and recommendations
-- **Response Tracking**: Response action results with rollback capability
-
-## 5. Technologies & Libraries
-
-### 5.1 Backend (Python)
-
-| Library | Version/Range | Purpose |
+| Component | Location | Description |
 |---|---|---|
-| **FastAPI** | >=0.139,<1.0 | Modern async web framework |
-| **Uvicorn** | >=0.32,<1.0 | ASGI server |
-| **SQLAlchemy** | >=2.0,<3.0 | ORM with async support patterns |
-| **pg8000** | >=1.31,<2.0 | PostgreSQL driver (pure Python) |
-| **Pydantic & Pydantic-Settings** | >=2.10,<3.0 / >=2.8,<3.0 | Data validation & configuration |
-| **Celery** | >=5.6,<6.0 | Distributed task queue |
-| **Redis** | >=4.5.2,<5.0.0 | Broker/cache for Celery |
-| **python-jose[cryptography]** | >=3.5,<4.0 | JWT token handling |
-| **passlib[bcrypt]** | >=1.7,<2.0 / bcrypt>=4.2,<6.0 | Password hashing |
-| **httpx** | >=0.28,<1.0 | Async HTTP client (threat intel, external APIs) |
-| **python-multipart** | >=0.0.20,<1.0 | File upload support |
-| **insightface** | ==1.0.1 | Face recognition (SCRFD + ArcFace) |
-| **onnxruntime** | ==1.29.0 | ONNX inference runtime |
-| **opencv-python-headless** | >=4.8,<5.0 | Computer vision (headless) |
-| **numpy** | >=2.2,<3.0 | Numerical computing |
-| **Pillow** | >=11.0,<12.0 | Image processing |
-| **scapy** | >=2.6,<3.0 | Packet manipulation/scanning |
-| **python-nmap** | >=0.7,<1.0 | Nmap integration |
-| **paramiko** | >=3.5,<4.0 | SSH client |
-| **xhtml2pdf** | >=0.2,<1.0 | PDF report generation |
-| **jinja2** | >=3.1,<4.0 | Template engine |
-| **tenacity** | >=9,<10 | Retry logic |
-| **aiosmtplib** | >=1.1,<2.0 | Async SMTP |
-| **syslog-rfc5424-parser** | >=0.3.0 | Syslog parsing |
-| **psutil** | >=7.0,<8.0 | System/process monitoring |
-| **urllib3** | >=2.3,<3.0 | HTTP utilities |
+| **API Routers** | `interface/api/` | Domain-driven REST endpoints with OpenAPI/Swagger documentation |
+| **Tenant Middleware** | `interface/middleware/tenant.py` | Enforces tenant isolation on every request (`request.state.tenant_id`) |
+| **Action Log Middleware** | `interface/middleware/action_log.py` | Comprehensive audit trail for compliance & forensics |
+| **RBAC Guard** | `core/rbac.py` | Per-route role enforcement with hierarchical permissions |
+| **Bootstrap** | `application/bootstrap.py` | Startup orchestration: migrations, TimescaleDB hypertables, MITRE/intel columns |
+| **Celery Worker** | `worker.py` | Async task execution (enrichment, playbooks, reports, correlations) |
 
-### 5.2 Frontend (React/JavaScript)
+### 2. SOC Frontend (React)
+
+| Component | Purpose |
+|---|---|
+| **Alert Management** | Real-time alert ingestion, filtering, enrichment, and triage |
+| **Case Management** | Incident tracking, alert linking, timeline, investigation workflow |
+| **Hunts** | Proactive threat hunting queries & saved hunts |
+| **Playbooks** | Automated response playbook library & execution tracking |
+| **Threat Intel** | IOC enrichment, reputation scoring, verdict tracking |
+| **Investigations** | Structured investigations with evidence & recommendations |
+| **Response & Reporting** | Response actions, rollbacks, PDF report generation |
+| **Surveillance** | Access logs, face verification, session monitoring |
+
+### 3. Admin Frontend (React)
+
+| Component | Purpose |
+|---|---|
+| **Admin Dashboard** | System health, metrics, and security posture (Recharts visualizations) |
+| **Surveillance View** | Live access monitoring, face verification logs, user activity tracking |
+| **Tenant Management** | Multi-tenant provisioning, quotas, and lifecycle management |
+| **System Monitoring** | Performance, alerts, sensors, and infrastructure metrics |
+
+---
+
+## ✨ Advantages & Key Features
+
+### 🛡️ Security & Zero-Trust Design
+
+- **🔐 Multi-Tenant Isolation**: Strict `tenant_id` scoping across all models, middleware, and queries
+- **👥 Granular RBAC**: Hierarchical roles (`viewer` < `analyst` < `admin` < `super_admin`) with per-route policies
+- **🔑 Dual Authentication**: JWT Bearer + API Keys, with console admin token support for operators
+- **📝 Immutable Audit Trail**: Complete action logging (`ActionLog`, `TimelineEvent`) with actor, resource, IP, timestamp, and face verification
+- **🪝 Secure Webhooks**: Token-based (`X-SOC-Token`) and slug-based per-tenant webhook authentication with constant-time comparison
+- **🌐 CORS & TLS Controls**: Environment-aware SSL verification and configurable allowed origins
+
+### 🎯 Detection, Correlation & Response (SOC/IPS/SIEM/XDR)
+
+- **📊 Unified Alert Pipeline**: Normalized severity, pipeline source, and processing timestamps for consistent triage
+- **🧠 Threat Intel Enrichment**: Automated IP/domain enrichment (AbuseIPDB) with verdict, score, source, and freshness tracking
+- **🎫 Intelligent Case Management**: Triage state lives on `CaseAlertLink` (status, notes, triager, timestamps) — preserving raw alert integrity
+- **🎯 MITRE ATT&CK Mapping**: Native mapping of detection rules to tactics/techniques (`mitre_attack_ids`, `tactics`)
+- **🤖 Automated Response (SOAR)**: Playbook execution with idempotency guards, outbox pattern, and daemon-thread execution
+- **🏹 Proactive Threat Hunting**: Flexible hunting interface for hypothesis-driven investigations
+- **🕵️ Suricata IDS/IPS**: Native Suricata alert ingestion, normalization, and correlation
+- **🧩 Wazuh SIEM Integration**: Log ingestion, correlation, and enriched context
+
+### 👤 Identity, Access & Surveillance
+
+- **👁️ Face Recognition (InsightFace)**: `buffalo_s` model (SCRFD det_500m + ArcFace w600k_mbf), 512-dim embeddings, cosine similarity threshold **0.45**. Thread-safe lazy loading
+- **🚪 Access Surveillance**: Login/logout tracking, face verification status, session duration, IP, login method
+- **💻 Asset & Device Inventory**: Auto-mapping of assets/devices to alerts (employee, department, MAC address)
+- **📡 Network Sensor Monitoring**: Real-time bandwidth, bytes in/out, interface metrics
+
+### ⚡ Performance, Scalability & Reliability
+
+- **⏱️ Time-Series Optimized**: TimescaleDB hypertables for high-volume alerts (`alerts`, `suricata_alerts`) with composite PK `(id, timestamp)`
+- **⚙️ Async Processing**: Celery + Redis for non-blocking enrichment, reports, playbooks, and correlations
+- **🛡️ Idempotent Processing**: Outbox pattern + unique constraints prevent duplicate executions (replay-safe)
+- **🔄 Resilient Architecture**: Redis fallback to in-memory for rate-limiting when unavailable
+- **🚀 Developer Experience**: One-command setup (`start.sh --setup`), hot-reload in dev, Docker for prod, Makefile shortcuts
+
+### 📈 Analytics, Reporting & Compliance
+
+- **📑 Rich Reporting**: PDF/XHTML report generation with Jinja2 templates, scheduling, recipients, and delivery logs
+- **🔍 Investigation Management**: Structured investigations with evidence artifacts, recommendations, and timelines
+- **↩️ Safe Response Tracking**: Response action results with full rollback capability
+- **📊 Data Visualization**: Recharts-powered analytics in admin dashboard
+
+---
+
+## 🔄 Data Flow & Workflows
+
+Understanding how data moves through Sentinel Bridge is key to mastering the platform. Below are the core workflows with step-by-step data flows.
+
+### 1. 🔐 Authentication Flow
+
+```text
+User/Admin Login
+        │
+        ▼
+┌─────────────────────────────────────────────┐
+│   Frontend (SOC/Admin) - Login Form        │
+└─────────────────────┬───────────────────────┘
+                      │ POST /api/auth/login (credentials)
+                      ▼
+┌─────────────────────────────────────────────┐
+│  Auth Router (interface/api/auth.py)       │
+│  • Validate credentials                     │
+│  • Check tenant context                     │
+└─────────────────────┬───────────────────────┘
+                      │ Verify against TenantUser (DB) or legacy store
+                      ▼
+┌─────────────────────────────────────────────┐
+│  JWT Generation (core/jwt_utils.py)         │
+│  • Create token with sub, scopes, tenant_id │
+│  • Sign with JWT_SECRET_KEY                 │
+└─────────────────────┬───────────────────────┘
+                      │ Return JWT + user info
+                      ▼
+┌─────────────────────────────────────────────┐
+│  Frontend stores token (localStorage)       │
+│  • apiFetch/createFetchWithAuth attaches     │
+│    Authorization: Bearer <token>            │
+└─────────────────────────────────────────────┘
+
+On Subsequent Requests:
+Request → TenantMiddleware → RBAC Guard (require_role) → Route Handler
+```
+
+**Data Flow:** `Login Form → Auth API → DB/User Validation → JWT Issuance → Client Storage → Authenticated Requests with Tenant/RBAC checks`
+
+---
+
+### 2. 🚨 Alert Ingestion & Enrichment Workflow
+
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│  SOURCES: Wazuh Webhook | Suricata Webhook | Manual API | Scanners       │
+└─────────────────────────────────────┬───────────────────────────────────┘
+                                      │ HTTP POST (with auth/webhook token)
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  API Router (interface/api/alerts.py / suricata.py / webhooks)           │
+│  • TenantMiddleware sets tenant_id                                       │
+│  • webhook_token_auth/webhook_slug_auth validates (if webhook)           │
+│  • RBAC checks (if manual API)                                           │
+└─────────────────────────────────────┬───────────────────────────────────┘
+                                      │ Parse & validate payload
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Application Service / Direct Model Creation                              │
+│  • Create Alert/SuricataAlert with tenant_id                             │
+│  • Set normalized_severity, pipeline_source, pipeline_processed_at (F1)  │
+└─────────────────────────────────────┬───────────────────────────────────┘
+                                      │ Persist to DB
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  PostgreSQL + TimescaleDB                                                 │
+│  • alerts/suricata_alerts (hypertables, composite PK id+timestamp)       │
+│  • Indexed by tenant_id, timestamp, severity                             │
+└─────────────────────────────────────┬───────────────────────────────────┘
+                                      │ Async enrichment trigger
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Celery Worker (worker.py) - Threat Intel Enrichment (F3)                │
+│  • If THREAT_INTEL_ENABLED=true, query AbuseIPDB API (httpx)            │
+│  • Apply retry with tenacity                                              │
+│  • Update intel_score, intel_verdict, intel_source, intel_checked_at     │
+└─────────────────────────────────────┬───────────────────────────────────┘
+                                      │ Return enriched alert to API/UI
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Frontend (SOC) - Alert List                                              │
+│  • Enriched with asset/device metadata (employee, dept, MAC)             │
+│  • Display intel verdict/score when available                             │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Points:** Triage state is **not** stored on raw alerts — it's stored on `CaseAlertLink`. Enrichment is asynchronous to avoid blocking ingestion.
+
+---
+
+### 3. 🧩 Case Management & Triage Workflow
+
+```text
+Analyst Action: Link Alert to Case (or Create Case)
+                    │
+                    ▼
+┌─────────────────────────────────────────────────────────┐
+│  POST /api/cases or /api/cases/{id}/link                │
+│  RBAC: analyst/admin (per policy)                        │
+└──────────────────────────┬────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  Case Service / Router Logic                              │
+│  • Validate tenant scope (tenant_id from middleware)       │
+│  • Create Case if needed (status=open, assignee, etc.)    │
+└──────────────────────────┬────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  Create CaseAlertLink                                      │
+│  alert_type: "alert" | "suricata"                         │
+│  alert_id, case_id, tenant_id                             │
+│  status: "open" (default)                                 │
+│  triaged_by: null | actor                                 │
+│  triaged_at: null                                         │
+│  note: optional                                           │
+└──────────────────────────┬────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  Create TimelineEvent (Audit Trail)                        │
+│  event_type: "alert_linked" | "case_created"              │
+│  actor, message, timestamp, tenant_id                      │
+└──────────────────────────┬────────────────────────────────┘
+                           │ Commit transaction
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  DB: cases + case_alert_links + timeline_events            │
+│  Triage lives EXCLUSIVELY on case_alert_links              │
+└─────────────────────────────────────────────────────────┘
+
+Triage Update (in_progress/resolved/dismissed):
+PUT/PATCH link → update status, triaged_by, triaged_at, note → append TimelineEvent
+```
+
+**Design Rationale:** Keeping triage on `CaseAlertLink` allows the same raw alert to be linked to multiple cases in different contexts without mutating source evidence.
+
+---
+
+### 4. 🎯 Rule Engine, MITRE & Playbook Automation Workflow (F3)
+
+```text
+New Alert/SuricataAlert Stored
+                │
+                ▼
+┌─────────────────────────────────────────────────────────┐
+│  Rule Evaluation (rules.py / rule engine)                 │
+│  • Match alert against active Rules (tenant-scoped)        │
+│  • Consider conditions, severity, source, fields           │
+│  • Extract MITRE: mitre_attack_ids, tactics                │
+└──────────────────────────┬────────────────────────────────┘
+                           │ Match found?
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  Create RuleMatchOutbox Entry                               │
+│  event_id = stable correlation key                          │
+│  playbook_id (if associated)                                │
+│  payload: alert context + rule + MITRE mapping              │
+│  tenant_id                                                  │
+│  UNIQUE(event_id, playbook_id)                             │
+└──────────────────────────┬────────────────────────────────┘
+                           │ Publish to channel
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  CHANNEL_RULE_MATCH Event                                   │
+│  bootstrap.py subscribes: on_rule_match(channel, event)    │
+└──────────────────────────┬────────────────────────────────┘
+                           │ Look up PlaybookRun by (event_id, playbook_id)
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  Idempotency Guard                                           │
+│  • Check existing PlaybookRun?                               │
+│  • If exists → pre-insert guard returns (outbox replay = no-op)│
+│  • Else → create PlaybookRun (status=pending/approved)       │
+└──────────────────────────┬────────────────────────────────┘
+                           │ Approved run?
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  Execute Playbook (Automated Response)                       │
+│  • Runs in daemon thread (non-blocking)                      │
+│  • Executes response actions per playbook steps               │
+│  • Logs ResponseRun, ResponseActionResult, ResponseRollback  │
+└──────────────────────────┬────────────────────────────────┘
+                           │ Update status & timestamps
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  Audit Trail: TimelineEvent + ActionLog                      │
+│  Correlate to Case (if linked)                               │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Critical:** `UNIQUE(event_id, playbook_id)` + pre-insert guard ensures **exactly-once** semantics on replay/outbox processing.
+
+---
+
+### 5. 👁️ Face Recognition & Surveillance Workflow
+
+```text
+Face Registration / Login Attempt
+                │
+                ▼
+┌─────────────────────────────────────────────────────────┐
+│  Client submits image/frame (frontend)                      │
+│  POST /api/faces/verify or /api/surveillance/...            │
+└──────────────────────────┬────────────────────────────────┘
+                           │ Tenant-scoped request
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  Face Service (infrastructure/integrations/face*)           │
+│  • Get FaceAnalysis via thread-safe _get_app()              │
+│  • Lazy-load: buffalo_s (det_500m + w600k_mbf)              │
+│  • Models: ~/.insightface/models/buffalo_s/                 │
+└──────────────────────────┬────────────────────────────────┘
+                           │ Extract embeddings (512-dim)
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  Face Comparison                                             │
+│  • Load registered face encodings for user/tenant             │
+│  • Compute cosine similarity between embeddings               │
+│  • Threshold = 0.45 (configured)                              │
+│  • face_verified = true if similarity >= 0.45                 │
+└──────────────────────────┬────────────────────────────────┘
+                           │ Decision
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  Access Logging                                                │
+│  Write to AccessLog:                                           │
+│  username, login_time/logout_time, is_online                  │
+│  face_image (binary/reference), face_verified                  │
+│  ip_address, login_method, session_duration, tenant_id         │
+└──────────────────────────┬────────────────────────────────┘
+                           │ Return result to client
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  Surveillance UI (admin-frontend/views/SurveillanceView.jsx)  │
+│  • Display access logs, online users, stats                   │
+│  • Show face verification status & thumbnails                  │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Model Details:** InsightFace `buffalo_s` — SCRFD face detector (det_500m), ArcFace recognition (w600k_mbf), 512-dimensional embeddings. Cosine similarity threshold **0.45** for verification.
+
+---
+
+### 6. 🔐 RBAC & Multi-Tenancy Enforcement Flow
+
+```text
+Incoming HTTP Request
+           │
+           ▼
+┌─────────────────────────────────────────────────────────┐
+│  1. CORS Middleware (interface/main.py)                    │
+│     Check ALLOWED_ORIGINS                                  │
+└──────────────────────────┬────────────────────────────────┘
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  2. TenantMiddleware (interface/middleware/tenant.py)       │
+│     Extract tenant_id from context/header/request           │
+│     Set request.state.tenant_id = resolved or "default"     │
+└──────────────────────────┬────────────────────────────────┘
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  3. ActionLogMiddleware (interface/middleware/action_log.py)│
+│     Capture audit context (user, IP, action, resource)      │
+└──────────────────────────┬────────────────────────────────┘
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  4. Route Resolution (FastAPI)                              │
+│     Match to router/endpoint                                │
+└──────────────────────────┬────────────────────────────────┘
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  5. RBAC Guard Injection (apply_role_guard)                 │
+│     For non-exempt routes: insert require_role(min_role)    │
+│     at dependencies[0] (before legacy scope deps)           │
+│     Policy from ROUTER_POLICIES[name] or DEFAULT_POLICY      │
+└──────────────────────────┬────────────────────────────────┘
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  6. require_role(min_role) executes (core/rbac.py)          │
+│     Try API Key lane:                                        │
+│       • API_KEY → admin role (if min_role <= admin)          │
+│       • SUPER_ADMIN_API_KEY → super_admin (if min_role==super)│
+│     Else JWT lane:                                           │
+│       • verify_token() → if None, try verify_admin_token()   │
+│         (ADMIN_JWT_SECRET) → treats as super_admin operator   │
+│       • resolve_user_role(DB first, else legacy JSON)        │
+│       • Check is_active & ROLE_RANK[role] >= ROLE_RANK[min]  │
+└──────────────────────────┬────────────────────────────────┘
+                           │ AuthN/AuthZ OK?
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  7. Route Handler (interface/api/*.py)                       │
+│     All queries filtered by tenant_id:                        │
+│     db.query(Model).filter(Model.tenant_id == tenant_id)     │
+└──────────────────────────┬────────────────────────────────┘
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│  8. Response returned (tenant-scoped data only)              │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Role Hierarchy:** `viewer (0) < analyst (1) < admin (2) < super_admin (3)`
+
+**Source of Truth:** `TenantUser.role` in DB; legacy JSON store as fallback. Admin console tokens (signed with `ADMIN_JWT_SECRET`) are accepted as `super_admin` operator access.
+
+---
+
+## 🛠️ Technologies & Libraries
+
+### Backend Stack (Python)
+
+| Category | Library | Version | Purpose |
+|---|---|---|---|
+| **Web Framework** | [FastAPI](https://fastapi.tiangolo.com/) | >=0.139,<1.0 | Async REST API with OpenAPI |
+| **ASGI Server** | [Uvicorn](https://www.uvicorn.org/) | >=0.32,<1.0 | Lightning-fast ASGI server |
+| **ORM** | [SQLAlchemy](https://www.sqlalchemy.org/) | >=2.0,<3.0 | Modern ORM with type hints |
+| **Database Driver** | [pg8000](https://github.com/tlocke/pg8000) | >=1.31,<2.0 | Pure-Python PostgreSQL driver |
+| **Validation** | [Pydantic](https://docs.pydantic.dev/) | >=2.10,<3.0 | Data validation & serialization |
+| **Config** | [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) | >=2.8,<3.0 | Env-based configuration |
+| **Async Tasks** | [Celery](https://docs.celeryq.dev/) | >=5.6,<6.0 | Distributed task queue |
+| **Message Broker** | [Redis](https://redis.io/) | >=4.5.2,<5.0.0 | Broker, cache, rate-limiting |
+| **Auth (JWT)** | [python-jose](https://github.com/mpdavis/python-jose) | >=3.5,<4.0 | JWT encoding/decoding (with cryptography) |
+| **Password Hashing** | [passlib](https://passlib.readthedocs.io/) + [bcrypt](https://github.com/pyca/bcrypt/) | >=1.7,<2.0 / >=4.2,<6.0 | Secure password storage |
+| **HTTP Client** | [httpx](https://www.python-httpx.org/) | >=0.28,<1.0 | Async HTTP for external APIs |
+| **Face Recognition** | [InsightFace](https://insightface.ai/) | ==1.0.1 | SCRFD + ArcFace face recognition |
+| **Inference** | [onnxruntime](https://onnxruntime.ai/) | ==1.29.0 | ONNX model inference |
+| **CV/Imaging** | [opencv-python-headless](https://opencv.org/) | >=4.8,<5.0 | Computer vision (headless) |
+| **Imaging** | [Pillow](https://python-pillow.org/) | >=11.0,<12.0 | Image processing |
+| **Networking** | [scapy](https://scapy.net/) | >=2.6,<3.0 | Packet manipulation & analysis |
+| **Nmap** | [python-nmap](https://xael.org/pages/python-nmap-en.html) | >=0.7,<1.0 | Nmap integration |
+| **SSH** | [paramiko](https://www.paramiko.org/) | >=3.5,<4.0 | SSH connectivity |
+| **Templates/PDF** | [Jinja2](https://jinja.palletsprojects.com/) + [xhtml2pdf](https://github.com/xhtml2pdf/xhtml2pdf) | >=3.1,<4.0 / >=0.2,<1.0 | Report templating & PDF export |
+| **Resilience** | [tenacity](https://tenacity.readthedocs.io/) | >=9,<10 | Retry/backoff logic |
+| **Email** | [aiosmtplib](https://aiosmtplib.readthedocs.io/) | >=1.1,<2.0 | Async SMTP delivery |
+| **Syslog** | [syslog-rfc5424-parser](https://github.com/easypost/syslog-rfc5424-parser) | >=0.3.0 | RFC5424 syslog parsing |
+| **Monitoring** | [psutil](https://github.com/giampaolo/psutil) | >=7.0,<8.0 | System & process metrics |
+| **Utils** | [python-dateutil](https://dateutil.readthedocs.io/), [python-multipart](https://github.com/Kludex/python-multipart), [urllib3](https://urllib3.readthedocs.io/) | Various | Date handling, uploads, HTTP utils |
+
+### Frontend Stack (React/TypeScript-adjacent JS)
 
 | Library | Version | Purpose |
 |---|---|---|
-| **React** | ^18.2.0 | UI library |
-| **React DOM** | ^18.2.0 | React renderer |
-| **React Router DOM** | ^7.18.1 | Client-side routing |
-| **Vite** | ^5.0.0 | Build tool & dev server |
-| **@vitejs/plugin-react** | ^4.0.0 | React plugin for Vite |
-| **Tailwind CSS** | ^4.0.0 | Utility-first CSS framework |
-| **@tailwindcss/postcss** | ^4.2.2 | Tailwind PostCSS integration |
-| **Autoprefixer** | ^10.5.0 | CSS vendor prefixing |
-| **PostCSS** | ^8.5.10 | CSS transformation |
-| **@tanstack/react-query** | ^5.101.4 | Data fetching & caching |
-| **React Toastify** | ^9.1.3 | Toast notifications |
-| **Recharts** | ^2.10.0 / ^2.12.7 | Charts & data visualization |
-| **Lucide React** | ^0.300.0 | Icon library |
-| **clsx** | ^2.1.1 | Conditional class names |
+| **[React](https://react.dev/)** | ^18.2.0 | Component-based UI |
+| **[React DOM](https://react.dev/reference/react-dom)** | ^18.2.0 | DOM rendering |
+| **[React Router DOM](https://reactrouter.com/)** | ^7.18.1 | Declarative routing |
+| **[Vite](https://vitejs.dev/)** | ^5.0.0 | Next-gen build tool & HMR |
+| **[@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react)** | ^4.0.0 | React integration for Vite |
+| **[Tailwind CSS](https://tailwindcss.com/)** | ^4.0.0 | Utility-first styling |
+| **[@tailwindcss/postcss](https://tailwindcss.com/docs/installation/using-postcss)** | ^4.2.2 | PostCSS integration |
+| **[TanStack React Query](https://tanstack.com/query/latest)** | ^5.101.4 | Data fetching, caching, sync |
+| **[React Toastify](https://fkhadra.github.io/react-toastify/)** | ^9.1.3 | Elegant toast notifications |
+| **[Recharts](https://recharts.org/)** | ^2.10.0 / ^2.12.7 | Composable charts |
+| **[Lucide React](https://lucide.dev/)** | ^0.300.0 | Beautiful SVG icons |
+| **[clsx](https://github.com/lukeed/clsx)** | ^2.1.1 | Conditional class composition |
 
-### 5.3 Infrastructure & Tools
+### Infrastructure & DevOps
 
 | Tool | Purpose |
 |---|---|
-| **PostgreSQL + TimescaleDB** | Relational DB with time-series hypertables |
-| **Redis** | Message broker, cache, rate-limiting |
-| **Celery** | Async task processing & scheduling |
-| **Docker / Docker Compose** | Containerization (dev & prod) |
-| **Wazuh** | SIEM platform integration |
-| **Suricata** | IDS/IPS engine |
-| **Ollama** | Local LLM inference |
-| **Nginx** | Reverse proxy (prod) |
-| **Make** | Task automation |
+| **[PostgreSQL](https://www.postgresql.org/)** + **[TimescaleDB](https://www.timescale.com/)** | Relational DB with time-series hypertables |
+| **[Redis](https://redis.io/)** | Broker, cache, distributed locks |
+| **[Celery](https://docs.celeryq.dev/)** | Async job processing & scheduling |
+| **[Docker](https://www.docker.com/)** + **[Docker Compose](https://docs.docker.com/compose/)** | Containerization for dev/prod |
+| **[Wazuh](https://wazuh.com/)** | SIEM platform integration |
+| **[Suricata](https://suricata.io/)** | High-performance IDS/IPS |
+| **[Ollama](https://ollama.com/)** | Local LLM inference (AI-assisted workflows) |
+| **[Nginx](https://nginx.org/)** | Reverse proxy & static serving (prod) |
 
-## 6. Working Logic
+---
 
-### 6.1 Request Flow (API Request Lifecycle)
+## 🚀 Getting Started
 
-1. **Request Arrival**: HTTP request hits FastAPI app (`app.interface.main:app`)
-2. **CORS Middleware**: Validates origins per `ALLOWED_ORIGINS`
-3. **Tenant Middleware**: Extracts/sets `tenant_id` from headers/context, attaches to `request.state`
-4. **Action Log Middleware**: Logs user actions for audit trail
-5. **Route Matching**: FastAPI routes request to appropriate router
-6. **RBAC Enforcement**: `apply_role_guard()` injects `require_role(min_role)` dependency at route level (index 0)
-7. **Authentication**: 
-   - API Key: checked against `API_KEY` or `SUPER_ADMIN_API_KEY`
-   - JWT Bearer: verified via `verify_token()`; falls back to admin console tokens (`verify_admin_token()`) for operator access
-   - Webhook: `webhook_token_auth` or `webhook_slug_auth` for external integrations
-8. **Authorization**: Role hierarchy check (`ROLE_RANK`) vs required minimum role
-9. **Business Logic**: Application services/domain logic processes request
-10. **Data Access**: SQLAlchemy queries with tenant scoping (`Alert.tenant_id == tenant_id`)
-11. **Response**: Structured JSON returned to client
+### Prerequisites
 
-### 6.2 Alert Processing Pipeline
-
-1. **Ingestion**: Alerts arrive via API endpoints (manual), webhooks (Wazuh/Suricata), or scanners
-2. **Tenant Scoping**: All ingested alerts tagged with `tenant_id` (from request context)
-3. **Normalization**: Pipeline sets `normalized_severity`, `pipeline_source`, `pipeline_processed_at` (F1 Pipeline)
-4. **Threat Intel Enrichment** (F3): Async enrichment via Celery - queries threat intel providers (AbuseIPDB), sets `intel_score`, `intel_verdict`, `intel_source`, `intel_checked_at`
-5. **Storage**: Persisted to `alerts` or `suricata_alerts` (TimescaleDB hypertables with composite PK `(id, timestamp)`)
-6. **Case Linking**: Analysts can link alerts to cases via `CaseAlertLink` (triage state lives here: `status`, `note`, `triaged_by`, `triaged_at`)
-7. **Correlation**: Rules engine evaluates alerts against `Rule` definitions with MITRE ATT&CK mappings
-8. **Playbook Execution** (F3): On rule match, `on_rule_match()` publishes to `CHANNEL_RULE_MATCH`; approved `PlaybookRun` instances execute (guarded by unique constraint `UNIQUE(event_id, playbook_id)`)
-
-### 6.3 Face Recognition & Surveillance Logic
-
-1. **Model Loading**: InsightFace `FaceAnalysis` initialized with `buffalo_s` model (det_500m SCRFD detector + w600k_mbf ArcFace recognizer, 512-dim embeddings). Lazy-loaded via thread-safe `_get_app()`
-2. **Face Detection/Recognition**: For login/verification, face embeddings compared using cosine similarity (threshold 0.45)
-3. **Models Location**: Downloaded to `~/.insightface/models/buffalo_s/` (auto-installed by `start.sh`)
-4. **Access Logging**: Successful/failed verification logged to `AccessLog` with `face_verified`, `face_image`, `ip_address`, `login_method`, `session_duration`
-5. **Surveillance API**: Provides `/api/surveillance/users`, `/api/surveillance/logs`, `/api/surveillance/stats` for monitoring
-
-### 6.4 RBAC Logic
-
-1. **Role Hierarchy**: `viewer` (0) < `analyst` (1) < `admin` (2) < `super_admin` (3)
-2. **Policy Definition**: `ROUTER_POLICIES` maps router names to policies `{read, write, exempt, exempt_paths}`
-3. **Guard Application**: `apply_role_guard()` iterates all routes in router; for non-exempt routes (or non-exempt paths), inserts `Depends(require_role(min_role))` at dependency index 0 (before legacy deps)
-4. **Role Resolution**: `require_role()` resolves user role from DB (`TenantUser.role`) as source of truth, falls back to legacy JSON store
-5. **Auth Lane Priority**:
-   - **API Key**: If valid `API_KEY` and required role <= admin → allow with admin role; if `SUPER_ADMIN_API_KEY` and requesting super_admin → allow
-   - **JWT**: Verify token; if fails, try admin console token (`ADMIN_JWT_SECRET`) → treated as `super_admin` (operator access)
-   - **Scope Check**: For JWT, ensure token scopes/role satisfy minimum required rank
-
-### 6.5 Multi-Tenancy Logic
-
-1. **Tenant Context**: `TenantMiddleware` sets `request.state.tenant_id` (from headers/context)
-2. **Model Scoping**: All tenant-scoped tables have `tenant_id` (String(36), indexed)
-3. **Query Enforcement**: All read/write queries filter by `tenant_id` (e.g., `.filter(Alert.tenant_id == tenant_id)`)
-4. **Tenant Registration**: Public endpoint `/api/tenants/register` is exempt from write guard per policy
-5. **Default Tenant**: Falls back to `"default"` if tenant context not resolved
-
-### 6.6 Background Job & Idempotency
-
-1. **Celery App**: Configured in `worker.py`, broker=Redis, backend=Redis
-2. **Playbook Execution**: `PlaybookRun` has `UNIQUE(event_id, playbook_id)` constraint; pre-insert guard prevents duplicates (replay = no-op)
-3. **Outbox Pattern**: `RuleMatchOutbox` ensures reliable event publishing; events processed asynchronously
-4. **Threading**: Approved playbook runs execute in daemon threads
-
-## 7. Getting Started
-
-### 7.1 Prerequisites
-
-- **Python 3.10+** (tested with 3.10+)
-- **Node.js 18+ & npm** (for frontends)
-- **PostgreSQL** (recommended with TimescaleDB for hypertables)
-- **Redis** (for Celery broker/cache)
-- **Docker & Docker Compose** (optional, for containerized setup)
+- **Python 3.10+** (3.11 recommended)
+- **Node.js 18+** & **npm 9+**
+- **PostgreSQL 14+** (TimescaleDB extension recommended for hypertables)
+- **Redis 7+**
+- **Docker & Docker Compose** (optional but recommended for prod)
 - **Git**
 
-### 7.2 Installation & Setup
+### 1. Automated Setup (Recommended) — Linux/macOS
 
-#### Option 1: Automated Setup (Linux/macOS) - Recommended
-
-The `start.sh` script handles automatic installation of all dependencies:
+The `start.sh` script automates the entire setup process end-to-end.
 
 ```bash
 # Clone the repository
 git clone https://github.com/saif-infinity/projet-soc-ips-siem-xdr-.git
 cd projet-soc-ips-siem-xdr-
 
-# Make script executable (Linux)
+# Make executable
 chmod +x start.sh
 
-# Run with setup (installs deps, venv, models, npm packages)
+# Full setup (installs deps, venv, models, npm packages)
 ./start.sh --setup
 
-# Or just run (if already set up)
+# Start all services
 ./start.sh
 ```
 
-**`start.sh` auto-installs:**
-- Python 3, python3-venv
-- Node.js/npm (via nvm if needed)
-- Python virtual environment + pip requirements
-- InsightFace `buffalo_s` models (`~/.insightface/models/buffalo_s/`)
-- npm install for both frontends (SOC + admin)
-- Redis (Docker or native)
+**What `start.sh --setup` does automatically:**
 
-**Options:**
-- `--setup`: Force full setup
-- `--no-ollama`: Skip Ollama startup
-- `--no-admin`: Skip admin frontend
+1. ✅ Checks & installs Python 3 + python3-venv
+2. ✅ Installs/sets up Node.js via nvm (if needed)
+3. ✅ Creates Python virtual environment (`backend/venv/`)
+4. ✅ Installs Python dependencies from `requirements.txt`
+5. ✅ Fixes OpenCV headless collision (critical for InsightFace)
+6. ✅ Downloads InsightFace `buffalo_s` models → `~/.insightface/models/buffalo_s/`
+7. ✅ Installs npm dependencies for both `frontend/` and `admin-frontend/`
+8. ✅ Checks/starts Redis (native or Docker)
 
-#### Option 2: Manual Setup
+**Available Flags:**
 
-**Backend:**
+| Flag | Description |
+|---|---|
+| `--setup` | Force complete environment setup |
+| `--no-ollama` | Skip Ollama startup |
+| `--no-admin` | Skip admin frontend startup |
+
+---
+
+### 2. Manual Setup
+
+#### Backend Setup
 
 ```bash
 cd backend
+
+# Create & activate virtual environment
 python -m venv venv
 source venv/bin/activate  # Linux/macOS
-# or .\venv\Scripts\activate  # Windows
+# .\venv\Scripts\activate  # Windows
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Fix opencv-python headless collision (critical for InsightFace)
+# CRITICAL: Fix OpenCV collision for InsightFace
 pip uninstall -y opencv-python
 pip install --force-reinstall --no-deps opencv-python-headless==4.14.0.94
-
-# Download InsightFace models (if not present)
-# Models auto-download on first FaceAnalysis init, or manually place in ~/.insightface/models/buffalo_s/
 ```
 
-**Frontend (SOC):**
+#### Frontend Setup
 
 ```bash
-cd frontend
-npm install
+# SOC Frontend
+cd frontend && npm install
+
+# Admin Frontend
+cd admin-frontend && npm install
 ```
 
-**Admin Frontend:**
+#### External Services
 
 ```bash
-cd admin-frontend
-npm install
+# Start Redis (native)
+redis-server
+
+# OR via Docker
+docker run -d --name sentinel-redis -p 6379:6379 redis:7
 ```
 
-**External Services:**
+Ensure PostgreSQL is running with a database ready (configured via `DATABASE_URL`).
 
-- Start PostgreSQL (with database created)
-- Start Redis: `redis-server` or `docker run -d -p 6379:6379 redis:7`
+---
 
-### 7.3 Running the Application
+### 3. Running the Application
 
 #### Development Mode
 
-**All services via start.sh:**
+**Option A: One command (recommended)**
 
 ```bash
 ./start.sh
 ```
 
-This starts: Redis, Backend (FastAPI on :8001), SOC Frontend (Vite), Admin Frontend (Vite), Worker (Celery), plus optional Ollama/Wazuh.
+Starts: Redis, FastAPI Backend (:8001), SOC Frontend (:5173), Admin Frontend (:5174), Celery Worker (+ Beat), with optional Ollama/Wazuh.
 
-**Via Makefile (Windows-oriented):**
+**Option B: Makefile (Windows-friendly)**
 
 ```bash
-make dev  # Starts all services (Windows cmd syntax)
-make dev-backend
-make dev-frontend
-make dev-worker
+make dev                # All services
+make dev-backend        # FastAPI only
+make dev-frontend       # SOC frontend only
+make dev-worker         # Celery worker only
+make dev-wazuh          # Wazuh stack
+make dev-ollama         # Ollama server
 ```
 
-**Manual:**
+**Option C: Manual (granular control)**
 
 ```bash
-# Terminal 1 - Backend
+# Terminal 1 - Backend API
 cd backend && source venv/bin/activate
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
 
-# Terminal 2 - Celery Worker
+# Terminal 2 - Celery Worker (+ Scheduler)
 cd backend && source venv/bin/activate
 celery -A app.worker.celery_app worker --loglevel=info --pool=solo -B
 
@@ -484,105 +761,148 @@ cd admin-frontend && npm run dev
 #### Production Mode
 
 ```bash
-# Via Docker Compose
+# Docker Compose (recommended for production)
 docker compose -f docker-compose.prod.yml up -d --build
+
+# Stop
+docker compose -f docker-compose.prod.yml down
 
 # Or via Makefile
 make prod
+make prod-down
 ```
-
-## 8. Configuration
-
-### 8.1 Environment Variables
-
-Create `backend/.env` from `.env.example` (if available). Key configuration items:
-
-| Variable | Default | Description |
-|---|---|---|
-| `ENVIRONMENT` | `development` | `development` or `production` (affects SSL verification) |
-| `DATABASE_URL` | - | PostgreSQL connection string |
-| `JWT_SECRET_KEY` | - | Secret for JWT token signing (generate with `openssl rand -hex 32`) |
-| `ADMIN_JWT_SECRET` | - | Secret for console admin tokens (operator access) |
-| `API_KEY` | - | Global API key for service access |
-| `ADMIN_API_KEY` | - | Admin API key |
-| `SUPER_ADMIN_API_KEY` | - | Super admin API key |
-| `SUPER_ADMIN_PASSWORD` | - | Super admin password |
-| `REDIS_URL` | `redis://localhost:6379/0` | Redis connection for Celery |
-| `REDIS_PASSWORD` | - | Redis password if enabled |
-| `ALLOWED_ORIGINS` | - | CORS allowed origins (comma-separated) |
-| `THREAT_INTEL_ENABLED` | `false` | Enable/disable threat intel enrichment (F3) |
-| `THREAT_INTEL_API_KEY` | - | AbuseIPDB API key (recommended when enabled) |
-| `WAZUH_HOST`, `WAZUH_USER`, `WAZUH_PASS` | - | Wazuh SIEM integration |
-| `WAZUH_INDEXER_HOST`, `WAZUH_INDEXER_USER`, `WAZUH_INDEXER_PASS` | - | Wazuh Indexer |
-| `SURICATA_HOST`, `SURICATA_USER`, `SURICATA_PASS` | - | Suricata integration |
-| `NOTIFICATION_ENCRYPTION_KEY` | - | Fernet key for encrypted notifications |
-| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | - | Stripe billing (optional) |
-| `VITE_AUTOLOGIN` | `0` | Frontend dev: `1` to bypass login (NEVER use in prod) |
-
-**Important Notes:**
-- `ADMIN_JWT_SECRET` allows console admin tokens to be accepted as `super_admin` operator access (used by admin-frontend)
-- `THREAT_INTEL_ENABLED` defaults to `false` (F3 feature flag)
-- Backend runs on port `8001` due to Coolify occupying port `8000` on this environment
-- Frontend proxies via Vite to backend `:8001`
-
-### 8.2 Frontend Configuration
-
-**SOC Frontend (`frontend/.env`):**
-```env
-VITE_AUTOLOGIN=0  # 1 = dev bypass only
-```
-
-**API Base:** `frontend/src/lib/api.js` defaults to empty string `""` (uses Vite proxy to backend :8001)
-
-**Admin Frontend (`admin-frontend/src/api.js`):** Points to backend API (configure base URL as needed for deployment)
-
-## 9. API & Access
-
-### 9.1 Endpoints
-
-Once running, access:
-- **Backend API**: [http://localhost:8001](http://localhost:8001)
-- **API Docs (Swagger)**: [http://localhost:8001/docs](http://localhost:8001/docs)
-- **ReDoc**: [http://localhost:8001/redoc](http://localhost:8001/redoc)
-- **SOC Frontend**: [http://localhost:5173](http://localhost:5173) (default Vite port)
-- **Admin Frontend**: [http://localhost:5174](http://localhost:5174) or next available port
-
-### 9.2 Authentication
-
-The API supports multiple auth methods:
-1. **Bearer JWT**: `Authorization: Bearer <jwt_token>` (user tokens)
-2. **API Key**: `X-API-Key: <api_key>` header (service/admin access)
-3. **Admin Console Token**: Bearer token signed with `ADMIN_JWT_SECRET` → treated as `super_admin` (operator)
-4. **Webhook Tokens**: `X-SOC-Token` for webhook endpoints (with tenant resolution)
-
-### 9.3 RBAC Policies (Key Highlights)
-
-- **Auth routes**: Exempt (public login/registration)
-- **Rules**: Admin read/write; `/api/rules/coverage` exempt for analysts
-- **Tenants**: Viewer read, Admin write; `/api/tenants/register` exempt (public registration)
-- **Playbooks/Response/Reporting**: Analyst read, Admin write
-- **Settings/Database**: Admin-level access (settings write = admin; DB exempt)
-- **Faces/Surveillance/Admin/SuperAdmin**: Varying policies (see `ROUTER_POLICIES` in `interface/main.py`)
-
-## 10. Project Status & Notes
-
-### 10.1 Important Technical Notes
-
-- **Port Binding**: On this environment, port `8000` is used by Coolify UI; backend runs on `:8001` (configured throughout stack: start.sh, Makefile, docker-compose.prod.yml, Vite proxies)
-- **InsightFace/OpenCV Collision**: `insightface` depends on `opencv-python` (GUI) which conflicts with `opencv-python-headless`. The setup explicitly uninstalls GUI and reinstalls headless `4.14.0.94`
-- **Backend as Package**: `backend/app` is a top-level package (no `backend/__init__.py`); relative imports follow specific depth rules (1-dot from `app/*.py`, 2-dots from `app/services/`, 3-dots from deeper subdirs)
-- **Triage Model**: Case triage/status lives on `CaseAlertLink` (not on `Alert` or `SuricataAlert`) - this is by design
-- **Multi-Tenant Alignment**: Schema includes `tenant_id` across 10+ tables; `alerts` and `suricata_alerts` have intel fields (`intel_score`, `intel_verdict`, `intel_source`, `intel_checked_at`)
-- **MITRE Columns**: `rules.mitre_attack_ids`/`tactics` exist; migration `ensure_mitre_columns` runs at bootstrap and in rules module
-- **Face Recognition Models**: Auto-downloaded to `~/.insightface/models/buffalo_s/` via `start.sh` setup
-
-### 10.2 Known Considerations
-
-- **Dev Autologin**: `VITE_AUTOLOGIN=1` bypasses login in dev only - **never** enable in production
-- **Redis Fallback**: If Redis unavailable, rate-limiting uses in-memory fallback (logged as warning)
-- **Threat Intel Disabled by Default**: `THREAT_INTEL_ENABLED=false` - set to `true` with valid API key for enrichment
-- **TimescaleDB**: Hypertables created at startup for time-series optimization on alerts/suricata_alerts
 
 ---
 
-**Sentinel Bridge** - Unified Security Operations Platform | Built for detection, investigation, and response at scale.
+## ⚙️ Configuration
+
+### 1. Environment Variables (`backend/.env`)
+
+Create `backend/.env` from `.env.example` if available. Below are the key configuration variables:
+
+| Variable | Default | Required | Description |
+|---|---|---|---|
+| `ENVIRONMENT` | `development` | No | `development`/`production` — affects SSL verification |
+| `DATABASE_URL` | — | **Yes** | PostgreSQL connection (e.g., `postgresql+pg8000://user:pass@localhost:5432/db`) |
+| `JWT_SECRET_KEY` | — | **Yes** | JWT signing secret → `openssl rand -hex 32` |
+| `ADMIN_JWT_SECRET` | — | **Recommended** | Console admin token secret (operator super_admin access) |
+| `API_KEY` | — | Recommended | Global service API key |
+| `ADMIN_API_KEY` | — | Optional | Admin-level API key |
+| `SUPER_ADMIN_API_KEY` | — | Optional | Super admin API key |
+| `SUPER_ADMIN_PASSWORD` | — | Optional | Super admin console password |
+| `REDIS_URL` | `redis://localhost:6379/0` | Yes | Celery broker/cache |
+| `REDIS_PASSWORD` | — | Optional | Redis password |
+| `ALLOWED_ORIGINS` | — | Recommended | CORS origins (comma-separated, e.g., `http://localhost:5173,http://localhost:5174`) |
+| `THREAT_INTEL_ENABLED` | `false` | No | Enable threat intel enrichment (F3) |
+| `THREAT_INTEL_API_KEY` | — | If enabled | AbuseIPDB API key |
+| `WAZUH_HOST/USER/PASS` | — | Optional | Wazuh SIEM integration |
+| `WAZUH_INDEXER_*` | — | Optional | Wazuh Indexer credentials |
+| `SURICATA_HOST/USER/PASS` | — | Optional | Suricata IDS/IPS integration |
+| `NOTIFICATION_ENCRYPTION_KEY` | — | Optional | Fernet key for encrypted notifications |
+| `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` | — | Optional | Billing integration |
+| `VITE_AUTOLOGIN` | `0` | Dev only | Frontend dev bypass (⚠️ **NEVER** use in production) |
+
+> ⚠️ **Security Note:** Generate all secrets with `openssl rand -hex 32`. Never commit `.env` files to version control.
+
+### 2. Frontend Configuration
+
+**SOC Frontend (`frontend/.env`):**
+
+```env
+VITE_AUTOLOGIN=0  # Set to 1 ONLY for local dev bypass - NEVER in production
+```
+
+**API Client Notes:**
+- `frontend/src/lib/api.js`: `API_BASE` defaults to `""` (uses Vite dev proxy → backend `:8001`)
+- `admin-frontend/src/api.js`: Configured to call backend API (adjust base URL for production deployment)
+
+---
+
+## 📚 API & Access
+
+### Service URLs (Development)
+
+| Service | URL | Description |
+|---|---|---|
+| **Backend API** | [http://localhost:8001](http://localhost:8001) | FastAPI REST API |
+| **Swagger UI** | [http://localhost:8001/docs](http://localhost:8001/docs) | Interactive API documentation |
+| **ReDoc** | [http://localhost:8001/redoc](http://localhost:8001/redoc) | Alternative API docs |
+| **OpenAPI JSON** | [http://localhost:8001/openapi.json](http://localhost:8001/openapi.json) | OpenAPI schema |
+| **SOC Frontend** | [http://localhost:5173](http://localhost:5173) | Main SOC Dashboard |
+| **Admin Frontend** | [http://localhost:5174](http://localhost:5174) | Admin & Surveillance UI |
+
+### Authentication Methods
+
+| Method | Header | Usage | Notes |
+|---|---|---|---|
+| **JWT Bearer** | `Authorization: Bearer <jwt>` | User authentication | Standard OAuth2/JWT flow |
+| **API Key** | `X-API-Key: <api_key>` | Service-to-service | Grants broad permissions based on key tier |
+| **Admin Console Token** | `Authorization: Bearer <admin_jwt>` | Operator access | Signed with `ADMIN_JWT_SECRET` → treated as `super_admin` |
+| **Webhook Token** | `X-SOC-Token: <token>` | External webhooks | Per-tenant resolution with constant-time compare |
+| **Webhook Slug** | URL path `/webhook/{slug}` | Per-tenant webhooks | Secret URL slug; tenant resolved by slug match |
+
+### Key RBAC Policies (Reference)
+
+| Router | Read Role | Write Role | Exemptions |
+|---|---|---|---|
+| **auth** | — | — | `exempt: true` (public) |
+| **rules** | `admin` | `admin` | `exempt_paths: ["/api/rules/coverage"]` (analysts allowed) |
+| **tenants** | `viewer` | `admin` | `exempt_paths: ["/api/tenants/register"]` (public registration) |
+| **playbooks** | `analyst` | `admin` | — |
+| **response** | `analyst` | `admin` | — |
+| **reporting** | `analyst` | `admin` | — |
+| **settings** | `admin` | `admin` | — |
+| **database** | — | — | `exempt: true` |
+| **super_admin** | — | — | `exempt: true` |
+| **faces, admin, surveillance** | Varies | Varies | Per policy in `ROUTER_POLICIES` |
+
+> Full policy definitions: `backend/app/interface/main.py` → `ROUTER_POLICIES`
+
+---
+
+## 💡 Technical Notes & Implementation Details
+
+| Note | Details |
+|---|---|
+| **🔌 Port Binding** | Backend runs on **`:8001`** (port `8000` occupied by Coolify UI on this environment). All configs (start.sh, Makefile, docker-compose.prod.yml, Vite proxies) reflect this. |
+| **📦 Backend Package Layout** | `backend/app` is a top-level package (no `backend/__init__.py`). Relative imports: 1-dot from `app/*.py`, 2-dots from `app/services/` & `app/application/`, 3-dots from deeper subdirs (`app/infrastructure/*`, `app/application/services/*`). |
+| **🔗 Triage Model** | **Case triage lives on `CaseAlertLink`**, not on `Alert` or `SuricataAlert`. This preserves raw evidence integrity and allows multi-case linking. |
+| **🗄️ Multi-Tenancy** | All tenant-scoped tables include indexed `tenant_id`. Middleware enforces context; all queries must filter by `tenant_id`. `alerts` & `suricata_alerts` have intel fields. |
+| **🎯 MITRE ATT&CK** | `rules.mitre_attack_ids` & `tactics` columns. Migration `ensure_mitre_columns` runs at bootstrap and in rules module. |
+| **👁️ Face Recognition** | InsightFace `buffalo_s` auto-downloaded to `~/.insightface/models/buffalo_s/`. Lazy-loaded via thread-safe `_get_app()`. Cosine threshold **0.45**. |
+| **⚠️ OpenCV Collision** | `insightface` pulls `opencv-python` (GUI) which conflicts with `opencv-python-headless`. Setup uninstalls GUI & reinstalls `opencv-python-headless==4.14.0.94`. |
+| **⏱️ TimescaleDB** | Hypertables auto-created at startup for `alerts` & `suricata_alerts` (time-series optimization). Composite PK `(id, timestamp)`. |
+| **🧵 Idempotency** | `PlaybookRun` has `UNIQUE(event_id, playbook_id)` + pre-insert guard. `RuleMatchOutbox` enables replay-safe processing. |
+| **🔄 Redis Fallback** | If Redis unavailable, rate-limiting falls back to in-memory (warning logged). |
+| **🚫 Dev Autologin** | `VITE_AUTOLOGIN=1` bypasses auth in dev **ONLY**. Never enable in production. |
+| **🚩 Feature Flag** | `THREAT_INTEL_ENABLED=false` by default. Set `true` with valid API key to enable enrichment. |
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please follow these guidelines:
+
+1. **Fork** the repository
+2. **Create** a feature branch: `git checkout -b feature/amazing-feature`
+3. **Commit** with clear messages: `git commit -m "feat: add amazing feature"`
+4. **Push** to branch: `git push origin feature/amazing-feature`
+5. **Open** a Pull Request
+
+---
+
+## 📄 License
+
+This project is part of an academic/professional PFE (End-of-Study Project). Please check with the repository owner regarding licensing terms.
+
+---
+
+<div align="center">
+
+**Sentinel Bridge — Unified SOC/IPS/SIEM/XDR Platform**
+
+*Built for speed. Designed for clarity. Engineered for security.*
+
+[🏠 Repository](https://github.com/saif-infinity/projet-soc-ips-siem-xdr-) • [📖 API Docs](http://localhost:8001/docs) • [🚀 Get Started](#-getting-started)
+
+</div>
