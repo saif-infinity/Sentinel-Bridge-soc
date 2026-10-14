@@ -6,6 +6,8 @@ legacy fallback. `require_role` is a FastAPI dependency that short-circuits
 the legacy per-route scope deps (it is inserted at index 0 of
 route.dependencies).
 """
+import secrets
+
 from fastapi import Depends, Header, HTTPException, Request
 from fastapi.routing import APIRoute
 from sqlalchemy.orm import Session
@@ -28,7 +30,9 @@ def resolve_user_role(db, username, tenant_id):
     if row:
         return (row.role, row)
     from ..infrastructure.persistence.password_store import _read_store
-    return (_read_store().get(f"role:{username}", "analyst"), None)
+    # FIX: unknown users used to default to "analyst" (a role that writes) when they
+    # were absent from TenantUser. An authorisation default must fail closed.
+    return (_read_store().get(f"role:{username}", "viewer"), None)
 
 
 def require_role(min_role: str):
@@ -41,7 +45,7 @@ def require_role(min_role: str):
         # ── API-key lane ──────────────────────────────────────────────
         if api_key:
             if (
-                api_key == settings.API_KEY.get_secret_value()
+                secrets.compare_digest(api_key, settings.API_KEY.get_secret_value())
                 and ROLE_RANK[min_role] <= ROLE_RANK["admin"]
             ):
                 return {
@@ -52,7 +56,7 @@ def require_role(min_role: str):
                 }
             if min_role == "super_admin":
                 sa = settings.SUPER_ADMIN_API_KEY.get_secret_value()
-                if sa and api_key == sa:
+                if sa and secrets.compare_digest(api_key, sa):
                     return {
                         "sub": "api_key",
                         "tenant_id": getattr(request.state, "tenant_id", "default"),

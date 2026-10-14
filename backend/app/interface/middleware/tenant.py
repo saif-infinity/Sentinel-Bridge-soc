@@ -1,4 +1,6 @@
 import logging
+import secrets
+
 from fastapi import Request, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
@@ -48,7 +50,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
         # Only fall back to X-Tenant-ID header if no JWT AND valid API key
         if not tenant_id:
             api_key = request.headers.get("x-api-key")
-            if api_key and api_key == settings.API_KEY.get_secret_value():
+            if api_key and secrets.compare_digest(api_key, settings.API_KEY.get_secret_value()):
                 tenant_id = request.headers.get("X-Tenant-ID")
 
         # Default tenant for backward compatibility

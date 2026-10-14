@@ -520,14 +520,38 @@ async def insert_row(
 # ── Delete (drop) a table ─────────────────────────────────────────
 
 # Tables that should NEVER be droppable through the UI
-PROTECTED_TABLES = {"users", "connection_logs", "suricata_alerts",
-                    "assets", "alerts", "ia_reports", "access_logs", "action_logs",
-                    "system_config", "network_sensors", "devices",
-                    "tenants", "tenant_users", "network_devices",
-                    "rules", "rule_match_events", "pipeline_events",
-                    "cases", "case_alert_links", "timeline_events", "hunts",
-                    "playbooks", "playbook_runs", "playbook_step_results",
-                    "threat_intel_cache"}
+# FIX: this was a hand-maintained literal of 25 names while the ORM declares 46
+# tables, so 22 real tables (investigations, response_runs, agents,
+# registration_requests, notification_channels, honeypot_events, reports, …) were
+# silently droppable through DELETE /tables/{name} — and the list even protected a
+# "users" table that does not exist. Deriving it from the ORM metadata means it can
+# no longer drift when a model is added.
+_LEGACY_PROTECTED_TABLES = {
+    "users", "connection_logs", "suricata_alerts",
+    "assets", "alerts", "ia_reports", "access_logs", "action_logs",
+    "system_config", "network_sensors", "devices",
+    "tenants", "tenant_users", "network_devices",
+    "rules", "rule_match_events", "pipeline_events",
+    "cases", "case_alert_links", "timeline_events", "hunts",
+    "playbooks", "playbook_runs", "playbook_step_results",
+    "threat_intel_cache",
+}
+
+
+def _protected_tables() -> set:
+    """Every table the application owns = ORM metadata ∪ legacy literal list."""
+    from ...core.db import Base
+    from ...domain import investigations as _inv        # noqa: F401  (populates metadata)
+    from ...domain import models as _models             # noqa: F401
+    from ...domain import reporting as _rep             # noqa: F401
+    from ...domain import response as _res              # noqa: F401
+    from ...domain import rule_models as _rules         # noqa: F401
+    from ...domain import soar as _soar                 # noqa: F401
+
+    return set(Base.metadata.tables.keys()) | _LEGACY_PROTECTED_TABLES
+
+
+PROTECTED_TABLES = _protected_tables()
 
 
 @router.delete("/tables/{table_name}")
@@ -542,10 +566,10 @@ async def drop_table(
     valid_tables = set(inspector.get_table_names(schema="public"))
     if table_name not in valid_tables:
         raise HTTPException(status_code=404, detail=f"Table '{table_name}' not found")
-    if table_name in PROTECTED_TABLES:
+    if table_name in _protected_tables():
         raise HTTPException(
             status_code=403,
-            detail=f"Table '{table_name}' is a system table and cannot be dropped",
+            detail=f"Table '{table_name}' is owned by the application and cannot be dropped",
         )
 
     try:
@@ -573,6 +597,56 @@ ALLOWED_TYPES = {
     "json", "jsonb",
     "uuid", "bytea",
 }
+
+
+_SIZEABLE_TYPES = {"varchar", "character varying", "char", "numeric"}
+_ALLOWED_DEFAULTS = {
+    "now()", "current_timestamp", "current_date", "current_time",
+    "gen_random_uuid()", "uuid_generate_v4()", "true", "false", "null",
+}
+_NUMERIC_DEFAULT_RE = re.compile(r"^-?\d+(\.\d+)?$")
+_STRING_DEFAULT_RE = re.compile(r"^'[^'\\]*'$")
+_TYPE_MODIFIER_RE = re.compile(r"^(.*?)\s*\(\s*(\d+)\s*(?:,\s*(\d+)\s*)?\)$")
+
+
+def _validate_column_type(raw: str) -> str:
+    """FIX: `col.type` was interpolated straight into CREATE TABLE while the
+    ALLOWED_TYPES set declared right above it was NEVER used, so a type such as
+    `integer); DROP TABLE tenants; --` ended up concatenated into the DDL.
+    `col.default` was interpolated raw too, behind a comment claiming it was
+    "validated" — it was not."""
+    collapsed = " ".join(str(raw).split())
+    match = _TYPE_MODIFIER_RE.match(collapsed)
+    if match:
+        base = match.group(1).strip().lower()
+        modifiers = [m for m in match.group(2, 3) if m]
+    else:
+        base, modifiers = collapsed.lower(), []
+
+    if base not in ALLOWED_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Column type '{raw}' is not allowed. Allowed: {', '.join(sorted(ALLOWED_TYPES))}",
+        )
+    if not modifiers:
+        return base.upper()
+    if base not in _SIZEABLE_TYPES:
+        raise HTTPException(status_code=400, detail=f"Type '{base}' does not accept a size modifier")
+    return f"{base.upper()}({', '.join(modifiers)})"
+
+
+def _validate_default(raw: str) -> str:
+    """Only literals and a short list of immutable SQL functions are accepted."""
+    value = " ".join(str(raw).split())
+    lowered = value.lower()
+    if lowered in _ALLOWED_DEFAULTS:
+        return lowered.upper() if lowered in ("true", "false", "null") else value
+    if _NUMERIC_DEFAULT_RE.match(value) or _STRING_DEFAULT_RE.match(value):
+        return value
+    raise HTTPException(
+        status_code=400,
+        detail=f"DEFAULT '{raw}' is not allowed (literals, now(), current_timestamp and gen_random_uuid() only)",
+    )
 
 
 class ColumnDef(BaseModel):
@@ -625,7 +699,7 @@ async def create_table(
     for col in body.columns:
         col_name = col.name.strip()
         # Normalize type: "varchar(255)" → "VARCHAR(255)", "text" → "TEXT", etc.
-        col_type = col.type.strip().upper()
+        col_type = _validate_column_type(col.type)
 
         parts = [f'"{col_name}" {col_type}']
 
@@ -636,8 +710,7 @@ async def create_table(
             pk_cols.append(f'"{col_name}"')
             parts.append("PRIMARY KEY")
         elif col.default is not None:
-            # Validate default is a simple safe SQL expression
-            parts.append(f"DEFAULT {col.default}")
+            parts.append(f"DEFAULT {_validate_default(col.default)}")
 
         col_defs.append("    " + " ".join(parts))
 

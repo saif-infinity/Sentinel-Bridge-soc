@@ -25,6 +25,11 @@ class HoneypotService:
         # Rate limit: (src_ip, port) -> last_alert_timestamp
         self._rate_limit: Dict[tuple, float] = {}
         self._rate_limit_window: float = 30.0  # secondes
+        # FIX: db_factory was a bare name inside _handle_connection while only being
+        # a parameter of start() -> NameError on every connection, swallowed by the
+        # surrounding `except Exception`, so the honeypot accepted traffic on
+        # 0.0.0.0:2323/3389/8443/5555 and persisted neither alert nor event.
+        self._db_factory: Callable[[], Session] = SessionLocal
 
     @property
     def running(self) -> bool:
@@ -44,6 +49,8 @@ class HoneypotService:
         ports: Optional[List[int]] = None,
     ):
         """Lance un asyncio.Server sur chaque port configurable."""
+        if db_factory is not None:
+            self._db_factory = db_factory
         if ports is None:
             ports = [2323, 3389, 8443, 5555]
         self._ports = ports
@@ -113,7 +120,7 @@ class HoneypotService:
         # Créer l'alerte via le pipeline
         alert_id: Optional[int] = None
         try:
-            db = db_factory()
+            db = self._db_factory()
             try:
                 result = ingest_alert({
                     "description": f"Honeypot connection on port {port} from {src_ip}",
@@ -144,7 +151,7 @@ class HoneypotService:
 
         # Persister l'événement
         try:
-            db = db_factory()
+            db = self._db_factory()
             try:
                 event = HoneypotEvent(
                     tenant_id="default",

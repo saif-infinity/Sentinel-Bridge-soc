@@ -1,75 +1,94 @@
-.PHONY: install install-backend install-frontend dev dev-backend dev-frontend dev-worker dev-wazuh dev-ollama clean lint prod prod-down build help
+# Sentinel Bridge — developer tasks.
+#
+# FIX: the previous Makefile was Windows-only and machine-specific — it hardcoded
+#   WAZUH_DIR = $(USERPROFILE)\OneDrive\Desktop\wazuh version(4.7.2)-pfe\wazuh-docker\single-node
+#   OLLAMA    = $(LOCALAPPDATA)\Programs\Ollama\ollama.exe
+# and used `start`, `cmd /c`, `.\venv\Scripts\…` and `rmdir /s /q`. On Linux/macOS
+# every target failed, and the Wazuh path only existed on one laptop.
+# Everything below is POSIX; Windows users keep start.bat (which is fine as-is).
 
-WAZUH_DIR = $(USERPROFILE)\OneDrive\Desktop\wazuh version(4.7.2)-pfe\wazuh-docker\single-node
-OLLAMA     = $(LOCALAPPDATA)\Programs\Ollama\ollama.exe
+SHELL        := /bin/bash
+VENV         := backend/venv
+PIP          := $(VENV)/bin/pip
+PYTHON       := $(VENV)/bin/python
+UVICORN      := $(VENV)/bin/uvicorn
+CELERY       := $(VENV)/bin/celery
+COMPOSE      := docker compose
 
-help:
-	@echo "Usage:"
-	@echo "  make install          Install all dependencies (backend + frontend)"
-	@echo "  make install-backend  Install Python dependencies"
-	@echo "  make install-frontend Install Node.js dependencies"
-	@echo "  make dev              Run all services (backend + frontend + worker)"
-	@echo "  make dev-backend      Run FastAPI backend (uvicorn)"
-	@echo "  make dev-frontend     Run Vite frontend dev server"
-	@echo "  make dev-worker       Run Celery worker"
-	@echo "  make dev-wazuh        Start Wazuh single-node (docker-compose)"
-	@echo "  make dev-ollama       Start Ollama server"
-	@echo "  make build            Build frontend for production"
-	@echo "  make prod             Start all services in production"
-	@echo "  make prod-down        Stop all production services"
-	@echo "  make clean            Remove venv, node_modules, caches"
-	@echo "  make lint             Run linters (ruff, eslint)"
+.DEFAULT_GOAL := help
 
-install: install-backend install-frontend
+.PHONY: help install install-backend install-frontend install-admin-frontend \
+        infra infra-down dev dev-backend dev-worker dev-frontend dev-admin \
+        test lint lint-backend lint-frontend format build clean
 
-install-backend:
-	cd backend && python -m venv venv && .\venv\Scripts\pip install -r requirements.txt
-	# insightface tire opencv-python (GUI) -> entre en collision fichiers avec headless.
-	./backend/venv/Scripts/pip uninstall -y opencv-python && ./backend/venv/Scripts/pip install --force-reinstall --no-deps opencv-python-headless==4.14.0.94
+help: ## Show this help
+	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-install-frontend:
-	cd frontend && npm install
+# ── Install ────────────────────────────────────────────────────────────
+install: install-backend install-frontend install-admin-frontend ## Install everything
 
-dev:
-	@echo "Starting all services..."
-	start "ollama" cmd /c "$(OLLAMA) serve"
-	start "wazuh" cmd /c "cd /d $(WAZUH_DIR) && docker-compose up -d"
-	start "backend" cmd /c "cd /d $(CURDIR)\backend & .\venv\Scripts\uvicorn app.main:app --reload --host 127.0.0.1 --port 8001"
-	start "worker" cmd /c "cd /d $(CURDIR)\backend & .\venv\Scripts\celery -A app.worker.celery_app worker --loglevel=info --pool=solo -B"
-	start "frontend" cmd /c "cd /d $(CURDIR)\frontend & npm run dev"
+install-backend: ## Python venv + deps (+ the opencv headless fix)
+	cd backend && python3 -m venv venv
+	$(PIP) install -r backend/requirements.txt
+	# insightface pulls the GUI opencv build, which collides with the headless one
+	$(PIP) uninstall -y opencv-python || true
+	$(PIP) install --force-reinstall --no-deps opencv-python-headless==4.14.0.94
+	$(PIP) install pytest ruff
 
-dev-backend:
-	cd backend && .\venv\Scripts\uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
+install-frontend: ## SOC frontend deps
+	cd frontend && npm ci
 
-dev-frontend:
+install-admin-frontend: ## Admin console deps
+	cd admin-frontend && npm ci
+
+# ── Local infrastructure ───────────────────────────────────────────────
+infra: ## Start PostgreSQL (TimescaleDB) + Redis for development
+	$(COMPOSE) up -d
+
+infra-down: ## Stop local infrastructure
+	$(COMPOSE) down
+
+# ── Run ────────────────────────────────────────────────────────────────
+dev: ## Run infra + backend + worker + both frontends (Ctrl-C stops everything)
+	@$(MAKE) infra
+	@trap '$(COMPOSE) stop' INT TERM; \
+		$(MAKE) -j4 dev-backend dev-worker dev-frontend dev-admin
+
+dev-backend: ## FastAPI on 127.0.0.1:8001
+	cd backend && ../$(UVICORN) app.main:app --reload --host 127.0.0.1 --port 8001 --proxy-headers
+
+dev-worker: ## Celery worker + beat
+	cd backend && ../$(CELERY) -A app.worker.celery_app worker --loglevel=info --pool=solo -B
+
+dev-frontend: ## Vite dev server (SOC frontend)
 	cd frontend && npm run dev
 
-dev-worker:
-	cd backend && .\venv\Scripts\celery -A app.worker.celery_app worker --loglevel=info --pool=solo -B
+dev-admin: ## Vite dev server (admin console)
+	cd admin-frontend && npm run dev
 
-dev-wazuh:
-	cd "$(WAZUH_DIR)" && docker-compose up -d
+# ── Quality gates (the same ones CI runs) ──────────────────────────────
+test: ## Backend test suite (tests/conftest.py provides the required env)
+	cd backend && ../$(PYTHON) -m pytest --tb=short -q
 
-dev-ollama:
-	"$(OLLAMA)" serve
+lint: lint-backend lint-frontend ## Everything CI checks
 
-build:
+lint-backend: ## ruff over the backend
+	cd backend && ../$(VENV)/bin/ruff check .
+
+lint-frontend: ## Production build of BOTH frontends (catches unresolvable imports)
 	cd frontend && npm run build
+	cd admin-frontend && npm run build
 
-prod:
-	docker compose -f docker-compose.prod.yml up -d --build
+format: ## ruff --fix (safe fixes only)
+	cd backend && ../$(VENV)/bin/ruff check . --fix
 
-prod-down:
-	docker compose -f docker-compose.prod.yml down
+build: ## Build both frontends into dist/
+	cd frontend && npm run build
+	cd admin-frontend && npm run build
 
-clean:
-	rmdir /s /q backend\venv 2>nul || true
-	rmdir /s /q frontend\node_modules 2>nul || true
-	rmdir /s /q __pycache__ 2>nul || true
-	rmdir /s /q backend\__pycache__ 2>nul || true
-	rmdir /s /q backend\app\__pycache__ 2>nul || true
-	rmdir /s /q .pytest_cache 2>nul || true
-
-lint:
-	cd backend && .\venv\Scripts\ruff check . || true
-	cd frontend && npx eslint src --ext .jsx,.js 2>nul || true
+clean: ## Remove venv, node_modules and caches
+	rm -rf backend/venv backend/.ruff_cache backend/.pytest_cache
+	rm -rf frontend/node_modules frontend/dist
+	rm -rf admin-frontend/node_modules admin-frontend/dist
+	find . -type d -name __pycache__ -not -path "*/node_modules/*" -prune -exec rm -rf {} +

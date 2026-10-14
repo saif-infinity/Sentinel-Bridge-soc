@@ -26,6 +26,55 @@
 
 ---
 
+## ✅ Statut réel des fonctionnalités
+
+> Cette section existe parce que le reste du README décrirait sinon des capacités
+> que le code n'a pas. Un SOC qui ment sur son propre état est pire qu'un SOC
+> incomplet : c'est précisément quand une sonde tombe que l'analyste doit le savoir.
+> Mise à jour : 2026-10.
+
+### Implémenté et fonctionnel
+| Capacité | Où |
+|---|---|
+| Ingestion → normalisation ECS-like → pipeline d'acceptation | `backend/app/application/{pipeline,normalization}.py` |
+| Corrélation par règles persistée en base + MITRE ATT&CK | `backend/app/application/rules/`, `domain/rule_models.py` |
+| Cases, investigations, hunts, recommandations | `backend/app/application/{cases,hunts,investigations}/` |
+| RBAC (viewer < analyst < admin < super_admin) + multi-tenancy | `backend/app/core/rbac.py`, `interface/middleware/tenant.py` |
+| Ingestion syslog agentless (RFC5424, TCP+UDP 1514) | `backend/app/infrastructure/syslog/` |
+| Stockage time-series TimescaleDB (hypertables) | `backend/app/infrastructure/timescale.py` |
+| Threat intelligence (AbuseIPDB) avec cache TTL | `backend/app/infrastructure/threat_intel/` |
+| Playbooks SOAR + actions de réponse réelles (blocage Wazuh, quarantaine SSH, restart de service) avec approbation et rollback | `backend/app/application/{soar,response}/` |
+| Notifications (email/Telegram/webhook) chiffrées Fernet | `backend/app/infrastructure/notifications/` |
+| Rapports (génération + templates + livraison) et exports | `backend/app/application/reporting/` |
+| Terminal de diagnostic restreint vers Suricata (SSH, host key vérifiée) | `backend/app/interface/api/terminal.py` |
+
+### Partiel — dépend d'un déploiement réel
+| Capacité | Limite |
+|---|---|
+| Source Wazuh (alertes, agents, topologie) | Nécessite un Wazuh manager joignable. S'il est absent, la topologie renvoie encore des **agents fictifs** (`application/wazuh/topology.py`) — à remplacer par un état `source_unavailable`. |
+| Source Suricata | Désactivée par défaut (`ENABLE_SURICATA_SOURCE=False`) ; ingestion EVE fonctionnelle. |
+| Terminal Wazuh | Passe par `docker exec` depuis le backend : ne fonctionne que si le backend a accès au socket Docker (donc **pas** dans `docker-compose.prod.yml`, qui est `read_only` + sans socket). |
+| Matériel des agents | `infrastructure/wazuh/client.py` renvoie des valeurs **mock** (`"Intel Core i7-10700K (Mock)"`) quand l'agent ne répond pas. |
+| IPS | Suricata est utilisé en **IDS** (détection). Il n'y a pas de blocage inline ; le "IPS" du titre passe par les actions de réponse (blocage d'IP via Wazuh/SSH). |
+| Bande passante « par analyste » | `interface/api/sensors.py` échantillonne `psutil.net_io_counters()` **du serveur** et l'attribue à chaque analyste en ligne. Ce n'est pas le trafic du poste client — il faudrait l'agent hôte pour cela. |
+
+### Non implémenté (assumé)
+| Capacité | État |
+|---|---|
+| Push de configuration vers les équipements réseau | **Générateur de commandes CLI uniquement** (Cisco/Juniper/Arista/Fortinet/…). `POST /{id}/push-config` renvoie désormais `success: false` avec la mention *DRY RUN* : aucun transport SSH n'existe pour les équipements. |
+| Test de connectivité d'un équipement | Sonde **TCP réelle** vers le port d'administration (auparavant : `random.random() > 0.3` persisté en base). Ne teste ni SSH ni l'authentification. |
+| Paiement / licences (PricingPage, champs Stripe) | Interface présente, aucun backend de paiement branché. |
+| Reconnaissance faciale comme facteur d'authentification | À considérer comme **expérimental et faible** : le chemin de secours compare des histogrammes couleur Haar (`cv2.compareHist`, seuil 0.78), ce n'est pas une biométrie ; la « liveness » (ratio de texture) est battue par une photo imprimée. À ne jamais utiliser comme seul facteur. |
+| Honeypot | Écoute réelle sur 2323/3389/8443/5555 dans le processus API, tenant codé en dur à `default`, non isolé. À déplacer dans son propre service. |
+
+### Dette connue
+- Pas d'Alembic : le schéma est créé par `Base.metadata.create_all()` puis ajusté par **8 `ALTER TABLE` interpolés à la main**. Aucun rollback, aucun historique de version.
+- Deux frontends React séparés (`frontend/`, `admin-frontend/`) avec deux systèmes de design et deux implémentations d'auth.
+- La classification de sévérité « critique » diffère selon les écrans (>=7, >=8, >=10, >=12). Un helper unique existe maintenant dans `frontend/src/lib/formatters.js` ; les 6 call-sites restent à migrer.
+- Le mot de passe de la console admin **est** `ADMIN_API_KEY` (secret statique partagé, pas de comptes nominatifs).
+
+---
+
 ## 🏗️ Architecture Overview
 
 Sentinel Bridge follows a **Clean Architecture** pattern with strict separation of concerns, ensuring maintainability, testability, and scalability.

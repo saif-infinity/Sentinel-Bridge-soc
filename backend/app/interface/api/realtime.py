@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import secrets
 import time
 from datetime import datetime, timezone
 
@@ -13,7 +14,7 @@ from ...auth import get_api_key_or_jwt
 from ...config import settings
 from ...core.broadcaster import broadcaster
 from ...core.jwt_utils import verify_token
-from ...db import get_db, query_with_tenant
+from ...db import get_db, get_tenant_id, query_with_tenant
 from ...models import Alert, Asset, Device
 
 logger = logging.getLogger(__name__)
@@ -31,26 +32,43 @@ async def get_real_alerts(request: Request, limit: int = 50, db: Session = Depen
     Fetch latest security alerts from DATABASE, enriched with asset data.
     """
     db_alerts = query_with_tenant(Alert, request, db).order_by(desc(Alert.timestamp)).limit(min(limit, 500)).all()
-    
+
+    # FIX 1: Asset/Device were looked up WITHOUT a tenant filter, so an alert in
+    # tenant A could be enriched with employee names / departments / MAC addresses
+    # belonging to tenant B (the alerts themselves were correctly tenant-scoped).
+    # FIX 2: that was also 2 queries per alert inside a loop (N+1) on an endpoint the
+    # dashboard polls every few seconds -> replaced by 2 batched IN(...) queries.
+    tenant_id = get_tenant_id(request)
+    src_ips = {item.src_ip for item in db_alerts if item.src_ip}
+
+    assets_by_ip: dict = {}
+    devices_by_ip: dict = {}
+    if src_ips:
+        try:
+            assets_by_ip = {
+                a.ip: a
+                for a in db.query(Asset).filter(Asset.tenant_id == tenant_id, Asset.ip.in_(src_ips)).all()
+            }
+            devices_by_ip = {
+                d.ip: d
+                for d in db.query(Device).filter(Device.tenant_id == tenant_id, Device.ip.in_(src_ips)).all()
+            }
+        except Exception as e:
+            logger.error("Alert enrichment failed: %s", e)
+
     enriched_data = []
     for item in db_alerts:
         employee_name = "Unknown"
         department = "Unknown"
         mac_address = "Unknown"
-        
-        if item.src_ip:
-             try:
-                 # Query assets
-                 asset = db.query(Asset).filter(Asset.ip == item.src_ip).first()
-                 if asset:
-                     employee_name, department = asset.employee_name, asset.department
-                 # Query devices
-                 device = db.query(Device).filter(Device.ip == item.src_ip).first()
-                 if device:
-                     mac_address = device.mac
-             except Exception as e:
-                 logger.error(f"Error querying device for IP {item.src_ip}: {e}")
-                
+
+        asset = assets_by_ip.get(item.src_ip)
+        if asset:
+            employee_name, department = asset.employee_name, asset.department
+        device = devices_by_ip.get(item.src_ip)
+        if device:
+            mac_address = device.mac
+
         enriched_data.append({
             "ID": item.id,
             "Timestamp": item.timestamp.isoformat(),
@@ -74,7 +92,7 @@ async def websocket_endpoint(websocket: WebSocket, api_key: str | None = None, t
 
     # Accept either the API key OR a valid JWT (passed as `token` query param).
     if api_key:
-        if api_key == settings.API_KEY.get_secret_value():
+        if secrets.compare_digest(api_key or "", settings.API_KEY.get_secret_value()):
             authenticated = True
 
     if not authenticated and token:

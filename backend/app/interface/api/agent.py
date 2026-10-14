@@ -1,5 +1,6 @@
 import json
 import logging
+import secrets
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -42,11 +43,11 @@ async def agent_auth(
     api_key: str = Header(None, alias="X-API-Key"),
     authorization: str = Header(None, alias="Authorization"),
 ):
-    if api_key and api_key == settings.API_KEY.get_secret_value():
+    if api_key and secrets.compare_digest(api_key, settings.API_KEY.get_secret_value()):
         return api_key
     if authorization:
         scheme, _, token = authorization.partition(" ")
-        if scheme.lower() == "bearer" and token == settings.API_KEY.get_secret_value():
+        if scheme.lower() == "bearer" and secrets.compare_digest(token, settings.API_KEY.get_secret_value()):
             return token
     raise HTTPException(status_code=403, detail="Could not validate credentials")
 

@@ -1,5 +1,6 @@
 import logging
 import re
+import secrets
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -100,7 +101,7 @@ async def register_user(data: RegisterRequest, request: Request, db: Session = D
         if scheme and scheme.lower() == "bearer" and token and verify_token(token):
             authenticated = True
     api_key = request.headers.get("X-API-Key")
-    if api_key and api_key == settings.API_KEY.get_secret_value():
+    if api_key and secrets.compare_digest(api_key, settings.API_KEY.get_secret_value()):
         authenticated = True
 
     tenant_id = getattr(request.state, "tenant_id", "default")
@@ -196,14 +197,25 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         window_seconds=settings.AUTH_LOGIN_RATE_LIMIT_WINDOW,
     )
 
+    # FIX: tenant_id=None made check_password() test the hash of EVERY tenant that has
+    # this username ("Cross-tenant lookup" in password_store.py), and the role lookup
+    # below took an arbitrary `.first()` row. Two tenants each having a user named
+    # "admin" could therefore authenticate into each other's tenant. /auth/token is a
+    # public route (no JWT to derive the tenant from), so the tenant is taken from an
+    # explicit X-Tenant-ID header.
+    login_tenant = (request.headers.get("X-Tenant-ID") or "default") if request else "default"
+
     user_key = f"user:{form_data.username}"
-    if check_password(user_key, form_data.password, tenant_id=None):
+    if check_password(user_key, form_data.password, tenant_id=login_tenant):
         # Resolve role from TenantUser table (supersedes JSON store)
         from ...models import TenantUser
         from ...db import SessionLocal
         db = SessionLocal()
         try:
-            tenant_user = db.query(TenantUser).filter(TenantUser.username == form_data.username).first()
+            tenant_user = db.query(TenantUser).filter(
+                TenantUser.username == form_data.username,
+                TenantUser.tenant_id == login_tenant,
+            ).first()
             if tenant_user:
                 role = tenant_user.role
                 tenant_user.last_login = datetime.now(timezone.utc)
@@ -213,7 +225,9 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                 from ...services.password_manager import _read_store
                 role_store = _read_store()
                 role = role_store.get(f"role:{form_data.username}", "analyst")
-            resolved_tenant_id = tenant_user.tenant_id if tenant_user else "default"
+            resolved_tenant_id = tenant_user.tenant_id if tenant_user else login_tenant
+            if tenant_user and tenant_user.is_active is False:
+                raise HTTPException(status_code=403, detail="Compte désactivé")
         finally:
             db.close()
 

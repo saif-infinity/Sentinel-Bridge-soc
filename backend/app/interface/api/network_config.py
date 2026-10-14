@@ -4,6 +4,8 @@ Wizard-friendly API: provides config templates per device type/brand.
 """
 import json
 import logging
+import socket
+import time
 from datetime import datetime, timezone
 from typing import Any, Optional, Dict, List
 
@@ -18,6 +20,9 @@ from ...infrastructure.network_device.command_builder import generate_commands, 
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/network-devices", tags=["network-devices"])
+
+# TCP probe budget for /test-connection (seconds).
+TEST_CONNECT_TIMEOUT = 3.0
 
 
 # ─── Config Templates ───────────────────────────────────────────────
@@ -186,24 +191,37 @@ def test_connection(
     _user: Any = Depends(get_api_key_or_jwt),
     _scope: Any = Depends(has_scopes_or_api_key(["admin:manage"])),
 ):
-    """Simulate testing SSH/telnet connectivity to a device."""
-    import time, random
+    """Real TCP reachability probe against the device management port.
+
+    FIX: this used to be `random.random() > 0.3` — a coin flip whose result was then
+    *persisted* as the device status, so the whole inventory ("online"/"error") was
+    noise presented as ground truth. It now does an actual connect() with a timeout
+    and only writes what it observed.
+    """
     d = query_with_tenant(NetworkDevice, request, db).filter(NetworkDevice.id == device_id).first()
     if not d:
         raise HTTPException(404, "Device not found")
-    # Simulate connection test (demo mode)
-    latency = round(random.uniform(2, 50), 1)
-    reachable = random.random() > 0.3  # 70% success rate for demo
+
+    port = int(getattr(d, "port", 0) or 22)
+    started = time.perf_counter()
+    error: Optional[str] = None
+    try:
+        with socket.create_connection((d.ip, port), timeout=TEST_CONNECT_TIMEOUT):
+            reachable = True
+    except OSError as exc:
+        reachable = False
+        error = f"{type(exc).__name__}: {exc}"
+
+    latency = round((time.perf_counter() - started) * 1000, 1) if reachable else None
+    d.status = "online" if reachable else "error"
     if reachable:
-        d.status = "online"
         d.last_connected = datetime.now(timezone.utc)
-    else:
-        d.status = "error"
     db.commit()
     return {
         "status": "online" if reachable else "offline",
-        "latency_ms": latency if reachable else None,
-        "error": None if reachable else "Connection timeout",
+        "latency_ms": latency,
+        "port": port,
+        "error": None if reachable else (error or "Connection timeout"),
         "device": _device_dict(d),
     }
 
@@ -217,7 +235,14 @@ def push_config(
     _user: Any = Depends(get_api_key_or_jwt),
     _scope: Any = Depends(has_scopes_or_api_key(["admin:manage"])),
 ):
-    """Generate CLI commands and simulate push (no actual SSH in demo mode)."""
+    """Generate the CLI commands for a device (dry run).
+
+    FIX: this returned `success: true` with "Simulated push of N commands" while
+    nothing was ever sent to the device — and the UI toasted "Configuration
+    appliquée". There is no SSH transport for network devices, so the endpoint now
+    reports a dry run honestly (the frontend already had the `toast.warning(data.error)`
+    branch for exactly this case).
+    """
     d = query_with_tenant(NetworkDevice, request, db).filter(NetworkDevice.id == device_id).first()
     if not d:
         raise HTTPException(404, "Device not found")
@@ -225,11 +250,15 @@ def push_config(
     brand = getattr(d, "brand", cfg.get("brand", "cisco"))
     device_type = getattr(d, "device_type", cfg.get("device_type", "switch"))
     commands = generate_commands(cfg, device_type, brand)
-    logger.info(f"Pushed {len(commands)} commands to {d.name} ({d.ip})")
+    logger.warning(
+        "DRY RUN: generated %d commands for %s (%s) — no SSH transport implemented, nothing was applied",
+        len(commands), d.name, d.ip,
+    )
     return ConfigPushResponse(
-        success=True,
+        success=False,
         commands_generated=commands,
-        output=f"Simulated push of {len(commands)} commands to {d.name}.",
+        output=f"DRY RUN — {len(commands)} commands generated for {d.name} ({d.ip}); nothing was sent to the device.",
+        error="No SSH transport for network devices yet: commands were generated, not applied.",
     )
 
 
