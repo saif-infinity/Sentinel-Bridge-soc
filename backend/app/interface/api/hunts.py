@@ -4,17 +4,20 @@ Routers minces ; logique dans application/hunts.py.
 Réutilise l'évaluateur F1 (OPS, evaluate_conditions) — aucun nouveau moteur.
 """
 import logging
-from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ...application.hunts import (
-    create_hunt, delete_hunt, generate_ai_hunt_proposals, get_hunt,
-    list_hunts, run_hunt, update_hunt,
+    create_hunt,
+    delete_hunt,
+    generate_ai_hunt_proposals,
+    get_hunt,
+    list_hunts,
+    run_hunt,
+    update_hunt,
 )
-from ...application.rules.evaluator import OPS
 from ...auth import get_api_key_or_jwt, has_scopes_or_api_key
 from ...db import get_db, get_tenant_id
 
@@ -36,19 +39,19 @@ class HuntCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     description: str = ""
     target: str = "both"   # alert | suricata | both
-    conditions: List[HuntCondition] = Field(..., min_length=1)
+    conditions: list[HuntCondition] = Field(..., min_length=1)
 
 
 class HuntUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=200)
-    description: Optional[str] = None
-    target: Optional[str] = None
-    conditions: Optional[List[HuntCondition]] = None
+    name: str | None = Field(None, min_length=1, max_length=200)
+    description: str | None = None
+    target: str | None = None
+    conditions: list[HuntCondition] | None = None
 
 
 class HuntRunRequest(BaseModel):
     target: str = "both"
-    conditions: Optional[List[HuntCondition]] = Field(None, min_length=1)
+    conditions: list[HuntCondition] | None = Field(None, min_length=1)
     limit: int = Field(500, ge=1, le=1000)
 
 

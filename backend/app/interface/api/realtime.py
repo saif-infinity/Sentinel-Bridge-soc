@@ -2,7 +2,7 @@ import asyncio
 import logging
 import secrets
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import psutil
 from fastapi import APIRouter, Depends, Request, WebSocket
@@ -80,7 +80,7 @@ async def get_real_alerts(request: Request, limit: int = 50, db: Session = Depen
             "Employee Name": employee_name,
             "Department": department
         })
-        
+
     return enriched_data
 
 
@@ -129,19 +129,19 @@ async def get_bandwidth():
     async with bandwidth_lock:
         curr_io = psutil.net_io_counters()
         curr_time = time.time()
-        
+
         interval = curr_time - prev_time
-        if interval <= 0: 
+        if interval <= 0:
             return {"mbps": 0}
-        
+
         bytes_sent = curr_io.bytes_sent - prev_io.bytes_sent
         bytes_recv = curr_io.bytes_recv - prev_io.bytes_recv
-        
+
         mbps = ((bytes_sent + bytes_recv) / (1024 * 1024)) / interval
-        
+
         prev_io = curr_io
         prev_time = curr_time
-        
+
         return {"mbps": round(mbps, 2)}
 
 
@@ -150,7 +150,7 @@ async def investigate_agent(agent_id: str):
     try:
         hardware = await wazuh_service.get_agent_hardware(agent_id)
         packages = await wazuh_service.get_agent_packages(agent_id, limit=8)
-        return {"hardware": hardware, "packages": packages, "scan_time": datetime.now(timezone.utc).isoformat()}
+        return {"hardware": hardware, "packages": packages, "scan_time": datetime.now(UTC).isoformat()}
     except Exception as e:
         logger.error("Investigate agent error: %s", e)
         return {"error": "Failed to investigate agent"}

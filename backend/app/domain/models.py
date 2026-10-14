@@ -1,12 +1,28 @@
-import uuid
 import json
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, Index, Integer, Text, Float, LargeBinary, PrimaryKeyConstraint, BigInteger, text
+import uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    LargeBinary,
+    PrimaryKeyConstraint,
+    String,
+    Text,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from datetime import datetime, timezone
+
 from ..db import Base
 
+
 def _utcnow():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 def _gen_id():
     """Génère un id 31-bit unique pour les tables hypertables (composite PK (id, timestamp)).

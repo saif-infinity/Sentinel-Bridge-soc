@@ -5,16 +5,27 @@ Scoping tenant : STRICT (tenant_id de request.state, posé par TenantMiddleware)
 Writes : scope "cases:write" (analyst + admin + API key) — voir auth.py.
 """
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ...application.cases import (
-    add_timeline_note, case_stats, close_case, create_case, delete_case,
-    get_case, link_alert, linkable_alerts, list_case_alerts, list_cases,
-    list_timeline, reopen_case, triage_alert, unlink_alert, update_case,
+    add_timeline_note,
+    case_stats,
+    close_case,
+    create_case,
+    delete_case,
+    get_case,
+    link_alert,
+    linkable_alerts,
+    list_case_alerts,
+    list_cases,
+    list_timeline,
+    reopen_case,
+    triage_alert,
+    unlink_alert,
+    update_case,
 )
 from ...auth import get_api_key_or_jwt, has_scopes_or_api_key
 from ...db import get_db, get_tenant_id
@@ -32,19 +43,19 @@ class CaseCreate(BaseModel):
     description: str = ""
     status: str = "open"
     severity: int = Field(5, ge=0, le=15)
-    assignee: Optional[str] = None
+    assignee: str | None = None
 
 
 class CaseUpdate(BaseModel):
-    title: Optional[str] = Field(None, min_length=1, max_length=200)
-    description: Optional[str] = None
-    status: Optional[str] = None
-    severity: Optional[int] = Field(None, ge=0, le=15)
-    assignee: Optional[str] = None
+    title: str | None = Field(None, min_length=1, max_length=200)
+    description: str | None = None
+    status: str | None = None
+    severity: int | None = Field(None, ge=0, le=15)
+    assignee: str | None = None
 
 
 class CaseClose(BaseModel):
-    resolution: Optional[str] = Field(None, max_length=4000)
+    resolution: str | None = Field(None, max_length=4000)
 
 
 class LinkAlertRequest(BaseModel):
@@ -54,7 +65,7 @@ class LinkAlertRequest(BaseModel):
 
 class TriageRequest(BaseModel):
     status: str = Field(..., description="open | in_progress | resolved | dismissed")
-    note: Optional[str] = Field(None, max_length=2000)
+    note: str | None = Field(None, max_length=2000)
 
 
 class NoteRequest(BaseModel):
@@ -69,8 +80,8 @@ def _principal_username(principal: dict) -> str:
 
 @router.get("")
 def get_cases(request: Request, db: Session = Depends(get_db),
-              status: Optional[str] = None, assignee: Optional[str] = None,
-              severity_min: Optional[int] = None, q: Optional[str] = None,
+              status: str | None = None, assignee: str | None = None,
+              severity_min: int | None = None, q: str | None = None,
               limit: int = 100, offset: int = 0):
     return list_cases(db, get_tenant_id(request), status=status, assignee=assignee,
                       severity_min=severity_min, q=q, limit=limit, offset=offset)
@@ -92,7 +103,7 @@ def get_case_stats(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/linkable-alerts")
 def get_linkable_alerts(request: Request, db: Session = Depends(get_db),
-                        source: Optional[str] = None, limit: int = 50):
+                        source: str | None = None, limit: int = 50):
     return linkable_alerts(db, get_tenant_id(request), source=source, limit=limit)
 
 

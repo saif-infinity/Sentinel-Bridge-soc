@@ -1,22 +1,20 @@
-import json
 import logging
-from datetime import datetime, date, timezone
-from typing import Optional
+from datetime import UTC, date, datetime
 
 import redis as _redis
-from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
+from sqlalchemy import desc, extract, func
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, extract
 
-from ...db import get_db, get_tenant_id, query_with_tenant
-from ...models import ActionLog, AccessLog, TenantUser, FaceLoginRequest, RegistrationRequest, UnverifiedFaceAttempt
-from ...schemas import ActionLogCreate
-from ...config import settings
 from ...admin_auth import create_admin_token, get_current_admin, verify_admin_password
+from ...config import settings
 from ...core.broadcaster import broadcaster
 from ...core.rbac import ADMIN_ASSIGNABLE, ROLE_RANK, ROLE_WHITELIST, require_role
+from ...db import get_db, get_tenant_id, query_with_tenant
+from ...models import AccessLog, ActionLog, FaceLoginRequest, RegistrationRequest, TenantUser, UnverifiedFaceAttempt
+from ...schemas import ActionLogCreate
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +72,7 @@ async def log_action(
         ip_address=ip,
         face_verified=data.face_verified,
         tenant_id=get_tenant_id(request),
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
     )
     db.add(log)
     db.commit()
@@ -86,8 +84,8 @@ async def get_actions(
     request: Request,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    username: Optional[str] = None,
-    action: Optional[str] = None,
+    username: str | None = None,
+    action: str | None = None,
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin),
 ):
@@ -294,8 +292,8 @@ async def change_admin_password(
     admin=Depends(get_current_admin),
 ):
     """Change the admin password (persisted to password hash store)."""
-    from ...services.password_manager import store_password_hash, check_password
     from ...config import settings
+    from ...services.password_manager import store_password_hash
 
     admin_key = settings.ADMIN_API_KEY.get_secret_value()
 
@@ -460,7 +458,7 @@ async def approve_face_login_request(
         )
     admin_username = admin.get("sub", "admin")
     login_request.status = "approved"
-    login_request.resolved_at = datetime.now(timezone.utc)
+    login_request.resolved_at = datetime.now(UTC)
     login_request.resolved_by = admin_username
     db.commit()
     await broadcaster.broadcast({
@@ -493,7 +491,7 @@ async def refuse_face_login_request(
         )
     admin_username = admin.get("sub", "admin")
     login_request.status = "refused"
-    login_request.resolved_at = datetime.now(timezone.utc)
+    login_request.resolved_at = datetime.now(UTC)
     login_request.resolved_by = admin_username
     db.commit()
     await broadcaster.broadcast({
@@ -583,7 +581,7 @@ async def approve_registration_request(
         db.add(tenant_user)
 
     reg_request.status = "approved"
-    reg_request.resolved_at = datetime.now(timezone.utc)
+    reg_request.resolved_at = datetime.now(UTC)
     reg_request.resolved_by = admin_username
     db.commit()
 
@@ -630,7 +628,7 @@ async def refuse_registration_request(
         )
     admin_username = admin.get("sub", "admin")
     reg_request.status = "refused"
-    reg_request.resolved_at = datetime.now(timezone.utc)
+    reg_request.resolved_at = datetime.now(UTC)
     reg_request.resolved_by = admin_username
     db.commit()
     await broadcaster.broadcast({

@@ -6,8 +6,8 @@ point d'entrée API (interface/api/ai_auto.py).
 """
 import logging
 
-from ...core.celery import celery_app
 from ...application.ai_auto.service import run_agent_burst_analysis  # noqa: F401  # ré-export
+from ...core.celery import celery_app
 
 logger = logging.getLogger(__name__)
 

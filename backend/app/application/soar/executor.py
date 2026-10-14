@@ -14,8 +14,8 @@ import json
 import logging
 import threading
 import time
-from datetime import datetime, timezone
-from typing import Any, Dict
+from datetime import UTC, datetime
+from typing import Any
 
 import httpx
 from sqlalchemy import or_
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 ALLOWED_TASKS = {"reload_suricata", "run_nmap"}
 
 
-def _render(template: str, ctx: Dict[str, str]) -> str:
+def _render(template: str, ctx: dict[str, str]) -> str:
     """Rendu {{placeholder}} depuis le snapshot normalized_alert.
 
     Convention UI : double accolades. Conversion {{x}} -> {x} puis str.format_map
@@ -76,7 +76,7 @@ def _soar_enabled(db, tenant_id: str) -> bool:
 
 
 def _runs_today(db, tenant_id: str) -> int:
-    start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     return db.query(PlaybookRun.id).filter(
         PlaybookRun.tenant_id == tenant_id, PlaybookRun.created_at >= start
     ).count()
@@ -148,7 +148,7 @@ def on_rule_match(channel: str, event: RuleMatchEvent) -> None:
         db.close()
 
 
-def _base_context(run: PlaybookRun, step_index: int) -> Dict[str, str]:
+def _base_context(run: PlaybookRun, step_index: int) -> dict[str, str]:
     payload = run.event_payload or {}
     ctx = {str(k): str(v) for k, v in payload.items() if v is not None}
     ctx.update({
@@ -170,7 +170,7 @@ def execute_playbook(run_id: int) -> None:
         if run is None:
             return
         run.status = "running"
-        run.started_at = datetime.now(timezone.utc)
+        run.started_at = datetime.now(UTC)
         db.commit()
 
         steps = (run.playbook.steps or []) if run.playbook else []
@@ -200,7 +200,7 @@ def execute_playbook(run_id: int) -> None:
                 break
         else:
             run.status = "success"
-        run.finished_at = datetime.now(timezone.utc)
+        run.finished_at = datetime.now(UTC)
         db.commit()
     except Exception:
         logger.exception("Exécution playbook %s échouée", run_id)
@@ -208,7 +208,7 @@ def execute_playbook(run_id: int) -> None:
             run = db.query(PlaybookRun).get(run_id)
             if run:
                 run.status = "failed"
-                run.finished_at = datetime.now(timezone.utc)
+                run.finished_at = datetime.now(UTC)
                 db.commit()
         except Exception:
             db.rollback()
@@ -216,7 +216,7 @@ def execute_playbook(run_id: int) -> None:
         db.close()
 
 
-def _run_step(db, run: PlaybookRun, idx: int, step: Dict[str, Any], default_timeout: int) -> Dict[str, Any]:
+def _run_step(db, run: PlaybookRun, idx: int, step: dict[str, Any], default_timeout: int) -> dict[str, Any]:
     step_type = step.get("type")
     params = step.get("params") or {}
     timeout = int(step.get("timeout_seconds") or default_timeout)
@@ -251,7 +251,7 @@ def _run_step(db, run: PlaybookRun, idx: int, step: Dict[str, Any], default_time
         return {"status": "failed", "error": str(e)}
 
 
-def _run_task(db, run: PlaybookRun, params: Dict[str, Any], ctx: Dict[str, str]) -> Dict[str, Any]:
+def _run_task(db, run: PlaybookRun, params: dict[str, Any], ctx: dict[str, str]) -> dict[str, Any]:
     task_name = params.get("task")
     if task_name not in ALLOWED_TASKS:
         return {"status": "failed", "error": "tâche non autorisée: %s" % task_name}
@@ -285,7 +285,7 @@ def _wazuh_token(base: str, user: str, password: str) -> str:
         return r.json()["data"]["token"]
 
 
-def _block_ip(db, run: PlaybookRun, params: Dict[str, Any], ctx: Dict[str, str]) -> Dict[str, Any]:
+def _block_ip(db, run: PlaybookRun, params: dict[str, Any], ctx: dict[str, str]) -> dict[str, Any]:
     """Blocage actif : POST /active-response de l'API Wazuh (token Bearer).
 
     WazuhAPIClient (F1) n'expose AUCUNE méthode active-response (vérifié) —

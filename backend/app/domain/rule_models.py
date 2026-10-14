@@ -1,9 +1,9 @@
 """F1 — Modèles de domaine du moteur de règles (additif : ne modifie aucun modèle existant)."""
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import sqlalchemy as sa
-from sqlalchemy import String, Boolean, DateTime, Index, Integer, Text
+from sqlalchemy import Boolean, DateTime, Index, Integer, String, Text
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def _utcnow():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Rule(Base):

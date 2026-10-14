@@ -13,20 +13,20 @@ class WazuhCache:
         Pre-fetch real network IPs and primary users for all agents.
         """
         agents = await self.get_agents()
-        
+
         if not agents:
             if not self._wazuh_available and not self._agent_ip_cache:
                 logger.info("Wazuh unavailable, using cached/mock data for topology")
             return
-        
+
         logger.info("Refreshing agent real identity cache...")
         new_cache = {}
-        
+
         for agent in agents:
             agent_id = agent['id']
             agent_name = agent.get('name', 'Unknown')
             identity = await self.get_agent_real_identity(agent_id, fallback_name=agent_name)
-            
+
             if identity['ip'] in ['0.0.0.0', 'any', None]:
                 api_ip = agent.get('ip', '')
                 is_real_ip = (
@@ -37,7 +37,7 @@ class WazuhCache:
                 )
                 if is_real_ip:
                     identity['ip'] = api_ip
-                    
+
             new_cache[agent_id] = identity
 
         async with self._cache_lock:
@@ -47,7 +47,7 @@ class WazuhCache:
         # Sync to Devices and Assets table
         db = SessionLocal()
         try:
-            from ...models import Device, Asset
+            from ...models import Asset, Device
             for agent_id, data in self._agent_ip_cache.items():
                 ip = data['ip']
                 mac = data['mac']
@@ -63,7 +63,7 @@ class WazuhCache:
                     else:
                         # Update both IP and MAC in case either changed
                         dev.ip, dev.mac, dev.is_wazuh_agent = ip, mac, True
-                    
+
                     # Update Asset (Employee Mapping)
                     asset = db.query(Asset).filter(Asset.ip == ip).first()
                     if not asset:

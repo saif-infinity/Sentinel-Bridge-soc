@@ -17,6 +17,7 @@ os.environ["SUPER_ADMIN_PASSWORD"] = "test-sa-pass"
 os.environ["SUPER_ADMIN_API_KEY"] = "test-sa-key"
 
 import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
 from pydantic import SecretStr  # noqa: E402
 
 import app.models  # noqa: E402,F401  # enregistre toutes les tables avant create_all
@@ -25,7 +26,6 @@ from app.core.db import Base, SessionLocal, engine  # noqa: E402
 from app.core.jwt_utils import create_access_token  # noqa: E402
 from app.interface.main import app  # noqa: E402
 from app.models import Tenant, TenantUser  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
 
 # Si un autre module de test a déjà importé app (settings singleton figé) sans
 # ces variables, on les injecte ici pour que le bootstrap seed le super admin.

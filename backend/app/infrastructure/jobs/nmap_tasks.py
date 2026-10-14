@@ -1,7 +1,8 @@
-from ...core.celery import celery_app
 import logging
+
 import nmap
-from ...config import settings
+
+from ...core.celery import celery_app
 
 logger = logging.getLogger(__name__)
 

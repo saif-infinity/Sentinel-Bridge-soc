@@ -4,14 +4,17 @@ Includes worker-side subscriber registration at module import time.
 """
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
+from ...application.reporting import (
+    deliver_report_via_config,
+    generate_case_closure_report,
+    generate_daily_report,
+    generate_trends_report,
+)
 from ...core.celery import celery_app
 from ...db import SessionLocal
-from ...application.system_config import get_config_value
-from ...application.reporting import generate_daily_report, generate_trends_report, \
-    generate_case_closure_report, deliver_report_via_config
-from ...domain.reporting import Report, ReportRecipient, ReportSchedule
+from ...domain.reporting import Report, ReportSchedule
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +109,7 @@ def process_scheduled_reports_task() -> dict:
     """Check and execute scheduled reports."""
     db = SessionLocal()
     try:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         schedules = db.query(ReportSchedule).filter(
             ReportSchedule.is_active == True,
             ReportSchedule.next_run_at <= now,

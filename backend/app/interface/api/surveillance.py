@@ -1,11 +1,11 @@
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
-from typing import Optional
 
-from ...db import get_db, get_tenant_id, query_with_tenant
+from ...auth import has_scopes_or_api_key
+from ...db import get_db, get_tenant_id
 from ...schemas import AccessLogCreate
 from ...services.surveillance_service import surveillance_service
-from ...auth import has_scopes_or_api_key
 
 router = APIRouter(prefix="/api/surveillance", tags=["surveillance"])
 

@@ -4,25 +4,28 @@ Generates daily, trends, case_closure, and investigation_summary reports.
 """
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func
 
-from ...db import SessionLocal
-from ...domain.models import Case, Alert, SuricataAlert, CaseAlertLink, TimelineEvent
 from ...domain.investigations import Investigation, InvestigationRecommendation
+from ...domain.models import Alert, Case, CaseAlertLink, SuricataAlert, TimelineEvent
 from ...domain.reporting import Report, ReportLog
 from .templates import (
-    render_html_report, build_daily_html_body, build_trends_html_body,
-    build_case_closure_html_body, build_csv, build_case_closure_csv,
+    build_case_closure_csv,
+    build_case_closure_html_body,
+    build_csv,
+    build_daily_html_body,
+    build_trends_html_body,
+    render_html_report,
 )
 
 logger = logging.getLogger(__name__)
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _add_report_log(db, tenant_id: str, report_id: int, action: str,

@@ -7,7 +7,6 @@ import logging
 from ...application.events import CHANNEL_RULE_MATCH, RuleMatchEvent
 from ...application.system_config import get_config_value
 from ...db import SessionLocal
-from ...core.celery import celery_app
 
 logger = logging.getLogger(__name__)
 

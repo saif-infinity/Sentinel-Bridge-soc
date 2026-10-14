@@ -13,9 +13,10 @@ import json
 import logging
 import threading
 import uuid
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List
+from datetime import UTC, datetime
+from typing import Any
 
 from ..db import SessionLocal
 from ..domain.rule_models import RuleMatchOutbox
@@ -37,8 +38,8 @@ class RuleMatchEvent:
     channel: str                         # toujours CHANNEL_RULE_MATCH
     version: int                         # 1
     source: str                          # "pipeline" | "catch_up"
-    normalized_alert: Dict[str, Any]     # forme canonique F1 (voir evaluator.NORMALIZED_KEYS)
-    matched_rules: List[Dict[str, Any]]  # [{rule_id, rule_name, rule_severity, tags, correlation, matched_conditions}]
+    normalized_alert: dict[str, Any]     # forme canonique F1 (voir evaluator.NORMALIZED_KEYS)
+    matched_rules: list[dict[str, Any]]  # [{rule_id, rule_name, rule_severity, tags, correlation, matched_conditions}]
 
 
 @dataclass
@@ -53,7 +54,7 @@ class InvestigationCompleteEvent:
     investigation_id: int
     case_id: int | None
     risk_level: str | None
-    matched_rules: List[Dict[str, Any]] | None = None
+    matched_rules: list[dict[str, Any]] | None = None
 
     def __post_init__(self):
         if self.matched_rules is None:
@@ -65,12 +66,12 @@ class InvestigationCompleteEvent:
         if not self.source:
             self.source = "response_agent"
         if not self.timestamp:
-            self.timestamp = datetime.now(timezone.utc).isoformat()
+            self.timestamp = datetime.now(UTC).isoformat()
 
 
 class EventBus:
     def __init__(self):
-        self._handlers: Dict[str, List[Callable]] = {}
+        self._handlers: dict[str, list[Callable]] = {}
         self._lock = threading.RLock()
 
     def subscribe(self, channel: str, handler: Callable) -> None:
@@ -153,7 +154,7 @@ def make_rule_match_event(tenant_id: str, normalized_alert: dict, matched_rules:
                           source: str = "pipeline") -> RuleMatchEvent:
     return RuleMatchEvent(
         event_id=str(uuid.uuid4()),
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
         tenant_id=tenant_id,
         channel=CHANNEL_RULE_MATCH,
         version=EVENT_VERSION,

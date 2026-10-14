@@ -2,34 +2,48 @@ import logging
 import ssl
 
 import urllib3
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from ..application.bootstrap import run_startup
+from ..auth import get_api_key_or_jwt, webhook_slug_auth, webhook_token_auth
+from ..config import settings
+from ..core import logging_setup  # noqa: F401
+from ..core.rbac import DEFAULT_POLICY, apply_role_guard, require_role  # noqa: F401
 from .api import (
     admin,
+    agent,
+    ai_auto,
     alerts,
     analyse,
-    agent,
     auth,
     database,
     devices,
     faces,
+    honeypot,
     network_config,
     scan,
     sensors,
-    settings as settings_router,
     sources,
     super_admin,
-    surveillance,
     suricata,
+    surveillance,
     tasks,
     tenants,
     terminal,
     wazuh,
-    investigations,
-    honeypot,
-    ai_auto,
 )
+from .api import (
+    settings as settings_router,
+)
+from .api.auth import me_router
+from .api.cases import router as cases_router
+from .api.exports import router as exports_router
+from .api.hunts import router as hunts_router
+from .api.intel import router as intel_router
+from .api.investigations import router as investigations_router
+from .api.pipeline import router as pipeline_router
+from .api.playbooks import router as playbooks_router
 from .api.realtime import (
     get_bandwidth,
     get_real_alerts,
@@ -37,26 +51,13 @@ from .api.realtime import (
     root,
     websocket_endpoint,
 )
+from .api.reporting import router as reporting_router
+from .api.response import router as response_router
+from .api.rules import router as rules_router
 from .api.suricata import receive_suricata_alert
 from .api.webhooks import wazuh_webhook
-from .api.rules import router as rules_router
-from .api.pipeline import router as pipeline_router
-from .api.cases import router as cases_router
-from .api.hunts import router as hunts_router
-from .api.playbooks import router as playbooks_router
-from .api.intel import router as intel_router
-from .api.investigations import router as investigations_router
-from .api.response import router as response_router
-from .api.reporting import router as reporting_router
-from .api.exports import router as exports_router
-from .api.auth import me_router
 from .middleware.action_log import ActionLogMiddleware
 from .middleware.tenant import TenantMiddleware
-from ..application.bootstrap import run_startup
-from ..auth import get_api_key_or_jwt, webhook_token_auth, webhook_slug_auth
-from ..config import settings
-from ..core import logging_setup  # noqa: F401
-from ..core.rbac import DEFAULT_POLICY, apply_role_guard, require_role  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

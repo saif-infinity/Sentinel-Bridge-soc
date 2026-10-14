@@ -4,18 +4,16 @@ One-shot POST to Ollama /api/generate (stream=False).
 Falls back to template if LLM unavailable.
 """
 import logging
-from typing import List
 
-from ...db import SessionLocal
-from ...config import settings
 from ...application.system_config import get_config_value
+from ...config import settings
 from ...domain.investigations import Investigation, InvestigationEvidence
 
 logger = logging.getLogger(__name__)
 
 
 def generate_summary(
-    db, tenant_id: str, investigation: Investigation, evidence_rows: List[InvestigationEvidence]
+    db, tenant_id: str, investigation: Investigation, evidence_rows: list[InvestigationEvidence]
 ) -> str | None:
     """Generate a summary via Ollama. Returns None on failure (caller falls back)."""
     ollama_url = get_config_value(db, "ollama", "url", settings.OLLAMA_URL, tenant_id=tenant_id)
@@ -45,7 +43,7 @@ def generate_summary(
         return None
 
 
-def _build_prompt(investigation: Investigation, evidence_rows: List[InvestigationEvidence]) -> str:
+def _build_prompt(investigation: Investigation, evidence_rows: list[InvestigationEvidence]) -> str:
     """Build a prompt from investigation state and evidence summaries."""
     lines = [
         "You are a Senior SOC Analyst. Summarize this investigation.",

@@ -6,17 +6,17 @@ import json
 import logging
 import socket
 import time
-from datetime import datetime, timezone
-from typing import Any, Optional, Dict, List
+from datetime import UTC, datetime
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Body, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from ...db import get_db, get_tenant_id, query_with_tenant
-from ...models import NetworkDevice
 from ...auth import get_api_key_or_jwt, has_scopes_or_api_key
-from ...infrastructure.network_device.command_builder import generate_commands, _advanced_cmds
+from ...db import get_db, get_tenant_id, query_with_tenant
+from ...infrastructure.network_device.command_builder import generate_commands
+from ...models import NetworkDevice
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/network-devices", tags=["network-devices"])
@@ -28,6 +28,7 @@ TEST_CONNECT_TIMEOUT = 3.0
 # ─── Config Templates ───────────────────────────────────────────────
 # Predefined configuration "puzzle pieces" per device type + brand
 from pathlib import Path
+
 _TEMPLATES_PATH = Path(__file__).resolve().parents[2] / "infrastructure" / "data" / "network_config_templates.json"
 CONFIG_TEMPLATES = json.loads(_TEMPLATES_PATH.read_text(encoding="utf-8"))
 
@@ -39,36 +40,36 @@ class DeviceCreate(BaseModel):
     ip: str
     device_type: str
     brand: str = "cisco"
-    model: Optional[str] = None
+    model: str | None = None
     username: str = "admin"
-    password: Optional[str] = None
+    password: str | None = None
     port: int = 22
     protocol: str = "ssh"
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 class DeviceUpdate(BaseModel):
-    name: Optional[str] = None
-    ip: Optional[str] = None
-    device_type: Optional[str] = None
-    brand: Optional[str] = None
-    model: Optional[str] = None
-    username: Optional[str] = None
-    password: Optional[str] = None
-    port: Optional[int] = None
-    protocol: Optional[str] = None
-    notes: Optional[str] = None
+    name: str | None = None
+    ip: str | None = None
+    device_type: str | None = None
+    brand: str | None = None
+    model: str | None = None
+    username: str | None = None
+    password: str | None = None
+    port: int | None = None
+    protocol: str | None = None
+    notes: str | None = None
 
 
 class ConfigPushRequest(BaseModel):
-    config: Dict[str, Any]
+    config: dict[str, Any]
 
 
 class ConfigPushResponse(BaseModel):
     success: bool
-    commands_generated: List[str]
-    output: Optional[str] = None
-    error: Optional[str] = None
+    commands_generated: list[str]
+    output: str | None = None
+    error: str | None = None
 
 
 
@@ -204,7 +205,7 @@ def test_connection(
 
     port = int(getattr(d, "port", 0) or 22)
     started = time.perf_counter()
-    error: Optional[str] = None
+    error: str | None = None
     try:
         with socket.create_connection((d.ip, port), timeout=TEST_CONNECT_TIMEOUT):
             reachable = True
@@ -215,7 +216,7 @@ def test_connection(
     latency = round((time.perf_counter() - started) * 1000, 1) if reachable else None
     d.status = "online" if reachable else "error"
     if reachable:
-        d.last_connected = datetime.now(timezone.utc)
+        d.last_connected = datetime.now(UTC)
     db.commit()
     return {
         "status": "online" if reachable else "offline",

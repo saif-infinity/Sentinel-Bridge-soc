@@ -1,8 +1,8 @@
 """F5 — Deterministic template fallback for investigation summaries."""
 import json
-from ...domain.investigations import Investigation
+
 from ...application.events import RuleMatchEvent
-from ...domain.investigations import InvestigationEvidence
+from ...domain.investigations import Investigation
 
 
 def template_summary(investigation: Investigation, event: RuleMatchEvent, evidence_rows: list) -> str:

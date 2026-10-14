@@ -3,10 +3,18 @@
 Consomme le contrat F1 (RuleMatchEvent / RuleMatchOutbox) — ne possède AUCUN
 modèle d'outbox. L'outbox appartient à F1 (app.domain.rule_models).
 """
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, ForeignKey, Index, Integer, JSON, String, Text,
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
@@ -15,7 +23,7 @@ from ..db import Base
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Playbook(Base):

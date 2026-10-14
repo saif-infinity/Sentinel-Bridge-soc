@@ -2,8 +2,7 @@
 import json
 import logging
 import threading
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -23,9 +22,9 @@ router = APIRouter(prefix="/api/playbooks", tags=["playbooks"])
 
 class PlaybookIn(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
+    description: str | None = None
     trigger_rule_ids: list = Field(default_factory=list)
-    trigger_min_severity: Optional[int] = Field(None, ge=0, le=15)
+    trigger_min_severity: int | None = Field(None, ge=0, le=15)
     trigger_sources: list = Field(default_factory=list)
     requires_approval: bool = False
     enabled: bool = True
@@ -34,16 +33,16 @@ class PlaybookIn(BaseModel):
 
 class PlaybookOut(BaseModel):
     id: int
-    tenant_id: Optional[str] = None
+    tenant_id: str | None = None
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     trigger_rule_ids: list = Field(default_factory=list)
-    trigger_min_severity: Optional[int] = None
+    trigger_min_severity: int | None = None
     trigger_sources: list = Field(default_factory=list)
     requires_approval: bool
     enabled: bool
     steps: list = Field(default_factory=list)
-    created_at: Optional[str] = None
+    created_at: str | None = None
 
     @classmethod
     def from_model(cls, p: Playbook) -> "PlaybookOut":
@@ -127,7 +126,7 @@ async def cancel_run(request: Request, run_id: int, db: Session = Depends(get_db
     if run.status not in ("pending_approval", "approved", "running"):
         raise HTTPException(status_code=409, detail=f"Statut incompatible: {run.status}")
     run.status = "cancelled"
-    run.finished_at = datetime.now(timezone.utc)
+    run.finished_at = datetime.now(UTC)
     db.commit()
     log_action(db, _username(request), "playbook.cancel", details=f"run {run.id}",
                resource=f"run:{run.id}", tenant_id=tenant_id)

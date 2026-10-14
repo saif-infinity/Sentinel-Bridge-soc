@@ -1,10 +1,12 @@
 import logging
+
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy.orm import Session
 from sqlalchemy import desc
+from sqlalchemy.orm import Session
+
+from ...auth import get_api_key_or_jwt
 from ...db import get_db
 from ...models import Alert, Asset, Device
-from ...auth import get_api_key_or_jwt
 
 logger = logging.getLogger(__name__)
 

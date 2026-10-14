@@ -11,18 +11,18 @@ import logging
 import threading
 import time
 from collections import Counter, deque
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import text
 
 from ..core.config import settings
-from ..db import SessionLocal, engine
+from ..db import SessionLocal
 from ..domain.models import Alert, SuricataAlert, SystemConfig
 from ..domain.pipeline_models import PipelineEvent
-from .system_config import get_config_value
 from .rules.evaluator import DEFAULT_SEVERITY_MAPPING, build_normalized_alert, normalize_severity
+from .system_config import get_config_value
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ class RingBuffer:
 
 class DedupTracker:
     def __init__(self):
-        self._seen: Dict[str, Dict[str, Any]] = {}
+        self._seen: dict[str, dict[str, Any]] = {}
         self._lock = threading.RLock()
 
     def check(self, key: str, window_seconds: int, suppress_after: int) -> str:
@@ -111,11 +111,11 @@ _stats = {
     "rule_matches_total": 0,
     "last_ingest_at": None,
 }
-_cfg_cache: Dict[str, Any] = {"ts": 0.0, "data": {}}
+_cfg_cache: dict[str, Any] = {"ts": 0.0, "data": {}}
 _CFG_TTL = 30.0
 
 
-def make_dedup_key(src_ip: Optional[str], dest_ip: Optional[str], signature: Optional[str]) -> str:
+def make_dedup_key(src_ip: str | None, dest_ip: str | None, signature: str | None) -> str:
     raw = "|".join([str(src_ip or ""), str(dest_ip or ""), str(signature or "")])
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
@@ -126,7 +126,7 @@ def load_config(db) -> dict:
     now = time.time()
     if now - _cfg_cache["ts"] < _CFG_TTL:
         return _cfg_cache["data"]
-    cfg: Dict[str, Any] = {}
+    cfg: dict[str, Any] = {}
     for key, fallback in DEFAULT_PIPELINE_CONFIG.items():
         cfg[key] = get_config_value(db, "pipeline", key, fallback)
     try:
@@ -219,10 +219,10 @@ def _create_alert_row(db, payload: dict, source: str, normalized_severity: int) 
     ts = payload.get("timestamp")
     try:
         from dateutil import parser as _dp
-        ts = _dp.isoparse(ts) if ts else datetime.now(timezone.utc)
+        ts = _dp.isoparse(ts) if ts else datetime.now(UTC)
     except Exception:
-        ts = datetime.now(timezone.utc)
-    processed_at = datetime.now(timezone.utc)
+        ts = datetime.now(UTC)
+    processed_at = datetime.now(UTC)
     desc = str(payload.get("description") or payload.get("signature") or "Alerte")[:500]
     if source == "suricata":
         row = SuricataAlert(
@@ -263,12 +263,12 @@ def _mark_normalized(db, source: str, alert_id: int, normalized_severity: int):
     if row is not None:
         row.normalized_severity = normalized_severity
         row.pipeline_source = source
-        row.pipeline_processed_at = datetime.now(timezone.utc)
+        row.pipeline_processed_at = datetime.now(UTC)
         db.commit()
 
 
 def _persist_pipeline_event(db, payload: dict, normalized_severity: int, key: str,
-                            deduped: bool = False, alert_id: Optional[int] = None):
+                            deduped: bool = False, alert_id: int | None = None):
     try:
         db.add(PipelineEvent(
             tenant_id=payload.get("tenant_id", "default"),
@@ -290,7 +290,7 @@ def _persist_pipeline_event(db, payload: dict, normalized_severity: int, key: st
 
 # ── Point d'entrée principal ────────────────────────────────────────
 
-def ingest_alert(payload: dict, db=None, alert_id: Optional[int] = None) -> dict:
+def ingest_alert(payload: dict, db=None, alert_id: int | None = None) -> dict:
     """Ingère une alerte. Payload attendu :
     {source, severity, signature, description, src_ip, dest_ip, proto, agent_id,
      category, timestamp, raw, tenant_id}
@@ -323,7 +323,7 @@ def ingest_alert(payload: dict, db=None, alert_id: Optional[int] = None) -> dict
         verdict = _dedup.check(key, cfg["dedup_window_seconds"], cfg["suppress_after"])
 
         _stats["received_total"] += 1
-        _stats["last_ingest_at"] = datetime.now(timezone.utc).isoformat()
+        _stats["last_ingest_at"] = datetime.now(UTC).isoformat()
 
         if verdict == "deduped":
             _stats["deduped_total"] += 1
@@ -395,7 +395,7 @@ def ingest_alert(payload: dict, db=None, alert_id: Optional[int] = None) -> dict
 
 # ── Stats / reset ───────────────────────────────────────────────────
 
-def get_pipeline_stats(tenant_id: Optional[str] = None) -> dict:
+def get_pipeline_stats(tenant_id: str | None = None) -> dict:
     snapshot = _buffer.snapshot()
     if tenant_id:
         snapshot = [e for e in snapshot if e.get("tenant_id") == tenant_id]

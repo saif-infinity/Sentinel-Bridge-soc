@@ -2,17 +2,19 @@
 Admin database browser — introspection + CRUD for all PostgreSQL tables.
 Provides table list, column metadata, paginated row data, stats, and write operations.
 """
-import re
 import logging
-from typing import Any, Optional, Dict, List
+import re
+from datetime import UTC
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import text
 from sqlalchemy.orm import Session
-from sqlalchemy import text, inspect as sa_inspect, func
 
-from ...db import get_db, engine
 from ...admin_auth import get_current_admin
+from ...db import engine, get_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin/database", tags=["admin-database"])
@@ -276,10 +278,10 @@ async def table_rows(
     table_name: str,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-    search: Optional[str] = Query(None),
-    sort_by: Optional[str] = Query(None),
+    search: str | None = Query(None),
+    sort_by: str | None = Query(None),
     sort_dir: str = Query("desc", pattern="^(asc|desc)$"),
-    tenant_filter: Optional[str] = Query(None, description="Filter by tenant_id"),
+    tenant_filter: str | None = Query(None, description="Filter by tenant_id"),
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin),
 ):
@@ -384,7 +386,7 @@ async def update_row(
     request: Request,
     table_name: str,
     row_id: int,
-    data: Dict[str, Any] = Body(..., embed=True),
+    data: dict[str, Any] = Body(..., embed=True),
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin),
 ):
@@ -460,7 +462,7 @@ async def delete_row(
 # ── Insert a new row ────────────────────────────────────────────────
 
 class RowInsert(BaseModel):
-    data: Dict[str, Any]
+    data: dict[str, Any]
 
 
 @router.post("/tables/{table_name}/rows", status_code=201)
@@ -475,7 +477,7 @@ async def insert_row(
     inspector = sa_inspect(engine)
     _validate_table(inspector, table_name)
 
-    from datetime import datetime, timezone as tz
+    from datetime import datetime
 
     columns = inspector.get_columns(table_name, schema="public")
     valid_cols = {c["name"] for c in columns}
@@ -490,7 +492,7 @@ async def insert_row(
             col_type_str = str(col["type"]).upper()
             # Auto-fill datetime columns
             if ("timestamp" in col_type_str.lower() or "datetime" in col_type_str.lower()):
-                insert_data[cname] = datetime.now(tz.utc)
+                insert_data[cname] = datetime.now(UTC)
             # Auto-fill boolean columns with False as default
             elif "bool" in col_type_str.lower() and col.get("default") is None:
                 insert_data[cname] = False
@@ -541,12 +543,12 @@ _LEGACY_PROTECTED_TABLES = {
 def _protected_tables() -> set:
     """Every table the application owns = ORM metadata ∪ legacy literal list."""
     from ...core.db import Base
-    from ...domain import investigations as _inv        # noqa: F401  (populates metadata)
-    from ...domain import models as _models             # noqa: F401
-    from ...domain import reporting as _rep             # noqa: F401
-    from ...domain import response as _res              # noqa: F401
-    from ...domain import rule_models as _rules         # noqa: F401
-    from ...domain import soar as _soar                 # noqa: F401
+    from ...domain import investigations as _inv  # noqa: F401  (populates metadata)
+    from ...domain import models as _models  # noqa: F401
+    from ...domain import reporting as _rep  # noqa: F401
+    from ...domain import response as _res  # noqa: F401
+    from ...domain import rule_models as _rules  # noqa: F401
+    from ...domain import soar as _soar  # noqa: F401
 
     return set(Base.metadata.tables.keys()) | _LEGACY_PROTECTED_TABLES
 
@@ -654,12 +656,12 @@ class ColumnDef(BaseModel):
     type: str  # e.g. "integer", "varchar(255)", "text", "boolean"
     nullable: bool = True
     primary_key: bool = False
-    default: Optional[str] = None  # raw SQL default e.g. "now()", "gen_random_uuid()"
+    default: str | None = None  # raw SQL default e.g. "now()", "gen_random_uuid()"
 
 
 class CreateTableRequest(BaseModel):
     table_name: str
-    columns: List[ColumnDef]
+    columns: list[ColumnDef]
 
 
 def _validate_identifier(name: str) -> str:

@@ -5,7 +5,7 @@ Fonctionne sur PostgreSQL ET SQLite (unique index (fingerprint, channel_id)).
 """
 import hashlib
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql, sqlite
@@ -44,7 +44,7 @@ def is_duplicate(db, tenant_id: str, fingerprint: str, channel_id: int,
     """
     if window_seconds <= 0:
         return False
-    cutoff = datetime.now(timezone.utc) - timedelta(seconds=window_seconds)
+    cutoff = datetime.now(UTC) - timedelta(seconds=window_seconds)
     db.execute(
         sa.delete(NotificationDedup).where(
             NotificationDedup.fingerprint == fingerprint,
@@ -56,7 +56,7 @@ def is_duplicate(db, tenant_id: str, fingerprint: str, channel_id: int,
         tenant_id=tenant_id,
         fingerprint=fingerprint,
         channel_id=channel_id,
-        first_seen=datetime.now(timezone.utc),
+        first_seen=datetime.now(UTC),
     ).on_conflict_do_nothing(index_elements=["fingerprint", "channel_id"])
     result = db.execute(stmt)
     db.commit()
@@ -65,7 +65,7 @@ def is_duplicate(db, tenant_id: str, fingerprint: str, channel_id: int,
 
 def prune_dedup(db, max_age_hours: int = 24) -> int:
     """Supprime les entrées de déduplication plus vieilles que max_age_hours."""
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+    cutoff = datetime.now(UTC) - timedelta(hours=max_age_hours)
     result = db.execute(
         sa.delete(NotificationDedup).where(NotificationDedup.first_seen < cutoff)
     )

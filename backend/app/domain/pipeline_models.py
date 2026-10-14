@@ -1,12 +1,14 @@
 """F1 — PipelineEvent : persistance optionnelle (opt-in) des événements du pipeline."""
-from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, DateTime, Index, Integer, Text
+from datetime import UTC, datetime
+
+from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
+
 from ..db import Base
 
 
 def _utcnow():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class PipelineEvent(Base):

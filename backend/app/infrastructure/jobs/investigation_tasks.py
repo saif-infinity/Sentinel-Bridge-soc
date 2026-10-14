@@ -6,11 +6,11 @@
 """
 import json
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
+from ...application.system_config import get_config_value
 from ...core.celery import celery_app
 from ...db import SessionLocal
-from ...application.system_config import get_config_value
 from ...domain.investigations import Investigation
 from ...domain.rule_models import RuleMatchOutbox
 
@@ -34,7 +34,7 @@ def backfill_uninvestigated() -> dict:
     db = SessionLocal()
     try:
         since_hours = int(get_config_value(db, "investigation", "dedup_window_hours", "24", tenant_id="default"))
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=since_hours)
+        cutoff = datetime.now(UTC) - timedelta(hours=since_hours)
 
         # Find outbox events not linked to any investigation, within dedup window
         rows = (
@@ -93,7 +93,7 @@ def retry_stuck() -> dict:
         except (ValueError, TypeError):
             pass
 
-        cutoff = datetime.now(timezone.utc) - timedelta(minutes=stuck_minutes)
+        cutoff = datetime.now(UTC) - timedelta(minutes=stuck_minutes)
         stuck = db.query(Investigation).filter(
             Investigation.status == "running",
             Investigation.updated_at < cutoff,
@@ -103,7 +103,7 @@ def retry_stuck() -> dict:
         for inv in stuck:
             inv.status = "failed"
             inv.missing_steps = json.dumps(["timeout"])
-            inv.completed_at = datetime.now(timezone.utc)
+            inv.completed_at = datetime.now(UTC)
             marked += 1
 
         db.commit()

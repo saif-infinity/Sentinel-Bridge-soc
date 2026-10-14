@@ -4,18 +4,18 @@ Handles sending reports to recipients via email/webhook/telegram/slack.
 """
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from ...db import SessionLocal
-from ...domain.reporting import ReportRecipient, Report, ReportLog
-from ...infrastructure.notifications.senders import send_email, send_webhook, send_telegram, send_slack
 from ...application.system_config import get_config_value
+from ...db import SessionLocal
+from ...domain.reporting import Report, ReportLog, ReportRecipient
+from ...infrastructure.notifications.senders import send_email, send_slack, send_telegram, send_webhook
 
 logger = logging.getLogger(__name__)
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _get_channel_config(db, tenant_id: str, channel: str) -> dict | None:

@@ -7,14 +7,13 @@ Note : log_action() COMMIT en interne → construire la réponse AVANT l'appel.
 """
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import HTTPException
 from sqlalchemy import func, or_
 
 from ..models import Alert, Case, CaseAlertLink, SuricataAlert, TimelineEvent
 from .action_logger import log_action
-from ..domain.reporting import ReportLog
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +22,7 @@ LINK_STATUSES = ("open", "in_progress", "resolved", "dismissed")
 
 
 def _now():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _jloads(s, fallback):

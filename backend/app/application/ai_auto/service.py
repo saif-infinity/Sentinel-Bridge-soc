@@ -13,7 +13,7 @@ Détails de sécurité :
 """
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -60,7 +60,7 @@ def collect_recent_alerts(db: Session, tenant_id: str, agent_id: str,
     Filtre sur normalized_severity OU severity brute (les deux colonnes
     existent post-migration ; la brute couvre les lignes non normalisées).
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=window_minutes)
+    cutoff = datetime.now(UTC) - timedelta(minutes=window_minutes)
     sev = int(severity_min)
 
     def _rows(model):
@@ -87,7 +87,7 @@ def collect_recent_alerts(db: Session, tenant_id: str, agent_id: str,
     except Exception as e:
         logger.debug("ai_auto: collect SuricataAlert échoué: %s", e)
 
-    rows.sort(key=lambda r: getattr(r, "timestamp", datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
+    rows.sort(key=lambda r: getattr(r, "timestamp", datetime.min.replace(tzinfo=UTC)), reverse=True)
     return rows[:limit]
 
 
@@ -112,7 +112,6 @@ def run_agent_burst_analysis(agent_id: str, tenant_id: str = "default",
         db = SessionLocal()
     try:
         from ...core.config import settings
-        from ..system_config import get_config_value as _gcv
 
         cfg = load_ai_auto_config(db, tenant_id, include_secrets=True)
         if not cfg["enabled"]:
@@ -185,14 +184,14 @@ def run_agent_burst_analysis(agent_id: str, tenant_id: str = "default",
                 raise RuntimeError("HF router returned no content")
             analysis.response = response
             analysis.status = "completed"
-            analysis.analyzed_at = datetime.now(timezone.utc)
+            analysis.analyzed_at = datetime.now(UTC)
             db.commit()
             return {"status": "created", "analysis_id": analysis.id}
         except Exception as e:
             logger.error("ai_auto: analyse échouée agent=%s: %s", agent_id, e)
             analysis.status = "error"
             analysis.error = str(e)[:500]
-            analysis.analyzed_at = datetime.now(timezone.utc)
+            analysis.analyzed_at = datetime.now(UTC)
             db.commit()
             return {"status": "error", "analysis_id": analysis.id, "error": str(e)[:200]}
     finally:

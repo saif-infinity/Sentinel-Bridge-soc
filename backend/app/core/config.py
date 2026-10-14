@@ -1,5 +1,6 @@
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import SecretStr, Field
+
 
 class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+pg8000://postgres:saif@localhost:5432/postgres"

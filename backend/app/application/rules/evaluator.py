@@ -1,7 +1,7 @@
 """F1 — Forme normalisée de l'alerte + évaluation des conditions (événement unique)."""
 import re
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 # Clés canoniques de l'alerte normalisée (contrat pipeline ↔ engine ↔ events)
 NORMALIZED_KEYS = [
@@ -14,7 +14,7 @@ NORMALIZED_KEYS = [
 # ── R2 MITRE ATT&CK ──────────────────────────────────────────────────
 # Mapping technique → (nom, tactiques). Les sous-techniques (T1059.001)
 # héritent de la technique parente (T1059).
-MITRE_TECHNIQUES: Dict[str, Dict[str, Any]] = {
+MITRE_TECHNIQUES: dict[str, dict[str, Any]] = {
     "T1059": {"name": "Command and Scripting Interpreter", "tactics": ["execution"]},
     "T1078": {"name": "Valid Accounts", "tactics": ["defense-evasion", "persistence", "privilege-escalation", "initial-access"]},
     "T1547": {"name": "Boot or Logon Autostart Execution", "tactics": ["persistence", "privilege-escalation"]},
@@ -68,7 +68,7 @@ def mitre_parent(tech_id: str) -> str:
     return str(tech_id).split(".", 1)[0]
 
 
-def mitre_technique_info(tech_id: str) -> Dict[str, Any]:
+def mitre_technique_info(tech_id: str) -> dict[str, Any]:
     """Infos (nom + tactiques) d'une technique, héritées de la technique parente."""
     base = MITRE_TECHNIQUES.get(mitre_parent(tech_id))
     if base:
@@ -76,9 +76,9 @@ def mitre_technique_info(tech_id: str) -> Dict[str, Any]:
     return {"id": tech_id, "name": tech_id, "tactics": []}
 
 
-def mitre_tactics_for(ids: Optional[List[str]]) -> List[str]:
+def mitre_tactics_for(ids: list[str] | None) -> list[str]:
     """Dérive la liste des tactiques depuis les IDs de techniques (dédupliquée)."""
-    out: List[str] = []
+    out: list[str] = []
     for tid in (ids or []):
         for t in mitre_technique_info(tid)["tactics"]:
             if t not in out:
@@ -86,7 +86,7 @@ def mitre_tactics_for(ids: Optional[List[str]]) -> List[str]:
     return out
 
 # Mapping de sévérité par défaut (surchargé via SystemConfig section "pipeline", clé "severity_mapping")
-DEFAULT_SEVERITY_MAPPING: Dict[str, Any] = {
+DEFAULT_SEVERITY_MAPPING: dict[str, Any] = {
     "suricata": {1: 15, 2: 10, 3: 5, 4: 2},   # Suricata : 1 = le plus critique
     "wazuh": "clamp",                          # niveau 0-15 conservé tel quel
     "manual": "clamp",
@@ -97,7 +97,7 @@ DEFAULT_SEVERITY_MAPPING: Dict[str, Any] = {
 OPS = {"eq", "ne", "gt", "ge", "lt", "le", "in", "contains", "startswith", "regex", "exists"}
 
 
-def normalize_severity(source: str, raw: Optional[int], mapping: Optional[dict] = None) -> int:
+def normalize_severity(source: str, raw: int | None, mapping: dict | None = None) -> int:
     """Normalise une sévérité source vers l'échelle uniforme 0-15."""
     m = mapping or DEFAULT_SEVERITY_MAPPING
     src = (source or "manual").lower()
@@ -123,7 +123,7 @@ def normalize_severity(source: str, raw: Optional[int], mapping: Optional[dict] 
     return max(0, min(15, raw_int))
 
 
-def _get_field(alert: Dict[str, Any], path: str) -> Any:
+def _get_field(alert: dict[str, Any], path: str) -> Any:
     cur: Any = alert
     for part in str(path).split("."):
         if isinstance(cur, dict) and part in cur:
@@ -140,7 +140,7 @@ def _to_num(v: Any):
         return None
 
 
-def evaluate_condition(cond: Dict[str, Any], alert: Dict[str, Any]) -> bool:
+def evaluate_condition(cond: dict[str, Any], alert: dict[str, Any]) -> bool:
     field = cond.get("field")
     op = str(cond.get("op", "eq")).lower()
     expected = cond.get("value")
@@ -179,9 +179,9 @@ def evaluate_condition(cond: Dict[str, Any], alert: Dict[str, Any]) -> bool:
     return False
 
 
-def evaluate_conditions(conditions: List[Dict[str, Any]], alert: Dict[str, Any]) -> List[int]:
+def evaluate_conditions(conditions: list[dict[str, Any]], alert: dict[str, Any]) -> list[int]:
     """Retourne la liste des index des conditions satisfaites."""
-    matched: List[int] = []
+    matched: list[int] = []
     for i, cond in enumerate(conditions or []):
         try:
             if evaluate_condition(cond, alert):
@@ -191,7 +191,7 @@ def evaluate_conditions(conditions: List[Dict[str, Any]], alert: Dict[str, Any])
     return matched
 
 
-def build_normalized_alert(payload: Dict[str, Any], mapping: Optional[dict] = None) -> Dict[str, Any]:
+def build_normalized_alert(payload: dict[str, Any], mapping: dict | None = None) -> dict[str, Any]:
     """Construit l'alerte normalisée canonique depuis un payload brut.
 
     Si payload contient déjà "normalized_severity", il est conservé
@@ -205,7 +205,7 @@ def build_normalized_alert(payload: Dict[str, Any], mapping: Optional[dict] = No
     return {
         "alert_id": payload.get("alert_id"),
         "tenant_id": payload.get("tenant_id", "default"),
-        "timestamp": payload.get("timestamp") or datetime.now(timezone.utc).isoformat(),
+        "timestamp": payload.get("timestamp") or datetime.now(UTC).isoformat(),
         "source": source,
         "severity": int(raw_sev) if isinstance(raw_sev, (int, float)) else (norm if raw_sev is not None else None),
         "normalized_severity": int(norm),

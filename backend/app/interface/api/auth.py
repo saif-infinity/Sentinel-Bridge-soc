@@ -1,18 +1,27 @@
 import logging
 import re
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
+
+import redis as _redis
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
-import redis as _redis
 from sqlalchemy.orm import Session
+
 from ...config import settings
+from ...core.broadcaster import broadcaster
 from ...db import get_db
 from ...jwt_utils import create_access_token, verify_token
-from ...core.broadcaster import broadcaster
 from ...models import RegistrationRequest
-from ...services.password_manager import check_password, user_exists, hash_password, store_password_hash, _read_store, _write_store
+from ...services.password_manager import (
+    _read_store,
+    _write_store,
+    check_password,
+    hash_password,
+    store_password_hash,
+    user_exists,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -169,8 +178,8 @@ async def register_user(data: RegisterRequest, request: Request, db: Session = D
 
     logger.info("New user registered: %s (role: %s)", data.username, data.role)
 
-    from ...models import TenantUser
     from ...db import SessionLocal
+    from ...models import TenantUser
     db_local = SessionLocal()
     try:
         tenant_user = db_local.query(TenantUser).filter(TenantUser.username == data.username).first()
@@ -208,8 +217,8 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     user_key = f"user:{form_data.username}"
     if check_password(user_key, form_data.password, tenant_id=login_tenant):
         # Resolve role from TenantUser table (supersedes JSON store)
-        from ...models import TenantUser
         from ...db import SessionLocal
+        from ...models import TenantUser
         db = SessionLocal()
         try:
             tenant_user = db.query(TenantUser).filter(
@@ -218,7 +227,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             ).first()
             if tenant_user:
                 role = tenant_user.role
-                tenant_user.last_login = datetime.now(timezone.utc)
+                tenant_user.last_login = datetime.now(UTC)
                 db.commit()
             else:
                 # Fallback to JSON store for legacy users

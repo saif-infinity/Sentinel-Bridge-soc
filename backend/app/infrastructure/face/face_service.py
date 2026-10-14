@@ -1,8 +1,8 @@
-import os
 import base64
-import json
 import hashlib
+import json
 import logging
+import os
 import threading
 from pathlib import Path
 
@@ -44,7 +44,7 @@ def _read_mapping(tenant_id: str = "default") -> dict:
     mfile = _mapping_file(tenant_id)
     if mfile.exists():
         try:
-            with open(mfile, "r") as f:
+            with open(mfile) as f:
                 return json.load(f)
         except (json.JSONDecodeError, Exception):
             return {}

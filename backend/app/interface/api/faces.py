@@ -1,16 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, Request, status, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from datetime import datetime, timezone
 
-from ...services.face_service import face_service
-from ...jwt_utils import verify_token
 from ...admin_auth import verify_admin_token
 from ...auth import has_scopes_or_api_key
 from ...core.broadcaster import broadcaster
 from ...db import get_db, get_tenant_id
+from ...jwt_utils import verify_token
 from ...models import FaceLoginRequest, UnverifiedFaceAttempt
+from ...services.face_service import face_service
 
 router = APIRouter(prefix="/api/faces", tags=["faces"])
 

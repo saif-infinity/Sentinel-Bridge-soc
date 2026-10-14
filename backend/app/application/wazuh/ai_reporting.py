@@ -107,7 +107,7 @@ Be direct, use bullet points, under 200 words."""
         import httpx as _httpx
         db = SessionLocal()
         try:
-            from ...models import SuricataAlert, Device
+            from ...models import Device, SuricataAlert
             # Fetch 10 most recent CRITICAL Suricata alerts (severity >= 7)
             suricata_alerts = db.query(SuricataAlert).filter(SuricataAlert.severity >= 7).filter(SuricataAlert.tenant_id == tenant_id).order_by(SuricataAlert.timestamp.desc()).limit(5).all()
             devices = db.query(Device).filter(Device.tenant_id == tenant_id).all()

@@ -3,10 +3,16 @@
 Multi-tenant tables: response_runs, response_action_results, response_rollbacks.
 All queries filter by tenant_id.
 """
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy import (
-    Index, Integer, String, Text, DateTime, Float, ForeignKey, Boolean,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column

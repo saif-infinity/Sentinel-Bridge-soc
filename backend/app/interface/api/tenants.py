@@ -1,17 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field
-from typing import Optional
-from datetime import datetime, timedelta, timezone
 import uuid
-import redis as _redis
+from datetime import UTC, datetime, timedelta
 
-from ...db import get_db, get_tenant_id
-from ...models import Tenant, TenantUser
+import redis as _redis
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
 from ...auth import has_scopes_or_api_key
-from ...services.password_manager import hash_password
-from ...jwt_utils import create_access_token
 from ...config import settings
+from ...db import get_db, get_tenant_id
+from ...jwt_utils import create_access_token
+from ...models import Tenant, TenantUser
+from ...services.password_manager import hash_password
 
 _redis_client = _redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
 
@@ -37,8 +37,8 @@ class TenantSubscribeRequest(BaseModel):
 
 
 class TenantUpdateRequest(BaseModel):
-    company_name: Optional[str] = None
-    email: Optional[str] = None
+    company_name: str | None = None
+    email: str | None = None
 
 
 @router.post("/register")
@@ -69,7 +69,7 @@ async def register_tenant(data: TenantRegisterRequest, request: Request, db: Ses
         email=data.email,
         plan="trial",
         status="active",
-        subscription_end=datetime.now(timezone.utc) + timedelta(days=14),
+        subscription_end=datetime.now(UTC) + timedelta(days=14),
         max_agents=PLAN_LIMITS["trial"]["max_agents"],
         max_endpoints=PLAN_LIMITS["trial"]["max_endpoints"],
         retention_days=PLAN_LIMITS["trial"]["retention_days"],
@@ -133,7 +133,7 @@ def subscribe_tenant(
     tenant.max_endpoints = limits["max_endpoints"]
     tenant.retention_days = limits["retention_days"]
     # For now, set subscription to 30 days from now. Stripe webhook will update this.
-    tenant.subscription_end = datetime.now(timezone.utc) + timedelta(days=30)
+    tenant.subscription_end = datetime.now(UTC) + timedelta(days=30)
     db.commit()
 
     return {

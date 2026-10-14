@@ -1,8 +1,10 @@
 import secrets
-from fastapi import Header, HTTPException, Request, status, Query, Depends
-from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPAuthorizationCredentials
-from .jwt_utils import verify_token
+
+from fastapi import Depends, Header, HTTPException, Query, Request, status
+from fastapi.security import HTTPBearer, OAuth2PasswordBearer
+
 from .config import settings
+from .jwt_utils import verify_token
 
 # We are going to use the OAuth2PasswordBearer to extract the token from the Authorization header.
 # However, for WebSocket, we don't have headers, so we will also support token as a query parameter.
@@ -53,7 +55,7 @@ async def get_api_key_or_jwt(
     # Try API key first
     if _key_matches(api_key, settings.API_KEY.get_secret_value()):
         return api_key
-    
+
     # Try JWT Bearer token
     if authorization:
         scheme, token = authorization.split() if " " in authorization else (None, None)
@@ -66,7 +68,7 @@ async def get_api_key_or_jwt(
             from ..admin_auth import verify_admin_token
             if verify_admin_token(token) is not None:
                 return token
-    
+
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Could not validate credentials. Provide X-API-Key header or Bearer token.",
@@ -97,9 +99,8 @@ async def get_token_from_request(request: Request):
     )
 
 # Now we create a dependency that uses the get_token_from_request and then verifies the token and checks scopes.
-from typing import List, Set, Optional
 
-def has_scopes(required_scopes: List[str]):
+def has_scopes(required_scopes: list[str]):
     async def scope_verifier(token: str = Depends(get_token_from_request)):
         payload = verify_token(token)
         if payload is None:
@@ -108,8 +109,8 @@ def has_scopes(required_scopes: List[str]):
                 detail="Could not validate credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        token_scopes: Set[str] = set(payload.get("scopes", []))
-        required_scopes_set: Set[str] = set(required_scopes)
+        token_scopes: set[str] = set(payload.get("scopes", []))
+        required_scopes_set: set[str] = set(required_scopes)
         if not required_scopes_set.issubset(token_scopes):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -120,7 +121,7 @@ def has_scopes(required_scopes: List[str]):
     return scope_verifier
 
 # Combined scope checker: accepts either JWT with required scopes OR API key
-def has_scopes_or_api_key(required_scopes: List[str]):
+def has_scopes_or_api_key(required_scopes: list[str]):
     async def scope_verifier(
         api_key: str = Header(None, alias="X-API-Key"),
         authorization: str = Header(None, alias="Authorization"),
@@ -130,15 +131,15 @@ def has_scopes_or_api_key(required_scopes: List[str]):
         if _key_matches(api_key, settings.API_KEY.get_secret_value()):
             tenant_id = x_tenant_id or "default"
             return {"scopes": required_scopes, "sub": "api_key", "tenant_id": tenant_id}
-        
+
         # Try JWT Bearer token
         if authorization:
             scheme, token = authorization.split() if " " in authorization else (None, None)
             if scheme and scheme.lower() == "bearer" and token:
                 payload = verify_token(token)
                 if payload:
-                    token_scopes: Set[str] = set(payload.get("scopes", []))
-                    required_scopes_set: Set[str] = set(required_scopes)
+                    token_scopes: set[str] = set(payload.get("scopes", []))
+                    required_scopes_set: set[str] = set(required_scopes)
                     if required_scopes_set.issubset(token_scopes):
                         return payload
                 else:
@@ -147,7 +148,7 @@ def has_scopes_or_api_key(required_scopes: List[str]):
                     admin_payload = verify_admin_token(token)
                     if admin_payload is not None:
                         return admin_payload
-        
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated. Provide X-API-Key header or Bearer token with required scopes.",

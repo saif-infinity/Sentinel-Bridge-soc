@@ -11,15 +11,14 @@ read=analyst, write=analyst. No inline dependencies needed here.
 import logging
 import re
 import secrets as crypto_secrets
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from ...db import get_db, get_tenant_id
-from ...application.system_config import _init_defaults, update_settings, get_config_value
 from ...application.source_control import is_source_enabled
+from ...application.system_config import _init_defaults, get_config_value, update_settings
+from ...db import get_db, get_tenant_id
 from ...models import SystemConfig
 
 logger = logging.getLogger(__name__)
@@ -43,9 +42,9 @@ WEBHOOK_SLUG_REGEX = re.compile(r"^[A-Za-z0-9]{6,64}$")
 
 
 class SourcesUpdate(BaseModel):
-    host_agent: Optional[bool] = None
-    wazuh: Optional[bool] = None
-    suricata: Optional[bool] = None
+    host_agent: bool | None = None
+    wazuh: bool | None = None
+    suricata: bool | None = None
 
 
 class SourcesConfigUpdate(BaseModel):

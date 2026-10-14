@@ -3,7 +3,7 @@
 Ne fait JAMAIS de réseau si THREAT_INTEL_ENABLED=False (tests / hors prod).
 """
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from ...config import settings
 from ...core.celery import celery_app
@@ -55,7 +55,7 @@ def _enrich_table(db, tenant_id: str, model) -> int:
         row.intel_score = info.get("risk_score")
         row.intel_verdict = info.get("verdict")
         row.intel_source = info.get("source_name")
-        row.intel_checked_at = datetime.now(timezone.utc)
+        row.intel_checked_at = datetime.now(UTC)
         count += 1
         if count % 25 == 0:
             db.commit()

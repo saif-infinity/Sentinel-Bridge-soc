@@ -1,12 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, status
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import func
+from sqlalchemy.orm import Session
 
-from ...db import get_db
-from ...models import Tenant, TenantUser, Device, Alert, SuricataAlert, ActionLog
 from ...config import settings
 from ...core.rbac import ROLE_RANK, ROLE_WHITELIST, require_role
+from ...db import get_db
+from ...models import Alert, Device, Tenant, TenantUser
 
 router = APIRouter(prefix="/api/super-admin", tags=["super-admin"])
 

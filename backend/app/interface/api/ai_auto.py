@@ -1,20 +1,17 @@
 """F5 — API endpoints pour l'auto-analyse IA (ai-auto)."""
 import logging
-from datetime import datetime, timezone, timedelta
-from typing import Optional
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, Request, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
 from sqlalchemy import desc
+from sqlalchemy.orm import Session
 
 from ...application.system_config import get_config_value, update_settings
-from ...auth import get_api_key_or_jwt, has_scopes_or_api_key
+from ...auth import get_api_key_or_jwt
 from ...core.config import settings
-from ...core.rbac import DEFAULT_POLICY, apply_role_guard
 from ...db import get_db, get_tenant_id
-from ...domain.models import AgentAiAnalysis, Agent
-from ...infrastructure.jobs.ai_alert_burst import run_agent_burst_analysis
+from ...domain.models import Agent, AgentAiAnalysis
 
 logger = logging.getLogger(__name__)
 
@@ -44,13 +41,13 @@ def _read_ai_auto_config(db: Session, tenant_id: str) -> dict:
 
 
 class AIAutoSettingsUpdate(BaseModel):
-    enabled: Optional[bool] = None
-    threshold: Optional[int] = Field(None, ge=1)
-    send_count: Optional[int] = Field(None, ge=1)
-    severity_min: Optional[int] = Field(None, ge=1, le=15)
-    window_minutes: Optional[int] = Field(None, ge=1)
-    model: Optional[str] = None
-    url: Optional[str] = None
+    enabled: bool | None = None
+    threshold: int | None = Field(None, ge=1)
+    send_count: int | None = Field(None, ge=1)
+    severity_min: int | None = Field(None, ge=1, le=15)
+    window_minutes: int | None = Field(None, ge=1)
+    model: str | None = None
+    url: str | None = None
 
     model_config = {"extra": "forbid"}
 

@@ -1,5 +1,5 @@
 """R11 — Export endpoints: CSV, PDF, Markdown for alerts and cases."""
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
@@ -54,7 +54,7 @@ def export_alerts_pdf_endpoint(
         Alert.tenant_id == tenant_id
     ).order_by(Alert.timestamp.desc()).limit(limit).all()
     pdf_bytes = export_alerts_pdf(alerts)
-    now = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    now = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

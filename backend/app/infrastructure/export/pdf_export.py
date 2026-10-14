@@ -1,7 +1,7 @@
 """PDF export using xhtml2pdf (pure Python, no system deps)."""
 import io
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
@@ -25,7 +25,7 @@ def render_pdf_from_html(html_content: str) -> bytes:
 def export_alerts_pdf(alerts: list) -> bytes:
     """Render alert list as PDF."""
     template = _env.get_template("alert_report.html")
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
     html = template.render(alerts=alerts, generated_at=now)
     return render_pdf_from_html(html)
 

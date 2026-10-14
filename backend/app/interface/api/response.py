@@ -1,16 +1,14 @@
 """F5 — Routes API : response runs (approval, rollback)."""
 import logging
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from ...application.response.executor import execute_rollback
 from ...auth import get_api_key_or_jwt, has_scopes_or_api_key
 from ...db import get_db, get_tenant_id
-from ...domain.response import ResponseRun, ResponseActionResult, ResponseRollback
-from ...application.response.executor import execute_response_run, execute_rollback
-from ...application.system_config import get_config_value
+from ...domain.response import ResponseActionResult, ResponseRollback, ResponseRun
 from ...infrastructure.jobs.response_tasks import execute_run as execute_run_task
 
 logger = logging.getLogger(__name__)
@@ -23,8 +21,8 @@ WRITE_SCOPES = ["response:write"]
 
 @router.get("/runs")
 def list_runs(request: Request, db: Session = Depends(get_db),
-                 status: Optional[str] = None,
-                 investigation_id: Optional[int] = None,
+                 status: str | None = None,
+                 investigation_id: int | None = None,
                  limit: int = 100, offset: int = 0):
     tenant_id = get_tenant_id(request)
     query = db.query(ResponseRun).filter(ResponseRun.tenant_id == tenant_id)
@@ -58,7 +56,7 @@ def approve_run(request: Request, id: int, db: Session = Depends(get_db),
         raise HTTPException(status_code=409, detail=f"Statut incompatible: {run.status}")
     run.status = "approved"
     run.approved_by = str(principal.get("sub", "api_key"))
-    run.approved_at = datetime.now(timezone.utc)
+    run.approved_at = datetime.now(UTC)
     db.commit()
     execute_run_task.delay(id)
     return {"status": "approved", "run_id": id}
@@ -83,7 +81,7 @@ def reject_run(request: Request, id: int, db: Session = Depends(get_db),
         ).first()
         if rec:
             rec.status = "dismissed"
-            rec.resolved_at = datetime.now(timezone.utc)
+            rec.resolved_at = datetime.now(UTC)
             db.commit()
     except Exception:
         db.rollback()
@@ -100,7 +98,6 @@ def rollback_run(request: Request, id: int, db: Session = Depends(get_db),
     if not run.rollback_plan:
         raise HTTPException(status_code=409, detail="No rollback_plan defined for this run")
     reason = "manual rollback"
-    from ...application.response.executor import execute_rollback
     result = execute_rollback(id, reason)
     return result
 

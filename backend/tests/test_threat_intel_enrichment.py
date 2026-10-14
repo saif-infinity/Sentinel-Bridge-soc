@@ -17,14 +17,14 @@ os.environ["ADMIN_JWT_SECRET"] = "test-admin-jwt-secret"
 os.environ["DATABASE_URL"] = f"sqlite:///{os.path.join(tempfile.gettempdir(), 'sentinel_ti_enrichment_test.db')}"
 os.environ["THREAT_INTEL_ENABLED"] = "true"
 
-import pytest  # noqa: E402
-from sqlalchemy import inspect as sa_inspect
 from unittest.mock import patch
 
+import pytest  # noqa: E402
+
 import app.models  # noqa: E402,F401
+from app.application.pipeline import ingest_alert, reset_pipeline  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.db import Base, SessionLocal  # noqa: E402
-from app.application.pipeline import ingest_alert, reset_pipeline  # noqa: E402
 
 
 @pytest.fixture(autouse=True)

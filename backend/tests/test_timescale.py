@@ -1,10 +1,13 @@
 """Tests for TimescaleDB helpers (SQLite mode = no-ops)."""
+from datetime import UTC
+
 import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
+
 from app.db import Base
 from app.domain.models import Alert, SuricataAlert
-from app.infrastructure.timescale import ensure_timescaledb, _is_postgresql
+from app.infrastructure.timescale import _is_postgresql, ensure_timescaledb
 
 
 @pytest.fixture
@@ -53,17 +56,17 @@ def test_suricata_alert_composite_pk_declaration():
 
 def test_alert_insert_without_id_works(engine):
     """Composite PK must still auto-generate id on insert (SQLite has no autoincrement for composite PKs)."""
-    from datetime import datetime, timezone
+    from datetime import datetime
     with Session(engine) as db:
         a = Alert(tenant_id="default", description="test", severity=5,
-                  timestamp=datetime.now(timezone.utc))
+                  timestamp=datetime.now(UTC))
         db.add(a)
         db.commit()
         db.refresh(a)
         assert a.id is not None
         assert isinstance(a.id, int)
         s = SuricataAlert(tenant_id="default", event_type="alert", alert_msg="test",
-                          timestamp=datetime.now(timezone.utc))
+                          timestamp=datetime.now(UTC))
         db.add(s)
         db.commit()
         db.refresh(s)

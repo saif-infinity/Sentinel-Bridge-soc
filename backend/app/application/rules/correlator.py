@@ -15,8 +15,8 @@ import json
 import logging
 import threading
 import time
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from ...db import SessionLocal
 from ...domain.rule_models import CorrelationState
@@ -25,7 +25,7 @@ from .evaluator import evaluate_conditions
 logger = logging.getLogger(__name__)
 
 
-def _ts_of(normalized: Dict[str, Any], fallback: float) -> float:
+def _ts_of(normalized: dict[str, Any], fallback: float) -> float:
     ts = normalized.get("timestamp")
     if ts:
         try:
@@ -38,7 +38,7 @@ def _ts_of(normalized: Dict[str, Any], fallback: float) -> float:
 
 def _naive(ts: float) -> datetime:
     """Epoch -> datetime UTC aware (PostgreSQL TIMESTAMPTZ ; SQLite ignore le tz)."""
-    return datetime.fromtimestamp(ts, tz=timezone.utc)
+    return datetime.fromtimestamp(ts, tz=UTC)
 
 
 def _is_postgresql(db) -> bool:
@@ -81,12 +81,12 @@ class WindowedCorrelator:
         finally:
             db.close()
 
-    def push(self, normalized: Dict[str, Any]) -> None:
+    def push(self, normalized: dict[str, Any]) -> None:
         """Rétro-compat : la persistance est assurée par evaluate() lui-même."""
         return None
 
-    def evaluate(self, rule: Any, normalized: Dict[str, Any],
-                 conditions: List[Dict[str, Any]]) -> bool:
+    def evaluate(self, rule: Any, normalized: dict[str, Any],
+                 conditions: list[dict[str, Any]]) -> bool:
         """True si l'événement courant déclenche la corrélation du rule.
 
         rule.correlation (JSON) :

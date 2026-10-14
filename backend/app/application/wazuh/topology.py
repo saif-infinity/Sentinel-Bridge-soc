@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from ...db import SessionLocal
 
@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 class WazuhTopology:
     """Wazuh read queries: active alerts, agent logs, topology graph."""
 
-    async def get_active_alerts(self, tenant_id: str = "default") -> List[Dict[str, Any]]:
+    async def get_active_alerts(self, tenant_id: str = "default") -> list[dict[str, Any]]:
         db = SessionLocal()
         try:
             from ...models import Alert
@@ -31,7 +31,7 @@ class WazuhTopology:
         finally:
             db.close()
 
-    async def get_topology(self) -> Dict[str, Any]:
+    async def get_topology(self) -> dict[str, Any]:
         agents = await self.get_agents()
         nodes = []
         edges = []
@@ -164,7 +164,7 @@ class WazuhTopology:
 
         return {"nodes": nodes, "edges": edges}
 
-    async def get_agent_logs(self, agent_id: str, tenant_id: str = "default", limit: int = 40) -> List[Dict[str, Any]]:
+    async def get_agent_logs(self, agent_id: str, tenant_id: str = "default", limit: int = 40) -> list[dict[str, Any]]:
         db = SessionLocal()
         try:
             from ...models import Alert

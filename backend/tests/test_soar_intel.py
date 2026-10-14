@@ -16,7 +16,7 @@ Fixture pattern (SQLite temp DB) :
 import json
 import os
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -29,23 +29,23 @@ os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB}"
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import inspect as sa_inspect  # noqa: E402
 
-from app.core.db import Base, engine, SessionLocal  # noqa: E402
-import app.models  # noqa: E402, F401 — modèles existants AVANT create_all
+import app.domain.intel  # noqa: E402, F401 — ThreatIntelCache
 import app.domain.rule_models  # noqa: E402, F401 — RuleMatchOutbox (F1)
 import app.domain.soar  # noqa: E402, F401 — Playbook / PlaybookRun
-import app.domain.intel  # noqa: E402, F401 — ThreatIntelCache
-from app.config import settings  # noqa: E402
-from app.interface.main import app  # noqa: E402
+import app.models  # noqa: E402, F401 — modèles existants AVANT create_all
 from app.application.events import (  # noqa: E402
     CHANNEL_RULE_MATCH,
     event_bus,
     make_rule_match_event,
 )
 from app.application.soar.executor import on_rule_match  # noqa: E402
+from app.config import settings  # noqa: E402
+from app.core.db import Base, SessionLocal, engine  # noqa: E402
 from app.domain.rule_models import RuleMatchOutbox  # noqa: E402
 from app.domain.soar import Playbook, PlaybookRun  # noqa: E402
-from app.infrastructure.threat_intel.client import ensure_intel_columns  # noqa: E402
 from app.infrastructure.jobs.intel_tasks import enrich_alerts_intel  # noqa: E402
+from app.infrastructure.threat_intel.client import ensure_intel_columns  # noqa: E402
+from app.interface.main import app  # noqa: E402
 
 API_KEY = settings.API_KEY.get_secret_value()
 HEADERS = {"X-API-Key": API_KEY}
@@ -356,7 +356,7 @@ def test_intel_columns_nullable_for_old_rows(db):
 
     a = Alert(
         tenant_id="default", description="old alert", severity=5,
-        src_ip="3.3.3.3", timestamp=datetime.now(timezone.utc),
+        src_ip="3.3.3.3", timestamp=datetime.now(UTC),
     )
     db.add(a)
     db.commit()

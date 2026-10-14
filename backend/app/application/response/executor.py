@@ -5,18 +5,17 @@ Claim, execute, rollback, and process pending recommendations.
 import json
 import logging
 import time
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
+from ...application.action_logger import log_action
+from ...application.response.actions import get_action
 from ...application.system_config import get_config_value
 from ...db import SessionLocal
-from ...domain.investigations import InvestigationRecommendation, Investigation
-from ...domain.models import Case, TimelineEvent, CaseAlertLink
-from ...domain.response import ResponseRun, ResponseActionResult, ResponseRollback
-from ...application.response.actions import ACTIONS, get_action
-from ...application.action_logger import log_action
+from ...domain.investigations import Investigation, InvestigationRecommendation
+from ...domain.models import TimelineEvent
+from ...domain.response import ResponseActionResult, ResponseRollback, ResponseRun
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ def claim_recommendation(db: Session, recommendation_id: int, run_ref: str) -> b
     ).update({
         "status": "accepted",
         "response_ref": run_ref,
-        "updated_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(UTC),
     }, synchronize_session=False)
     db.commit()
     return result == 1
@@ -47,7 +46,7 @@ def execute_response_run(run_id: int) -> dict:
         if not run.requires_approval:
             run.status = "approved"
             run.approved_by = "response_agent"
-            run.approved_at = datetime.now(timezone.utc)
+            run.approved_at = datetime.now(UTC)
             db.commit()
 
         if run.status != "approved" and run.status != "running":
@@ -55,20 +54,20 @@ def execute_response_run(run_id: int) -> dict:
 
         # Transition to running
         run.status = "running"
-        run.started_at = datetime.now(timezone.utc)
+        run.started_at = datetime.now(UTC)
         db.commit()
 
         # Look up action handler
         action_def = get_action(run.action_type)
         if action_def is None:
             run.status = "failed"
-            run.finished_at = datetime.now(timezone.utc)
+            run.finished_at = datetime.now(UTC)
             db.commit()
             return {"status": "error", "error": f"unknown action_type: {run.action_type}"}
 
         if not action_def["implemented"]:
             run.status = "failed"
-            run.finished_at = datetime.now(timezone.utc)
+            run.finished_at = datetime.now(UTC)
             db.commit()
             return {"status": "error", "error": f"action {run.action_type} not implemented"}
 
@@ -102,7 +101,7 @@ def execute_response_run(run_id: int) -> dict:
 
         if ok:
             run.status = "success"
-            run.finished_at = datetime.now(timezone.utc)
+            run.finished_at = datetime.now(UTC)
 
             # Mark recommendation as executed
             rec = db.query(InvestigationRecommendation).filter(
@@ -110,7 +109,7 @@ def execute_response_run(run_id: int) -> dict:
             ).first()
             if rec:
                 rec.status = "executed"
-                rec.resolved_at = datetime.now(timezone.utc)
+                rec.resolved_at = datetime.now(UTC)
 
             # Write rollback_plan if inverse exists
             inverse = action_def.get("inverse")
@@ -131,14 +130,14 @@ def execute_response_run(run_id: int) -> dict:
             _add_timeline_on_case(db, run, f"Action {run.action_type} executed successfully")
         else:
             run.status = "failed"
-            run.finished_at = datetime.now(timezone.utc)
+            run.finished_at = datetime.now(UTC)
 
             rec = db.query(InvestigationRecommendation).filter(
                 InvestigationRecommendation.id == run.recommendation_id
             ).first()
             if rec:
                 rec.status = "failed"
-                rec.resolved_at = datetime.now(timezone.utc)
+                rec.resolved_at = datetime.now(UTC)
 
             log_action(db, "response_agent", "response.execute",
                         details=f"run {run.id}: {run.action_type} failed: {error}",
@@ -213,7 +212,7 @@ def execute_rollback(run_id: int, reason: str) -> dict:
         rollback.status = "success" if ok else "failed"
         rollback.output = json.dumps(output or {}, ensure_ascii=False) if output else None
         rollback.error = error
-        rollback.executed_at = datetime.now(timezone.utc)
+        rollback.executed_at = datetime.now(UTC)
         db.commit()
 
         log_action(db, "response_agent", "response.rollback",
@@ -233,8 +232,8 @@ def execute_rollback(run_id: int, reason: str) -> dict:
         db.close()
 
 
-def process_pending_recommendations(db: Session, tenant_id: Optional[str] = None, limit: int = 50,
-                                    investigation_id: Optional[int] = None) -> int:
+def process_pending_recommendations(db: Session, tenant_id: str | None = None, limit: int = 50,
+                                    investigation_id: int | None = None) -> int:
     """Scan pending recommendations on awaiting_response investigations and create ResponseRuns."""
     q = db.query(InvestigationRecommendation).filter(
         InvestigationRecommendation.status == "pending",

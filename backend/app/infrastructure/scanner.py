@@ -1,13 +1,15 @@
 import asyncio
-import logging
-from scapy.all import ARP, Ether, srp, conf
-import psutil
-import socket
 import ctypes
+import logging
 import os
-from datetime import datetime, timezone
+import socket
+from datetime import UTC, datetime
+
+import psutil
+from scapy.all import ARP, Ether, conf, srp
 from sqlalchemy.orm import Session
-from ..models import Device, ConnectionLog
+
+from ..models import ConnectionLog, Device
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +29,7 @@ def get_active_interfaces():
                 # Filtre les interfaces virtuelles courantes
                 if any(virtual in name.lower() for virtual in ['vbox', 'virtual', 'docker', 'wsl', 'vmware', 'vpn', 'pseudo']):
                     continue
-                     
+
                 for addr in addr_list:
                     # Filtrage IPv4 pour éviter les adresses fe80::
                     if addr.family == socket.AF_INET and addr.address != '127.0.0.1':
@@ -94,30 +96,30 @@ async def background_scanner(db_factory, broadcaster, interval: int):
     while True:
         db: Session = db_factory()
         try:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             # Correction : seen est une liste de dict, pas de tuples
-            seen = scan_network() 
+            seen = scan_network()
             online_ids = set()
 
             for item in seen:
                 ip = item["ip"]
                 mac = item["mac"]
-                
+
                 # 1. Gestion des conflits d'IP (Unique constraint)
                 # Si l'IP est déjà attribuée à un AUTRE MAC, on libère l'IP du vieux record
                 stale_device = db.query(Device).filter(Device.ip == ip, Device.mac != mac).first()
                 if stale_device:
-                    stale_device.ip = None 
+                    stale_device.ip = None
                     stale_device.is_online = False
                     db.flush()
 
                 # 2. Recherche ou Création par MAC (Identifiant matériel stable)
                 dev = db.query(Device).filter(Device.mac == mac).first()
-                
+
                 if not dev:
                     dev = Device(ip=ip, mac=mac, is_online=True)
                     db.add(dev)
-                    db.flush() 
+                    db.flush()
                     db.add(ConnectionLog(device_id=dev.id, status=True, start_time=now))
                     await broadcaster({"device_id": dev.id, "status": True, "time": now.isoformat()})
                 else:
@@ -142,7 +144,7 @@ async def background_scanner(db_factory, broadcaster, interval: int):
                     )
                     if last_log:
                         last_log.end_time = now
-                    
+
                     # Ajout d'un log de déconnexion
                     db.add(ConnectionLog(device_id=dev.id, status=False, start_time=now, end_time=now))
                     await broadcaster({"device_id": dev.id, "status": False, "time": now.isoformat()})
@@ -153,5 +155,5 @@ async def background_scanner(db_factory, broadcaster, interval: int):
             db.rollback()
         finally:
             db.close()
-            
+
         await asyncio.sleep(interval)

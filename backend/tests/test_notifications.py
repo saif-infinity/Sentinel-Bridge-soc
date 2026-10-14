@@ -12,7 +12,7 @@ Pattern (SQLite temp DB) :
 import json
 import os
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
@@ -22,8 +22,8 @@ if os.path.exists(TEST_DB):
     os.remove(TEST_DB)
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB}"
 
-from app.core.db import Base, engine, SessionLocal  # noqa: E402
 import app.models  # noqa: E402, F401 — modèles existants AVANT create_all
+from app.core.db import Base, SessionLocal, engine  # noqa: E402
 from app.domain.models import NotificationChannel, NotificationDedup  # noqa: E402
 from app.infrastructure.notifications.crypto import (  # noqa: E402
     decrypt_config,
@@ -93,7 +93,7 @@ def test_is_duplicate_expired_window_allows_again(db):
         NotificationDedup.fingerprint == fp,
         NotificationDedup.channel_id == 1,
     ).first()
-    row.first_seen = datetime.now(timezone.utc) - timedelta(seconds=600)
+    row.first_seen = datetime.now(UTC) - timedelta(seconds=600)
     db.commit()
     # La purge opportuniste supprime l'entrée expirée => insertion OK
     assert is_duplicate(db, "default", fp, 1, window_seconds=300) is False
@@ -102,11 +102,11 @@ def test_is_duplicate_expired_window_allows_again(db):
 def test_prune_dedup(db):
     old = NotificationDedup(
         tenant_id="default", fingerprint="old-fp", channel_id=1,
-        first_seen=datetime.now(timezone.utc) - timedelta(hours=48),
+        first_seen=datetime.now(UTC) - timedelta(hours=48),
     )
     fresh = NotificationDedup(
         tenant_id="default", fingerprint="fresh-fp", channel_id=1,
-        first_seen=datetime.now(timezone.utc),
+        first_seen=datetime.now(UTC),
     )
     db.add_all([old, fresh])
     db.commit()

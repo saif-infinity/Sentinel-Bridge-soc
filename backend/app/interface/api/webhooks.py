@@ -1,16 +1,16 @@
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
-from .suricata import receive_suricata_alert
 from ...application.normalization import map_wazuh, to_pipeline_payload
 from ...application.pipeline import ingest_alert
 from ...application.source_control import is_source_enabled
 from ...auth import webhook_token_auth
 from ...core.broadcaster import broadcaster
 from ...db import get_db, get_tenant_id
+from .suricata import receive_suricata_alert
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ async def wazuh_webhook(request: Request, db: Session = Depends(get_db)):
 
         if result.get("status") == "accepted":
             alert_pkg = {
-                "Timestamp": canonical.get("@timestamp") or datetime.now(timezone.utc).isoformat(),
+                "Timestamp": canonical.get("@timestamp") or datetime.now(UTC).isoformat(),
                 "Description": canonical.get("description") or "Wazuh Alert",
                 "Severity": canonical.get("severity") or 0,
                 "Source IP": canonical.get("src_ip") or "0.0.0.0",

@@ -1,9 +1,11 @@
-import paramiko
-import subprocess
-import shlex
 import logging
+import shlex
+import subprocess
+
+import paramiko
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+
 from ...auth import get_api_key_or_jwt, has_scopes_or_api_key
 from ...config import settings
 from ...db import get_db

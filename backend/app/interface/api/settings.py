@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from ...db import get_db, get_tenant_id, query_with_tenant
-from ...services.system_config_service import get_all_settings, update_settings, _init_defaults
+from sqlalchemy.orm import Session
+
 from ...auth import get_api_key_or_jwt, has_scopes_or_api_key
+from ...db import get_db, get_tenant_id
+from ...services.system_config_service import _init_defaults, get_all_settings, update_settings
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 

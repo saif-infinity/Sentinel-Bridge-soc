@@ -4,16 +4,15 @@ import logging
 
 import redis
 
+from ...application import pipeline as pipeline_module
 from ...core.celery import celery_app
 from ...core.config import settings
 from ...db import SessionLocal
-from ...application import pipeline as pipeline_module
 from ..syslog.stream import (
     GROUP_NAME,
     STREAM_KEY,
-    DLQ_STREAM,
-    get_redis_client,
     ensure_group,
+    get_redis_client,
     send_to_dlq,
 )
 

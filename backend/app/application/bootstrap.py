@@ -2,12 +2,11 @@ import asyncio
 import logging
 
 from ..config import settings
-from ..infrastructure.honeypot.service import HoneypotService
-from ..config import settings
 from ..core.broadcaster import broadcaster
 from ..db import Base, SessionLocal, engine
-from ..domain.models import TenantUser
 from ..domain.investigations import Investigation, InvestigationEvidence, InvestigationRecommendation  # noqa: F401
+from ..domain.models import TenantUser
+from ..infrastructure.honeypot.service import HoneypotService
 from ..scanner import background_scanner
 from ..services.password_manager import hash_password
 from .system_config import _init_defaults
@@ -40,8 +39,8 @@ async def run_startup():
     finally:
         db.close()
 
-    from . import pipeline as pipeline_module
     from ..infrastructure.jobs import retention as retention_module
+    from . import pipeline as pipeline_module
     pipeline_module.ensure_columns(engine)
 
     # R4 — TimescaleDB hypertables (PostgreSQL only, idempotent)
@@ -59,10 +58,10 @@ async def run_startup():
         db.close()
 
     # F3-SOAR-WIRE-IN: lane mini-SOAR (F3) — abonnement au bus d'événements F1
-    from .events import CHANNEL_ALERT_INGESTED, CHANNEL_RULE_MATCH, event_bus
-    from .soar.executor import on_rule_match
-    from .investigations.handler import on_rule_match_investigate
     from .ai_auto.handler import on_alert_ingested
+    from .events import CHANNEL_ALERT_INGESTED, CHANNEL_RULE_MATCH, event_bus
+    from .investigations.handler import on_rule_match_investigate
+    from .soar.executor import on_rule_match
 
     event_bus.subscribe(CHANNEL_RULE_MATCH, on_rule_match)
     event_bus.subscribe(CHANNEL_RULE_MATCH, on_rule_match_investigate)
@@ -111,8 +110,8 @@ async def run_startup():
     asyncio.create_task(safe_bandwidth_sampler())
 
     async def wazuh_sync_task():
-        from .source_control import is_source_enabled
         from ..db import SessionLocal
+        from .source_control import is_source_enabled
         refresh_counter = 0
         while True:
             db = SessionLocal()

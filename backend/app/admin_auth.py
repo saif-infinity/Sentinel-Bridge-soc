@@ -1,10 +1,12 @@
 import logging
-from fastapi import HTTPException, status, Depends
+from datetime import UTC, datetime, timedelta
+
+from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from datetime import datetime, timedelta, timezone
+
 from .config import settings
-from .services.password_manager import store_password_hash, check_password
+from .services.password_manager import check_password, store_password_hash
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +14,7 @@ admin_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/admin/token")
 
 
 def create_admin_token():
-    expire = datetime.now(timezone.utc) + timedelta(hours=8)
+    expire = datetime.now(UTC) + timedelta(hours=8)
     payload = {
         "sub": "admin",
         "role": "admin",

@@ -1,29 +1,29 @@
+from .domain.investigations import Investigation, InvestigationEvidence, InvestigationRecommendation  # noqa: F401
 from .domain.models import (  # noqa: F401
-    Device,
-    ConnectionLog,
-    SuricataAlert,
-    Asset,
-    Alert,
-    IaReport,
     AccessLog,
     ActionLog,
-    SystemConfig,
-    NetworkSensor,
-    NetworkDevice,
-    Tenant,
-    TenantUser,
+    Alert,
+    Asset,
     Case,
     CaseAlertLink,
-    TimelineEvent,
-    Hunt,
+    ConnectionLog,
+    Device,
     FaceLoginRequest,
-    UnverifiedFaceAttempt,
-    RegistrationRequest,
     HoneypotEvent,
+    Hunt,
+    IaReport,
+    NetworkDevice,
+    NetworkSensor,
+    RegistrationRequest,
+    SuricataAlert,
+    SystemConfig,
+    Tenant,
+    TenantUser,
+    TimelineEvent,
+    UnverifiedFaceAttempt,
     _utcnow,
 )
-from .domain.investigations import Investigation, InvestigationEvidence, InvestigationRecommendation  # noqa: F401
-from .domain.response import ResponseRun, ResponseActionResult, ResponseRollback  # noqa: F401
-from .domain.reporting import Report, ReportTemplate, ReportSchedule, ReportRecipient, ReportLog  # noqa: F401
-from .domain.rule_models import Rule, RuleMatchOutbox  # noqa: F401
 from .domain.pipeline_models import PipelineEvent  # noqa: F401
+from .domain.reporting import Report, ReportLog, ReportRecipient, ReportSchedule, ReportTemplate  # noqa: F401
+from .domain.response import ResponseActionResult, ResponseRollback, ResponseRun  # noqa: F401
+from .domain.rule_models import Rule, RuleMatchOutbox  # noqa: F401

@@ -1,7 +1,7 @@
 import base64
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 import httpx
 
@@ -13,22 +13,22 @@ logger = logging.getLogger(__name__)
 class WazuhIndexerClient:
     """Wazuh indexer (OpenSearch) read queries."""
 
-    async def _get_indexer_auth(self) -> Optional[str]:
+    async def _get_indexer_auth(self) -> str | None:
         if self._indexer_auth_failure_count > 0 and self._last_auth_attempt:
-            elapsed = (datetime.now(timezone.utc) - self._last_auth_attempt).total_seconds()
+            elapsed = (datetime.now(UTC) - self._last_auth_attempt).total_seconds()
             backoff = min(2 ** self._indexer_auth_failure_count, 300)
             if elapsed < backoff:
                 return None
-        
+
         auth_str = f"{self.indexer_user}:{self.indexer_pass}"
         return base64.b64encode(auth_str.encode()).decode()
 
-    async def get_active_response_history(self) -> List[Dict[str, Any]]:
+    async def get_active_response_history(self) -> list[dict[str, Any]]:
         """Fetch history of automated defense actions (Active Responses) from the Indexer."""
         auth_b64 = await self._get_indexer_auth()
         if not auth_b64:
             return []
-        
+
         try:
             async with httpx.AsyncClient(verify=ssl_ctx) as client:
                 # Query alerts where rule group is 'active_response' (try multiple possible group names)
@@ -54,7 +54,7 @@ class WazuhIndexerClient:
                     json=query,
                     timeout=5.0
                 )
-                
+
                 if response.status_code == 200:
                     self._indexer_auth_failure_count = 0
                     hits = response.json().get('hits', {}).get('hits', [])

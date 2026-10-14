@@ -1,19 +1,19 @@
-import logging
 import asyncio
+import logging
 import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import psutil
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import desc
+from sqlalchemy.orm import Session
 
-from ...db import get_db, SessionLocal, get_tenant_id, query_with_tenant
-from ...models import NetworkSensor, AccessLog, Alert, ActionLog, SuricataAlert
-from ...schemas import NetworkSensorCreate
 from ...auth import get_api_key_or_jwt, has_scopes_or_api_key
+from ...db import get_db, get_tenant_id, query_with_tenant
+from ...models import AccessLog, ActionLog, Alert, NetworkSensor, SuricataAlert
+from ...schemas import NetworkSensorCreate
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ async def get_analyst_bandwidth(
     _user: Any = Depends(has_scopes_or_api_key(["devices:read"])),
 ):
     """Get bandwidth readings for a specific analyst over the last N hours."""
-    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    since = datetime.now(UTC) - timedelta(hours=hours)
     readings = (
         query_with_tenant(NetworkSensor, request, db)
         .filter(NetworkSensor.username == username, NetworkSensor.timestamp >= since)
@@ -77,7 +77,7 @@ async def get_all_bandwidth(
     _user: Any = Depends(has_scopes_or_api_key(["devices:read"])),
 ):
     """Get the latest bandwidth snapshot for each online analyst + system."""
-    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    since = datetime.now(UTC) - timedelta(hours=hours)
 
     online_users = (
         query_with_tenant(AccessLog, request, db)
@@ -160,7 +160,7 @@ async def get_system_health(
 ):
     """Full system health: resources, services, alerts, errors, actions."""
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     today_start = datetime(now.year, now.month, now.day)
 
     # ── System Resources (psutil) ──
@@ -376,14 +376,14 @@ async def get_system_health(
 async def sample_bandwidth_for_online_analysts(db_factory):
     """Background task: periodically sample server bandwidth and record per-analyst readings."""
     prev_io = psutil.net_io_counters()
-    prev_time = datetime.now(timezone.utc).timestamp()
+    prev_time = datetime.now(UTC).timestamp()
 
     while True:
         try:
             await asyncio.sleep(10)
 
             curr_io = psutil.net_io_counters()
-            curr_time = datetime.now(timezone.utc).timestamp()
+            curr_time = datetime.now(UTC).timestamp()
             interval = curr_time - prev_time
             if interval <= 0:
                 continue

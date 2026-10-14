@@ -7,26 +7,28 @@ import hashlib
 import json
 import logging
 import time
-from datetime import datetime, timezone, timedelta
-from typing import Optional, Tuple
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from ...application.events import RuleMatchEvent, InvestigationCompleteEvent
+from ...application.cases import _add_timeline
+from ...application.events import InvestigationCompleteEvent, RuleMatchEvent
+from ...application.investigations.llm import generate_summary
+from ...application.investigations.recommendations import generate_recommendations
+from ...application.investigations.scoring import compute_risk_score
+from ...application.investigations.steps import (
+    step_asset,
+    step_host_wazuh,
+    step_mitre_context,
+    step_related_alerts,
+    step_threat_intel_dest,
+    step_threat_intel_src,
+)
+from ...application.investigations.summaries import template_summary
 from ...application.system_config import get_config_value
 from ...db import SessionLocal
 from ...domain.investigations import Investigation, InvestigationEvidence, InvestigationRecommendation
-from ...domain.models import Case, CaseAlertLink, TimelineEvent, Alert, SuricataAlert
-from ...application.investigations.scoring import compute_risk_score
-from ...application.investigations.steps import (
-    step_threat_intel_src, step_threat_intel_dest,
-    step_host_wazuh, step_asset, step_related_alerts, step_mitre_context,
-)
-from ...application.investigations.llm import generate_summary
-from ...application.investigations.summaries import template_summary
-from ...application.investigations.recommendations import generate_recommendations
-from ...application.cases import _add_timeline
-from ...infrastructure.jobs.investigation_tasks import run_investigation as _run_investigation_task
+from ...domain.models import Alert, Case, CaseAlertLink, SuricataAlert
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +48,7 @@ MAX_CONCURRENT_DEFAULT = 3
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _make_dedup_fingerprint(tenant_id: str, event: RuleMatchEvent) -> str:
@@ -93,7 +95,7 @@ def _create_case_for_investigation(
 def _add_evidence_row(
     db: Session, tenant_id: str, investigation_id: int,
     step_key: str, source: str, status: str = "success",
-    payload: Optional[dict] = None, error: Optional[str] = None, summary: str = "",
+    payload: dict | None = None, error: str | None = None, summary: str = "",
 ) -> None:
     ev = InvestigationEvidence(
         tenant_id=tenant_id,
@@ -152,7 +154,7 @@ def _add_linked_evidence(db: Session, tenant_id: str, investigation_id: int, eve
 def _run_step_with_timeout(
     step_func, db: Session, tenant_id: str,
     investigation: Investigation, event: RuleMatchEvent, timeout: int = PER_STEP_TIMEOUT
-) -> Tuple[Optional[str], Optional[dict], Optional[str]]:
+) -> tuple[str | None, dict | None, str | None]:
     start = time.monotonic()
     result = step_func(db, tenant_id, investigation, event)
     elapsed = time.monotonic() - start

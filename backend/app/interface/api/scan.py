@@ -1,16 +1,15 @@
-import nmap
-import socket
-import psutil
+import ctypes
 import logging
 import os
-import ctypes
-import re
+import socket
+
+import nmap
+import psutil
 from fastapi import APIRouter, Depends, Request
-from typing import List, Optional
 from sqlalchemy.orm import Session
+
 from ...auth import get_api_key
-from ...config import settings
-from ...db import SessionLocal, get_db, get_tenant_id, query_with_tenant
+from ...db import get_db, query_with_tenant
 from ...models import Device
 from ...schemas import ScanResult
 
@@ -34,21 +33,21 @@ def get_local_subnet():
     try:
         interfaces = psutil.net_if_addrs()
         stats = psutil.net_if_stats()
-        
+
         # Sort interfaces: prefer physical ones that are UP
         potential_ifaces = []
         for interface, addrs in interfaces.items():
             is_up = stats[interface].isup if interface in stats else False
             if not is_up: continue
-            
+
             # Skip common virtual interface names
             if any(virtual in interface.lower() for virtual in ['vbox', 'virtual', 'docker', 'wsl', 'vmware', 'vpn']):
                 continue
-                
+
             for addr in addrs:
                 if addr.family == socket.AF_INET and not addr.address.startswith('127.'):
                     potential_ifaces.append((interface, addr.address))
-        
+
         if potential_ifaces:
             # Pick the first "real" looking interface
             interface, ip = potential_ifaces[0]
@@ -56,7 +55,7 @@ def get_local_subnet():
             subnet = f"{parts[0]}.{parts[1]}.{parts[2]}.0/24"
             logger.info(f"Auto-detected subnet: {subnet} on interface {interface} (IP: {ip})")
             return subnet
-            
+
         for interface, addrs in interfaces.items():
             if any(virtual in interface.lower() for virtual in ['vbox', 'virtual', 'docker', 'wsl', 'vmware', 'vpn']):
                 continue
@@ -68,11 +67,11 @@ def get_local_subnet():
         logger.error(f"Error detecting subnet: {e}")
     return "192.168.1.0/24" # Fallback
 
-@router.get("", response_model=List[ScanResult])
+@router.get("", response_model=list[ScanResult])
 def scan_network(
     request: Request,
-    subnet: Optional[str] = None, 
-    scan_type: str = "fast", 
+    subnet: str | None = None,
+    scan_type: str = "fast",
     db: Session = Depends(get_db)
 ):
     if not subnet or subnet == "" or subnet == "undefined" or subnet == "null":
@@ -92,9 +91,9 @@ def scan_network(
             logger.warning(f"Could not check admin privileges: {e}")
     else:
         is_admin = os.getuid() == 0
-        
+
     logger.info(f"Starting Nmap scan on target: {subnet} (Type: {scan_type}, Admin: {is_admin})")
-    
+
     nm = nmap.PortScanner()
     try:
         # Base arguments: -n (No DNS), -T3 (Normal timing for reliability)
@@ -104,14 +103,14 @@ def scan_network(
              logger.warning("NOT running as Administrator. Nmap might fail to detect MAC addresses or OS versions.")
              # Remove --privileged if not admin on Windows to avoid error
              base_args = "-n -T4 --min-parallelism 10"
-        
+
         # Check if scanning a single IP or a range
         is_single_ip = "/" not in subnet and subnet.count('.') == 3
-        
+
         # Aggressive discovery probes to find modern firewalled devices (PCs/Mobiles)
         # -PS: TCP SYN discovery, -PU: UDP discovery, -PE/PP: ICMP Echo/Timestamp
         discovery_probes = "-PS22,80,443,3389,8080 -PU161 -PE -PP"
-        
+
         if scan_type == "fast":
             # Discovery: ARP + TCP/UDP probes. We bypass host discovery if it fails by using -Pn logic
             scan_args = f"{base_args} -sn -PR {discovery_probes}"
@@ -131,36 +130,36 @@ def scan_network(
         if is_single_ip:
             scan_args += " -Pn"
             logger.info(f"Single IP detected: forcing -Pn for {subnet}")
-        
+
         logger.info(f"Executing: nmap {scan_args} {subnet}")
         nm.scan(hosts=subnet, arguments=scan_args)
-        
+
         results = []
         known_devices = {d.mac.lower(): d for d in query_with_tenant(Device, request, db).all()}
-        
+
         for host in nm.all_hosts():
             ip = host
             host_info = nm[host]
             addresses = host_info.get('addresses', {})
-            
+
             # Robust MAC detection
             mac = addresses.get('mac')
             if not mac and 'mac' in host_info: mac = host_info['mac']
-            
+
             mac = (mac or 'UNKNOWN').upper()
-            
+
             # Vendor detection
             vendor = addresses.get('vendor', {}).get(mac, 'N/A')
             if vendor == 'N/A' and 'vendor' in host_info:
                 vendor = host_info['vendor'].get(mac, 'N/A')
-            
+
             details = []
-            
+
             # Status check
             state = host_info.get('status', {}).get('state', 'up')
             if state != 'up':
                 details.append(f"State: {state}")
-            
+
             # Check if Known
             if mac.lower() in known_devices:
                 details.append("Known Employee Asset")
@@ -171,7 +170,7 @@ def scan_network(
             os_match = host_info.get('osmatch', [])
             if os_match:
                 details.append(f"OS: {os_match[0].get('name')}")
-            
+
             # Vendor info (using the robust detection from above)
             if vendor != 'N/A':
                 details.append(f"Vendor: {vendor}")
@@ -185,10 +184,10 @@ def scan_network(
                     service = host_info[proto][port]['name']
                     product = host_info[proto][port].get('product', '')
                     details.append(f"• {port}/{proto}: {service} {product}")
-            
+
             if not found_ports and scan_type in ["ports", "services", "vuln"]:
                 details.append("No open ports detected in scanned range")
-            
+
             # Vulnerability findings
             if 'hostscript' in nm[host]:
                 for script in nm[host]['hostscript']:
@@ -196,9 +195,9 @@ def scan_network(
 
             if not details:
                 details.append("Active Node (No services found)")
-            
+
             results.append(ScanResult(ip=ip, mac=mac, status=details))
-            
+
         logger.info(f"Nmap scan completed. Found {len(results)} active hosts.")
         return results
     except Exception as e:

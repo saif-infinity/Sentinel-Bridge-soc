@@ -1,11 +1,9 @@
 import asyncio
 import logging
 from datetime import datetime
-from typing import Dict, Optional
 
 from ...core.config import settings
 from ...db import SessionLocal
-
 from ...infrastructure.wazuh.client import WazuhAPIClient
 from ...infrastructure.wazuh.indexer_client import WazuhIndexerClient
 from .ai_reporting import WazuhAIReporting
@@ -81,10 +79,10 @@ class WazuhService(WazuhAPIClient, WazuhIndexerClient, WazuhCache, WazuhAlertSyn
             if close_db:
                 db.close()
         self.token = None
-        self.token_expires_at: Optional[datetime] = None
+        self.token_expires_at: datetime | None = None
         self._agent_ip_cache = {}
         self._auth_failure_count = 0
-        self._last_auth_attempt: Optional[datetime] = None
+        self._last_auth_attempt: datetime | None = None
         self._indexer_auth_failure_count = 0
         self._wazuh_available = True
         self._indexer_available = True
@@ -93,9 +91,9 @@ class WazuhService(WazuhAPIClient, WazuhIndexerClient, WazuhCache, WazuhAlertSyn
         self._auth_lock = asyncio.Lock()
         self._rate_limit_store: dict = {}
         self._rate_limit_lock = asyncio.Lock()
-        self._last_request_time: Dict[str, float] = {}
+        self._last_request_time: dict[str, float] = {}
         self._min_request_interval = 1.0
         self._consecutive_429_count = 0
-        self._backoff_until: Optional[float] = None
+        self._backoff_until: float | None = None
 
 wazuh_service = WazuhService()

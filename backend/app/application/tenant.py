@@ -1,5 +1,6 @@
 from fastapi import Request
 
+
 def get_tenant_id(request: Request) -> str:
     """Extract tenant_id from request.state (set by middleware)."""
     tenant_id = getattr(request.state, "tenant_id", None)

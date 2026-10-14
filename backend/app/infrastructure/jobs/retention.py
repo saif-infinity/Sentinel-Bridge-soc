@@ -4,7 +4,7 @@ Exécuté par celery beat (jobs.retention.run_retention).
 SQLite-safe : suppression par lots via sous-requête d'IDs (jamais DELETE ... LIMIT).
 """
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import sqlalchemy as sa
 
@@ -12,7 +12,14 @@ from ...application.system_config import get_config_value
 from ...core.celery import celery_app
 from ...db import SessionLocal
 from ...domain.models import (
-    AccessLog, ActionLog, Alert, ConnectionLog, IaReport, SuricataAlert, SystemConfig, Tenant,
+    AccessLog,
+    ActionLog,
+    Alert,
+    ConnectionLog,
+    IaReport,
+    SuricataAlert,
+    SystemConfig,
+    Tenant,
 )
 from ...domain.pipeline_models import PipelineEvent
 from ...domain.rule_models import RuleMatchOutbox
@@ -71,10 +78,10 @@ def run_retention_cleanup(db, tenant_id: str = "default", dry_run: bool = False)
     batch = int(float(get_config_value(db, "retention", "batch_size",
                                        DEFAULT_RETENTION_CONFIG["batch_size"], tenant_id=tenant_id)))
     days = _retention_days_for(db, tenant_id)
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days + grace)
+    cutoff = datetime.now(UTC) - timedelta(days=days + grace)
     # R4: TimescaleDB compresses chunks older than 7 days — the Celery purge must
     # only touch recent uncompressed rows; the global retention policy handles old data.
-    uncompressed_cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    uncompressed_cutoff = datetime.now(UTC) - timedelta(days=7)
 
     report = {
         "tenant_id": tenant_id,
