@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "react-toastify";
+import { SEVERITY_CRITICAL, SEVERITY_HIGH } from "../lib/formatters";
 
 const ACTION_TYPES = [
   { value: "block_ip", label: "Bloquer IP", hint: "Ex : 192.168.1.50" },
@@ -78,8 +79,8 @@ function severityBadge(sev) {
   // numeric severity
   const num = parseInt(sev, 10);
   if (!isNaN(num)) {
-    if (num >= 8 || s === "critical" || s === "high") {
-      return { label: s === "critical" || num >= 12 ? "Critique" : "Élevée", cls: "bg-red-500/10 text-red-400 border-red-500/20" };
+    if (num >= SEVERITY_HIGH || s === "critical" || s === "high") {
+      return { label: s === "critical" || num >= SEVERITY_CRITICAL ? "Critique" : "Élevée", cls: "bg-red-500/10 text-red-400 border-red-500/20" };
     }
     if (num >= 4) return { label: "Moyenne", cls: "bg-amber-500/10 text-amber-400 border-amber-500/20" };
     return { label: "Faible", cls: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" };
@@ -104,8 +105,8 @@ function severityRank(sev) {
   const s = String(sev || "").toLowerCase();
   const n = parseInt(sev, 10);
   if (!isNaN(n)) {
-    if (n >= 12 || s === "critical") return 0;
-    if (n >= 8 || s === "high") return 0;
+    if (n >= SEVERITY_CRITICAL || s === "critical") return 0;
+    if (n >= SEVERITY_HIGH || s === "high") return 0;
     if (n >= 4 || s === "medium") return 1;
     return 2;
   }

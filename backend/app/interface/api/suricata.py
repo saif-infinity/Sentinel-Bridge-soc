@@ -46,7 +46,13 @@ def get_suricata_alerts(request: Request, db: Session = Depends(get_db)):
             "dest_ip": a.dest_ip,
             "proto": a.proto,
             "alert_msg": a.alert_msg,
+            # `severity` est la valeur BRUTE de Suricata, dont l'échelle est
+            # inversée (1 = le plus grave, 4 = le moins grave). `normalized_severity`
+            # est la même alerte ramenée par le pipeline sur l'échelle 0-15 partagée
+            # avec Wazuh et Syslog. Renvoyer les deux laisse le client choisir —
+            # et évite qu'un écran compare un "1" Suricata à un seuil Wazuh.
             "severity": a.severity,
+            "normalized_severity": a.normalized_severity,
             "verdict": verdict,
             "payload": a.payload,
         })

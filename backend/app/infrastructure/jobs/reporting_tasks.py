@@ -111,7 +111,7 @@ def process_scheduled_reports_task() -> dict:
     try:
         now = datetime.now(UTC)
         schedules = db.query(ReportSchedule).filter(
-            ReportSchedule.is_active == True,
+            ReportSchedule.is_active.is_(True),
             ReportSchedule.next_run_at <= now,
         ).all()
 

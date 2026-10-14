@@ -10,6 +10,9 @@ from sqlalchemy.orm import Session
 
 from ...auth import has_scopes_or_api_key
 from ...config import settings
+from ...db import SessionLocal, get_db, get_tenant_id, query_with_tenant
+from ...schemas import ThreatAnalysisRequest
+from ...services.system_config_service import get_config_value
 
 
 def _sanitize(text: str) -> str:
@@ -17,9 +20,7 @@ def _sanitize(text: str) -> str:
     text = re.sub(r'<img[^>]*>', '', text)
     text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', text)
     return text.strip()[:500]
-from ...db import SessionLocal, get_db, get_tenant_id, query_with_tenant
-from ...schemas import ThreatAnalysisRequest
-from ...services.system_config_service import get_config_value
+
 
 logger = logging.getLogger(__name__)
 

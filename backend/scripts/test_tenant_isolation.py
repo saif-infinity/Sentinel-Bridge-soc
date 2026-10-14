@@ -100,7 +100,7 @@ def test_isolation():
             db.query(TenantUser).filter(TenantUser.tenant_id.in_([tenant_a_id, tenant_b_id])).delete()
             db.query(Tenant).filter(Tenant.id.in_([tenant_a_id, tenant_b_id])).delete()
             db.commit()
-        except:
+        except Exception:
             db.rollback()
         finally:
             db.close()

@@ -104,16 +104,16 @@ async def get_actions(
     return {
         "items": [
             {
-                "id": l.id,
-                "username": l.username,
-                "action": l.action,
-                "details": l.details,
-                "resource": l.resource,
-                "ip_address": l.ip_address,
-                "face_verified": l.face_verified,
-                "timestamp": l.timestamp.isoformat(),
+                "id": entry.id,
+                "username": entry.username,
+                "action": entry.action,
+                "details": entry.details,
+                "resource": entry.resource,
+                "ip_address": entry.ip_address,
+                "face_verified": entry.face_verified,
+                "timestamp": entry.timestamp.isoformat(),
             }
-            for l in logs
+            for entry in logs
         ],
         "total": total,
     }
@@ -127,7 +127,7 @@ async def get_analysts(
 ):
     online_users = (
         query_with_tenant(AccessLog, request, db)
-        .filter(AccessLog.is_online == True)
+        .filter(AccessLog.is_online.is_(True))
         .order_by(desc(AccessLog.login_time))
         .all()
     )
@@ -166,13 +166,13 @@ async def get_analyst_actions(
     )
     return [
         {
-            "id": l.id,
-            "action": l.action,
-            "details": l.details,
-            "resource": l.resource,
-            "timestamp": l.timestamp.isoformat(),
+            "id": entry.id,
+            "action": entry.action,
+            "details": entry.details,
+            "resource": entry.resource,
+            "timestamp": entry.timestamp.isoformat(),
         }
-        for l in logs
+        for entry in logs
     ]
 
 
@@ -193,15 +193,15 @@ async def get_analyst_sessions(
     )
     return [
         {
-            "id": l.id,
-            "login_time": l.login_time.isoformat(),
-            "logout_time": l.logout_time.isoformat() if l.logout_time else None,
-            "is_online": l.is_online,
-            "session_duration": l.session_duration,
-            "face_verified": l.face_verified,
-            "login_method": l.login_method,
+            "id": entry.id,
+            "login_time": entry.login_time.isoformat(),
+            "logout_time": entry.logout_time.isoformat() if entry.logout_time else None,
+            "is_online": entry.is_online,
+            "session_duration": entry.session_duration,
+            "face_verified": entry.face_verified,
+            "login_method": entry.login_method,
         }
-        for l in logs
+        for entry in logs
     ]
 
 
@@ -215,7 +215,7 @@ async def get_admin_stats(
     today_start = datetime(today.year, today.month, today.day)
 
     total_analysts = query_with_tenant(ActionLog, request, db).with_entities(ActionLog.username).distinct().count()
-    active_sessions = query_with_tenant(AccessLog, request, db).filter(AccessLog.is_online == True).count()
+    active_sessions = query_with_tenant(AccessLog, request, db).filter(AccessLog.is_online.is_(True)).count()
 
     total_actions_today = (
         query_with_tenant(ActionLog, request, db)

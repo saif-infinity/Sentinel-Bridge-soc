@@ -35,12 +35,24 @@ _TEST_DEFAULTS = {
     "REDIS_URL": "redis://localhost:6379/0",
     # ── never let a test run believe it is in production ──────────────────
     "ENVIRONMENT": "test",
-    # ── keep optional integrations OFF so tests do not hit the network ────
-    "ENABLE_WAZUH_SOURCE": "False",
-    "ENABLE_SURICATA_SOURCE": "False",
+    # ── ingestion sources ─────────────────────────────────────────────────
+    # `is_source_enabled()` falls back to these when the tenant has no DB override,
+    # and the shipped defaults are False. With them off, POST /api/suricata/webhook
+    # and POST /api/wazuh/webhook short-circuit to {"status": "ignored"} before
+    # touching the pipeline — which is why test_normalization.py's two webhook tests
+    # could never have passed as written. They only drive the app's own TestClient
+    # (no outbound network), so enabling them is safe and is what those tests assume.
+    "ENABLE_SURICATA_SOURCE": "True",
+    "ENABLE_WAZUH_SOURCE": "True",
+    # The host-agent source is the one that emits ARP/scapy traffic on the local
+    # interfaces and runs a background scanner: keep it OFF in tests.
     "ENABLE_HOST_AGENT_SOURCE": "False",
+    # Threat intel would call out to AbuseIPDB: keep it OFF in tests.
     "THREAT_INTEL_ENABLED": "false",
-    "REGISTRATION_REQUIRES_APPROVAL": "False",
+    # REGISTRATION_REQUIRES_APPROVAL is deliberately NOT overridden: the shipped
+    # default (True) is what test_audit_fixes.py asserts ("Mode approbation admin
+    # par défaut : la demande pending est créée"). Overriding it to False silently
+    # changed /auth/register's response shape and broke that test.
     # No SUPER_ADMIN_PASSWORD: bootstrap.run_startup() must not seed an account
     # during tests (it logs a warning instead).
 }

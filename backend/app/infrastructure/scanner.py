@@ -131,14 +131,14 @@ async def background_scanner(db_factory, broadcaster, interval: int):
                         await broadcaster({"device_id": dev.id, "status": True, "time": now.isoformat()})
 
             # Gestion des appareils qui sont passés hors ligne
-            online_in_db = db.query(Device).filter(Device.is_online == True).all()
+            online_in_db = db.query(Device).filter(Device.is_online.is_(True)).all()
             for dev in online_in_db:
                 if dev.id not in online_ids:
                     dev.is_online = False
                     # Fermeture du log de connexion précédent
                     last_log = (
                         db.query(ConnectionLog)
-                        .filter(ConnectionLog.device_id == dev.id, ConnectionLog.end_time == None)
+                        .filter(ConnectionLog.device_id == dev.id, ConnectionLog.end_time.is_(None))
                         .order_by(ConnectionLog.start_time.desc())
                         .first()
                     )

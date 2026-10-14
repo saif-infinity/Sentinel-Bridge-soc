@@ -1,11 +1,12 @@
 import logging
 import ssl
+from contextlib import asynccontextmanager
 
 import urllib3
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from ..application.bootstrap import run_startup
+from ..application.bootstrap import run_shutdown, run_startup
 from ..auth import get_api_key_or_jwt, webhook_slug_auth, webhook_token_auth
 from ..config import settings
 from ..core import logging_setup  # noqa: F401
@@ -74,7 +75,23 @@ else:
 if not SSL_VERIFY:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-app = FastAPI(title="Sentinel Bridge - SOC Dashboard API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Cycle de vie ASGI — remplace `@app.on_event(...)`, déprécié par
+    FastAPI/Starlette (et déjà retiré de Starlette 0.36+).
+
+    Le `finally` garantit que `run_shutdown()` s'exécute même si le démarrage
+    lève : sinon le honeypot et les collecteurs restaient ouverts après un
+    crash partiel du boot.
+    """
+    try:
+        await run_startup()
+    finally:
+        yield
+        await run_shutdown()
+
+
+app = FastAPI(title="Sentinel Bridge - SOC Dashboard API", lifespan=lifespan)
 logger.info("FastAPI server starting/reloading...")
 
 
@@ -89,11 +106,6 @@ app.add_middleware(
 
 app.add_middleware(TenantMiddleware)
 app.add_middleware(ActionLogMiddleware)
-
-
-@app.on_event("startup")
-async def startup():
-    await run_startup()
 
 
 # Include routers (order preserved from the original app/main.py)

@@ -63,9 +63,9 @@ def migrate():
 
         for model in models:
             from sqlalchemy import or_
-            count = db.query(model).filter(or_(model.tenant_id == None, model.tenant_id == "")).count()
+            count = db.query(model).filter(or_(model.tenant_id is None, model.tenant_id == "")).count()
             if count > 0:
-                db.query(model).filter(or_(model.tenant_id == None, model.tenant_id == "")).update(
+                db.query(model).filter(or_(model.tenant_id is None, model.tenant_id == "")).update(
                     {"tenant_id": "default"}, synchronize_session=False
                 )
                 print(f"[MIGRATED] {model.__tablename__}: {count} records → tenant_id='default'")

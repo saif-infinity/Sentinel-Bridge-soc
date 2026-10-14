@@ -52,20 +52,73 @@ VIEWER_SCOPES = [
 ]
 
 
-async def check_rate_limit(request: Request, max_attempts: int = 5, window_seconds: int = 60):
-    client_ip = request.client.host if request.client else "unknown"
-    key = f"ratelimit:auth:{client_ip}"
+def _client_ip(request: Request) -> str:
+    """IP du pair, en tenant compte d'un reverse proxy de confiance.
+
+    `request.client.host` est l'adresse TCP du pair direct. Derrière nginx/Traefik
+    c'est toujours l'IP du proxy, donc tous les utilisateurs partageraient UN seul
+    seau de rate-limit (déni de service mutuel). On ne lit X-Forwarded-For que si
+    TRUST_PROXY_HEADERS=true : sinon n'importe qui peut forger l'en-tête et faire
+    sauter la limite.
+    """
+    if request is None:
+        return "unknown"
+    if settings.TRUST_PROXY_HEADERS:
+        xff = request.headers.get("X-Forwarded-For")
+        if xff:
+            first_hop = xff.split(",")[0].strip()
+            if first_hop:
+                return first_hop
+    return request.client.host if request.client else "unknown"
+
+
+async def check_rate_limit(
+    request: Request,
+    max_attempts: int = 5,
+    window_seconds: int = 60,
+    username: str | None = None,
+):
+    """Limite les tentatives par IP **et** par compte visé.
+
+    Deux failles de la version précédente :
+
+    1. Clé IP seule. Un attaquant distribué (botnet, VPN, plusieurs IPs)
+       brute-force un compte sans jamais atteindre le seuil — et à l'inverse tout
+       un bureau derrière un NAT partage un seul seau. On compte donc aussi par
+       nom d'utilisateur ciblé, quel que soit l'IP d'origine.
+    2. `except _redis.ConnectionError: pass` → le rate-limit disparaissait pile
+       quand Redis tombait (fail-open). En production on échoue désormais
+       **fermé** (503) : refuser les logins vaut mieux que les laisser illimités.
+       `RedisError` couvre aussi TimeoutError, qui faisait auparavant tomber
+       /auth/token en 500.
+    """
+    buckets = [f"ratelimit:auth:ip:{_client_ip(request)}"]
+    if username:
+        ident = username.strip().lower()
+        if ident:
+            buckets.append(f"ratelimit:auth:user:{ident}")
+
     try:
-        count = _redis_client.incr(key)
-        if count == 1:
-            _redis_client.expire(key, window_seconds)
-        if count > max_attempts:
+        for key in buckets:
+            count = _redis_client.incr(key)
+            if count == 1:
+                _redis_client.expire(key, window_seconds)
+            if count > max_attempts:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Trop de tentatives. Réessayez dans une minute.",
+                )
+    except _redis.RedisError as exc:
+        if settings.ENVIRONMENT.strip().lower() == "production":
+            logger.error("Rate-limit indisponible (Redis: %s) — échec fermé en production", exc)
             raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Trop de tentatives. Réessayez dans une minute.",
-            )
-    except _redis.ConnectionError:
-        pass  # Fail open if Redis is down
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Service d'authentification temporairement indisponible.",
+            ) from exc
+        logger.warning(
+            "Rate-limit indisponible (Redis: %s) — fail-open en environnement %s",
+            exc, settings.ENVIRONMENT,
+        )
 
 
 def _validate_password_strength(password: str) -> None:
@@ -88,7 +141,9 @@ class RegisterRequest(BaseModel):
 
 @router.post("/register")
 async def register_user(data: RegisterRequest, request: Request, db: Session = Depends(get_db)):
-    await check_rate_limit(request, max_attempts=3, window_seconds=300)
+    await check_rate_limit(
+        request, max_attempts=3, window_seconds=300, username=data.username
+    )
     if not data.username.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -204,6 +259,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         request,
         max_attempts=settings.AUTH_LOGIN_RATE_LIMIT_MAX,
         window_seconds=settings.AUTH_LOGIN_RATE_LIMIT_WINDOW,
+        username=form_data.username,
     )
 
     # FIX: tenant_id=None made check_password() test the hash of EVERY tenant that has

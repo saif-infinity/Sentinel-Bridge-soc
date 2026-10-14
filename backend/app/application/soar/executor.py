@@ -245,7 +245,7 @@ def _run_step(db, run: PlaybookRun, idx: int, step: dict[str, Any], default_time
         if step_type == "block_ip":
             return _block_ip(db, run, params, ctx)
 
-        return {"status": "failed", "error": "type de step inconnu: %s" % step_type}
+        return {"status": "failed", "error": f"type de step inconnu: {step_type}"}
     except Exception as e:
         logger.exception("Step %d du run %s échoué", idx, run.id)
         return {"status": "failed", "error": str(e)}
@@ -254,7 +254,7 @@ def _run_step(db, run: PlaybookRun, idx: int, step: dict[str, Any], default_time
 def _run_task(db, run: PlaybookRun, params: dict[str, Any], ctx: dict[str, str]) -> dict[str, Any]:
     task_name = params.get("task")
     if task_name not in ALLOWED_TASKS:
-        return {"status": "failed", "error": "tâche non autorisée: %s" % task_name}
+        return {"status": "failed", "error": f"tâche non autorisée: {task_name}"}
 
     if task_name == "reload_suricata":
         # À CONFIRMER à l'implémentation : signature exacte du service Suricata
@@ -271,7 +271,7 @@ def _run_task(db, run: PlaybookRun, params: dict[str, Any], ctx: dict[str, str])
             return {"status": "success", "output": {"dispatched": True, "target": target}}
         return {"status": "failed", "error": "run_nmap_task indisponible"}
 
-    return {"status": "failed", "error": "tâche inconnue: %s" % task_name}
+    return {"status": "failed", "error": f"tâche inconnue: {task_name}"}
 
 
 def _wazuh_token(base: str, user: str, password: str) -> str:

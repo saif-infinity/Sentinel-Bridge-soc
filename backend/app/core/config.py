@@ -3,12 +3,31 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql+pg8000://postgres:saif@localhost:5432/postgres"
+    # Pas de mot de passe committé dans le DSN par défaut : un secret dans le code
+    # est un secret qui fuit (il reste dans l'historique git pour toujours). Passez
+    # par la variable d'environnement DATABASE_URL, ou par POSTGRES_USER /
+    # POSTGRES_PASSWORD que docker-compose injecte déjà.
+    DATABASE_URL: str = "postgresql+pg8000://postgres@localhost:5432/postgres"
     SCAN_INTERVAL_SECONDS: int = 10
+
+    # ── Honeypot ────────────────────────────────────────────────────────────
+    # Opt-in : le honeypot ouvre des ports en écoute sur 0.0.0.0. C'est une
+    # surface d'attaque assumée, elle ne doit pas être active par défaut.
+    ENABLE_HONEYPOT: bool = False
+    # Liste vide => les 4 ports historiques (2323, 3389, 8443, 5555).
+    HONEYPOT_PORTS: list[int] = Field(default_factory=list)
     JWT_SECRET_KEY: SecretStr
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     ENVIRONMENT: str = "development"
+    # Derrière un reverse proxy, `request.client.host` vaut l'IP du proxy : tous les
+    # utilisateurs partageraient un seul seau de rate-limit. Activer ceci fait lire
+    # X-Forwarded-For — à ne mettre à true QUE si un proxy de confiance est devant,
+    # sinon l'en-tête est forgeable et la limite saute.
+    TRUST_PROXY_HEADERS: bool = False
+    # true en dev (create_all() au démarrage), à passer à false en production où
+    # le schéma doit venir de `alembic upgrade head`.
+    AUTO_CREATE_SCHEMA: bool = True
     API_KEY: SecretStr
 
     WAZUH_API_URL: str = "https://127.0.0.1:45000"

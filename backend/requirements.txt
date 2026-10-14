@@ -32,3 +32,8 @@ aiosmtplib>=1.1,<2.0
 tenacity>=9,<10
 jinja2>=3.1,<4.0
 xhtml2pdf>=0.2,<1.0
+
+# Migrations de schéma (voir alembic.ini + migrations/).
+# create_all() ne sait ni ALTER ni DROP : sans Alembic, aucune évolution de
+# schéma n'est reproductible entre l'environnement de dev et la production.
+alembic>=1.13,<2.0

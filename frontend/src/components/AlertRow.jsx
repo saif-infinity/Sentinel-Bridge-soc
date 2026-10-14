@@ -2,6 +2,7 @@ import { memo } from "react";
 import { ShieldAlert, Shield, Search, FileSearch } from "lucide-react";
 import IntelBadge from "./IntelBadge";
 import { useData } from "../contexts/DataContext";
+import { SEVERITY_CRITICAL, SEVERITY_HIGH } from "../lib/formatters";
 
 const RISK_PILL = {
   critical: "bg-red-500/10 text-red-400 border border-red-500/20",
@@ -20,8 +21,10 @@ const AlertRow = memo(({ alert, onInvestigate, t }) => {
     return investigations.find((it) => String(it.trigger_alert_id) === sid && (it.trigger_alert_type === "alert" || !it.trigger_alert_type) && VISIBLE_INV_STATUSES.includes(it.status)) || null;
   })();
   const sev = parseInt(alert.Severity || alert.severity || 0);
-  const isCritical = sev >= 12;
-  const isHigh = sev >= 7 && sev < 12;
+  // Seuils partagés (lib/formatters) : « critique » ne veut plus dire >=12 ici
+  // et >=10 ailleurs. isHigh passait de >=7 à >=8 pour s'aligner sur le reste.
+  const isCritical = sev >= SEVERITY_CRITICAL;
+  const isHigh = sev >= SEVERITY_HIGH && sev < SEVERITY_CRITICAL;
 
   const formatTime = (ts) => {
     if (!ts) return "--:--";

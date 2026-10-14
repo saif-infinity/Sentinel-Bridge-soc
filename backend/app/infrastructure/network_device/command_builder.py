@@ -1,10 +1,10 @@
 
 def _sec(c, *lines):
     """Collect non-empty lines."""
-    return [l for l in lines if l]
+    return [line for line in lines if line]
 
 
-def _CiscoIOS_cmds(c: dict, device_type: str = "switch") -> list:
+def _cisco_ios_cmds(c: dict, device_type: str = "switch") -> list:
     """Cisco IOS / IOS-XE / IOS-XR style commands (also Arista EOS, Aruba, Dell OS9/OS10, Netgear)."""
     cmds = []
     sec = c.get("Sécurité", {})
@@ -124,7 +124,7 @@ def _CiscoIOS_cmds(c: dict, device_type: str = "switch") -> list:
     return cmds
 
 
-def _CiscoIOS_sec(c, cmds):
+def _cisco_ios_sec(c, cmds):
     """Shared security commands for IOS-like brands."""
     sec = c.get("Sécurité", {})
     enable_pw = sec.get("enable_password", "")
@@ -796,11 +796,11 @@ def _zyxel_cmds(c: dict, device_type: str = "switch") -> list:
 # ═══════════════════════════════════════════════════════════════════
 
 _GENERATORS = {
-    "cisco":    _CiscoIOS_cmds,
-    "arista":   _CiscoIOS_cmds,
-    "aruba":    _CiscoIOS_cmds,
-    "dell":     _CiscoIOS_cmds,
-    "netgear":  _CiscoIOS_cmds,
+    "cisco":    _cisco_ios_cmds,
+    "arista":   _cisco_ios_cmds,
+    "aruba":    _cisco_ios_cmds,
+    "dell":     _cisco_ios_cmds,
+    "netgear":  _cisco_ios_cmds,
     "mikrotik": _mikrotik_cmds,
     "huawei":   _huawei_vrp_cmds,
     "juniper":  _juniper_junos_cmds,

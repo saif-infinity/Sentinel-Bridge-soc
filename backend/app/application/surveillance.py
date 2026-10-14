@@ -78,7 +78,7 @@ class SurveillanceService:
             db.query(AccessLog)
             .filter(
                 AccessLog.username == username,
-                AccessLog.is_online == True,
+                AccessLog.is_online.is_(True),
                 AccessLog.tenant_id == tenant_id,
             )
             .order_by(desc(AccessLog.login_time))
@@ -102,7 +102,7 @@ class SurveillanceService:
     def get_online_users(self, db: Session, tenant_id: str = "default"):
         return (
             db.query(AccessLog)
-            .filter(AccessLog.is_online == True, AccessLog.tenant_id == tenant_id)
+            .filter(AccessLog.is_online.is_(True), AccessLog.tenant_id == tenant_id)
             .order_by(desc(AccessLog.login_time))
             .all()
         )
@@ -131,7 +131,7 @@ class SurveillanceService:
 
         users_online = (
             db.query(AccessLog)
-            .filter(AccessLog.is_online == True, AccessLog.tenant_id == tenant_id)
+            .filter(AccessLog.is_online.is_(True), AccessLog.tenant_id == tenant_id)
             .count()
         )
 
@@ -151,7 +151,7 @@ class SurveillanceService:
 
         total_with_face = (
             db.query(AccessLog)
-            .filter(AccessLog.face_verified == True, AccessLog.tenant_id == tenant_id)
+            .filter(AccessLog.face_verified.is_(True), AccessLog.tenant_id == tenant_id)
             .count()
         )
         total_all = db.query(AccessLog).filter(AccessLog.tenant_id == tenant_id).count()

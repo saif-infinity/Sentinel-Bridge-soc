@@ -7,6 +7,7 @@ import logging
 import socket
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -27,7 +28,6 @@ TEST_CONNECT_TIMEOUT = 3.0
 
 # ─── Config Templates ───────────────────────────────────────────────
 # Predefined configuration "puzzle pieces" per device type + brand
-from pathlib import Path
 
 _TEMPLATES_PATH = Path(__file__).resolve().parents[2] / "infrastructure" / "data" / "network_config_templates.json"
 CONFIG_TEMPLATES = json.loads(_TEMPLATES_PATH.read_text(encoding="utf-8"))

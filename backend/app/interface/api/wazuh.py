@@ -14,8 +14,8 @@ router = APIRouter(prefix="/api/wazuh", tags=["Wazuh Orchestrator"], dependencie
 
 @router.get("/topology")
 async def get_network_topology():
-    """ 
-    Génère la topologie réseau dynamiquement en fonction des agents Wazuh 
+    """
+    Génère la topologie réseau dynamiquement en fonction des agents Wazuh
     et de leurs sous-réseaux respectifs.
     """
     try:

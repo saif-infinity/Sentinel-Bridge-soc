@@ -305,7 +305,9 @@ def test_face_image_requires_auth(client):
 def test_register_anonymous_uses_default_tenant(client, monkeypatch):
     # Désactive le rate-limit Redis (persiste entre runs dans la fenêtre 300s)
     from app.interface.api import auth as auth_api
-    async def _no_rate_limit(request, max_attempts=5, window_seconds=60):
+    async def _no_rate_limit(request, max_attempts=5, window_seconds=60, **_kwargs):
+        # **_kwargs : check_rate_limit() accepte désormais `username=` (limite par
+        # compte en plus de l'IP). Sans ça, le stub levait TypeError.
         return None
     monkeypatch.setattr(auth_api, "check_rate_limit", _no_rate_limit)
     username = f"anonreg_{uuid.uuid4().hex[:8]}"

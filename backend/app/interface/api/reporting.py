@@ -258,10 +258,14 @@ def get_metrics(request: Request, db: Session = Depends(get_db)):
 
     # ── Breakdown sévérité (échelle 0-15) ──
     def _sev_bucket(n: int) -> str:
-        if n <= 3: return "info"
-        if n <= 6: return "low"
-        if n <= 9: return "medium"
-        if n <= 12: return "high"
+        if n <= 3:
+            return "info"
+        if n <= 6:
+            return "low"
+        if n <= 9:
+            return "medium"
+        if n <= 12:
+            return "high"
         return "critical"
 
     severity_breakdown = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}

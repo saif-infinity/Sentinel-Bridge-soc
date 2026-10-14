@@ -48,7 +48,7 @@ def _notify_handler(db, run: ResponseRun, params: dict) -> tuple[bool, dict | No
         db.flush()
         channel = db.query(NotificationChannel).filter(
             NotificationChannel.tenant_id == tenant_id,
-            NotificationChannel.enabled == True,
+            NotificationChannel.enabled.is_(True),
         ).first()
         if channel:
             cfg = decrypt_config(channel.config)

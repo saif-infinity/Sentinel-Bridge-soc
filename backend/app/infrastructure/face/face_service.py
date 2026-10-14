@@ -291,7 +291,10 @@ class FaceService:
             faces = _try_pass(big, "upscaled")
             if faces is not None:
                 (x, y, fw, fh) = faces[0]
-                x //= scale; y //= scale; fw //= scale; fh //= scale
+                x //= scale
+                y //= scale
+                fw //= scale
+                fh //= scale
                 return gray[y:y + fh, x:x + fw]
 
         logger.info("  face not found after all passes")

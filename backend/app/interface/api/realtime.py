@@ -28,7 +28,7 @@ prev_time = time.time()
 
 @router.get("/api/real-alerts", dependencies=[Depends(get_api_key_or_jwt)])
 async def get_real_alerts(request: Request, limit: int = 50, db: Session = Depends(get_db)):
-    """ 
+    """
     Fetch latest security alerts from DATABASE, enriched with asset data.
     """
     db_alerts = query_with_tenant(Alert, request, db).order_by(desc(Alert.timestamp)).limit(min(limit, 500)).all()

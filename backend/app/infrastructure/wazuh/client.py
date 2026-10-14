@@ -263,7 +263,21 @@ class WazuhAPIClient:
     async def get_agent_hardware(self, agent_id: str) -> dict[str, Any]:
         token = await self._get_token()
         if not token:
-            return {"cpu_name": "Intel Core i7-10700K (Mock)", "ram_total": 16777216, "ram_free": 8388608, "os_name": "Ubuntu Linux", "os_version": "22.04 LTS", "board_serial": "MB-X99-PRO"}
+            # Avant : {"cpu_name": "Intel Core i7-10700K (Mock)", "ram_total": 16777216,
+            # "ram_free": 8388608, "os_name": "Ubuntu Linux", "os_version": "22.04 LTS",
+            # "board_serial": "MB-X99-PRO"} — un inventaire matériel complet, inventé,
+            # renvoyé comme s'il venait de l'agent. Les clés sont conservées (pour ne
+            # casser aucun consommateur) mais nulles, avec "available": False.
+            return {
+                "available": False,
+                "reason": "wazuh_unauthenticated",
+                "cpu_name": None,
+                "ram_total": None,
+                "ram_free": None,
+                "os_name": None,
+                "os_version": None,
+                "board_serial": None,
+            }
 
         try:
             async with httpx.AsyncClient(verify=ssl_ctx) as client:
@@ -279,7 +293,8 @@ class WazuhAPIClient:
                     return {"cpu_name": "Unknown Processor (Data Unavailable)", "ram_total": 0, "ram_free": 0, "os_name": "Unknown", "board_serial": "N/A"}
                 if response.status_code == 200:
                     items = response.json().get('data', {}).get('affected_items', [])
-                    if items: return items[0]
+                    if items:
+                        return items[0]
         except httpx.ConnectError:
             self._wazuh_available = False
             return {"cpu_name": "Unknown Processor (Data Unavailable)", "ram_total": 0, "ram_free": 0, "os_name": "Unknown", "board_serial": "N/A"}

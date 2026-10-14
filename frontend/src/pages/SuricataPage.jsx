@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Activity, ShieldAlert, Settings, Lock } from "lucide-react";
 import { useData } from "../contexts/DataContext";
 import { useAuth } from "../contexts/AuthContext";
-import { formatSuricataDetails } from "../lib/formatters";
+import { SEVERITY_CRITICAL, SEVERITY_HIGH, SEVERITY_MEDIUM, formatSuricataDetails, suricataSeverityOf } from "../lib/formatters";
 import SourceConfigWizard from "../components/SourceConfigWizard";
 
 export default function SuricataPage() {
@@ -129,7 +129,7 @@ export default function SuricataPage() {
           .sort((a, b) => {
             let aVal, bVal;
             if (sort.key === "timestamp") { aVal = new Date(a.timestamp).getTime(); bVal = new Date(b.timestamp).getTime(); }
-            else if (sort.key === "severity") { aVal = parseInt(a.severity || 0); bVal = parseInt(b.severity || 0); }
+            else if (sort.key === "severity") { aVal = suricataSeverityOf(a); bVal = suricataSeverityOf(b); }
             else { aVal = new Date(a.timestamp).getTime(); bVal = new Date(b.timestamp).getTime(); }
             const diff = aVal - bVal;
             return sort.dir === "asc" ? diff : -diff;
@@ -171,10 +171,17 @@ export default function SuricataPage() {
                 <tbody>
                   {typeAlerts.length > 0 ? (
                     typeAlerts.map((a, i) => {
-                      const sev = parseInt(a.severity || 0);
-                      const isCritical = isAlert && sev >= 12;
-                      const isHigh = isAlert && sev >= 7 && sev < 12;
-                      const isMedium = isAlert && sev >= 3 && sev < 7;
+                      // suricataSeverityOf() : passe par normalized_severity quand le
+                      // backend la fournit, sinon remappe l'échelle inversée de Suricata
+                      // (1 = critique). Un `parseInt(a.severity)` nu comparait un « 1 »
+                      // Suricata à SEVERITY_CRITICAL = 12 : tout s'affichait en Low.
+                      const sev = suricataSeverityOf(a);
+                      const rawSev = parseInt(a.severity || 0);
+                      // Seuils partagés ; isMedium remontait de >=3 à >=4
+                      // (SEVERITY_MEDIUM) pour coller au reste de l'app.
+                      const isCritical = isAlert && sev >= SEVERITY_CRITICAL;
+                      const isHigh = isAlert && sev >= SEVERITY_HIGH && sev < SEVERITY_CRITICAL;
+                      const isMedium = isAlert && sev >= SEVERITY_MEDIUM && sev < SEVERITY_HIGH;
                       const isLow = isAlert && sev > 0 && sev < 3;
                       const rowClass = isCritical ? "suricata-row-critical" : isHigh ? "suricata-row-high" : isMedium ? "suricata-row-medium" : isLow ? "suricata-row-low" : "suricata-row";
                       const sevClass = isCritical ? "suricata-sev-critical" : isHigh ? "suricata-sev-high" : isMedium ? "suricata-sev-medium" : isLow ? "suricata-sev-low" : "suricata-sev-info";
@@ -198,7 +205,7 @@ export default function SuricataPage() {
                           <td style={{ fontFamily: "monospace", fontSize: "12px", color: "#94a3b8" }}>{a.dest_ip || "-"}</td>
                           <td>
                             {isAlert ? (
-                              <span className={sevClass}>Level {sev}</span>
+                              <span className={sevClass} title={`Sévérité Suricata brute : ${rawSev} (échelle inversée) — normalisée : ${sev}/15`}>Level {rawSev} · {sev}/15</span>
                             ) : (
                               <span style={{ fontSize: "11px", color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "350px", display: "inline-block" }} title={a.payload || ""}>
                                 {formatSuricataDetails(a.payload, eType)}

@@ -18,8 +18,8 @@ TEST_DATABASE_URL = "sqlite:///:memory:"
 def db_session():
     engine = create_engine(TEST_DATABASE_URL)
     Base.metadata.create_all(bind=engine)
-    TestSession = sessionmaker(bind=engine)
-    session = TestSession()
+    session_factory = sessionmaker(bind=engine)
+    session = session_factory()
     yield session
     session.close()
     Base.metadata.drop_all(bind=engine)

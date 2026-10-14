@@ -8,6 +8,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useData } from "../contexts/DataContext";
 import { toast } from "react-toastify";
 import Timeline from "../components/Timeline";
+import { SEVERITY_CRITICAL, SEVERITY_HIGH, SEVERITY_MEDIUM } from "../lib/formatters";
 
 const CASE_STATUSES = ["open", "in_progress", "resolved", "closed"];
 const LINK_STATUSES = ["open", "in_progress", "resolved", "dismissed"];
@@ -20,7 +21,8 @@ const STATUS_LABEL = {
 const emptyForm = () => ({ title: "", description: "", severity: 8, assignee: "" });
 
 const sevClass = (s) =>
-  s >= 12 ? "text-red-400" : s >= 8 ? "text-orange-400" : s >= 5 ? "text-yellow-400" : "text-gray-400";
+  s >= SEVERITY_CRITICAL ? "text-red-400" : s >= SEVERITY_HIGH ? "text-orange-400"
+    : s >= SEVERITY_MEDIUM ? "text-yellow-400" : "text-gray-400";
 
 const pillClass = (status) => {
   switch (status) {

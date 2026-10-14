@@ -38,7 +38,8 @@ def get_local_subnet():
         potential_ifaces = []
         for interface, addrs in interfaces.items():
             is_up = stats[interface].isup if interface in stats else False
-            if not is_up: continue
+            if not is_up:
+                continue
 
             # Skip common virtual interface names
             if any(virtual in interface.lower() for virtual in ['vbox', 'virtual', 'docker', 'wsl', 'vmware', 'vpn']):
@@ -144,7 +145,8 @@ def scan_network(
 
             # Robust MAC detection
             mac = addresses.get('mac')
-            if not mac and 'mac' in host_info: mac = host_info['mac']
+            if not mac and 'mac' in host_info:
+                mac = host_info['mac']
 
             mac = (mac or 'UNKNOWN').upper()
 

@@ -22,7 +22,12 @@ export const SEVERITY_MEDIUM = 4;
 
 export function severityOf(alert) {
   if (!alert) return 0;
+  // `normalized_severity` d'abord : c'est la seule valeur déjà ramenée par le
+  // pipeline sur l'échelle 0-15 partagée. Les champs bruts qui suivent viennent
+  // de sources dont l'échelle diffère (Suricata compte à l'envers, Wazuh de 0 à
+  // 16) — les comparer tels quels à SEVERITY_CRITICAL n'a pas de sens.
   const raw =
+    alert.normalized_severity ??
     alert.Severity ??
     alert.severity ??
     alert.level ??
@@ -31,6 +36,21 @@ export function severityOf(alert) {
     0;
   const n = parseInt(raw, 10);
   return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Échelle brute de Suricata, qui est INVERSÉE : 1 est le plus grave, 4 le moins.
+ * La comparer directement aux seuils 0-15 faisait afficher « Low » pour les
+ * alertes les plus critiques de Suricata. À n'utiliser que si
+ * `normalized_severity` manque (ancien backend).
+ */
+export const SURICATA_RAW_SEVERITY = { 1: 15, 2: 10, 3: 5, 4: 1 };
+
+export function suricataSeverityOf(alert) {
+  const normalized = parseInt(alert?.normalized_severity, 10);
+  if (Number.isFinite(normalized) && normalized > 0) return normalized;
+  const raw = parseInt(alert?.severity, 10);
+  return Number.isFinite(raw) ? (SURICATA_RAW_SEVERITY[raw] ?? 0) : 0;
 }
 
 export function severityBucket(alert) {

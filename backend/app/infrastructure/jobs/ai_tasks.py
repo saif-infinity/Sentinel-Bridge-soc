@@ -103,10 +103,14 @@ def analyze_network_global_task(tenant_id: str = "default"):
             by_sev = {"critical": 0, "high": 0, "medium": 0, "low": 0}
             for a in suricata_alerts:
                 s = int(a.severity or 0)
-                if s >= 7:   by_sev["critical"] += 1
-                elif s >= 5: by_sev["high"]     += 1
-                elif s >= 3: by_sev["medium"]   += 1
-                else:        by_sev["low"]      += 1
+                if s >= 7:
+                    by_sev["critical"] += 1
+                elif s >= 5:
+                    by_sev["high"] += 1
+                elif s >= 3:
+                    by_sev["medium"] += 1
+                else:
+                    by_sev["low"] += 1
 
             recent_lines = [
                 f"- [{a.timestamp.strftime('%H:%M')}] S{a.severity}: "
