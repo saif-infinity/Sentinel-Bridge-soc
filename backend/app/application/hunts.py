@@ -6,7 +6,7 @@ aucun nouveau moteur, aucun SQL dialecte-spécifique, SQLite-safe.
 import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -14,8 +14,8 @@ from sqlalchemy.orm import Session
 from ..infrastructure.ollama.client import _sanitize
 from ..models import Alert, Hunt, SuricataAlert
 from .action_logger import log_action
-from .rules.evaluator import OPS, evaluate_conditions
 from .rules.engine import build_normalized_from_row
+from .rules.evaluator import OPS, evaluate_conditions
 
 logger = logging.getLogger(__name__)
 
@@ -233,7 +233,7 @@ def run_hunt(db, tenant_id: str, username: str,
 
     if not preview:
         if h is not None:
-            h.last_run_at = datetime.now(timezone.utc)
+            h.last_run_at = datetime.now(UTC)
             h.last_run_by = username
             h.last_run_count = total_matched
             h.last_run_duration_ms = duration_ms

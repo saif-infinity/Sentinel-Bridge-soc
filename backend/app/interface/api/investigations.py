@@ -1,8 +1,7 @@
 """F5 — Routes API : investigation (lecture seule, tenant-scoped)."""
 import logging
-from typing import Optional
 
-from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from ...auth import get_api_key_or_jwt
@@ -23,7 +22,7 @@ def _get_api_key_or_jwt(request: Request):
 
 @router.get("")
 def list_investigations(request: Request, db: Session = Depends(get_db),
-                          status: Optional[str] = None,
+                          status: str | None = None,
                           limit: int = 100, offset: int = 0):
     tenant_id = get_tenant_id(request)
     query = db.query(Investigation).filter(Investigation.tenant_id == tenant_id)

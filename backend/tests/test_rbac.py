@@ -17,6 +17,7 @@ os.environ["SUPER_ADMIN_PASSWORD"] = "test-sa-pass"
 os.environ["SUPER_ADMIN_API_KEY"] = "test-sa-key"
 
 import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
 from pydantic import SecretStr  # noqa: E402
 
 import app.models  # noqa: E402,F401  # enregistre toutes les tables avant create_all
@@ -25,7 +26,6 @@ from app.core.db import Base, SessionLocal, engine  # noqa: E402
 from app.core.jwt_utils import create_access_token  # noqa: E402
 from app.interface.main import app  # noqa: E402
 from app.models import Tenant, TenantUser  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
 
 # Si un autre module de test a déjà importé app (settings singleton figé) sans
 # ces variables, on les injecte ici pour que le bootstrap seed le super admin.
@@ -150,14 +150,31 @@ def test_me_happy(client):
 # ── 2. /api/auth/me — utilisateur inconnu / token invalide ─────────────
 
 def test_me_missing_user_fallback(client):
-    """Utilisateur non seedé → fallback JSON store → rôle par défaut analyst."""
+    """Utilisateur non seedé → fallback JSON store → rôle par défaut **le plus bas**.
+
+    Ce test affirmait auparavant `role == "analyst"`, c'est-à-dire qu'il verrouillait
+    un RBAC *fail-open* : tout porteur d'un JWT signé dont le compte était absent de
+    TenantUser obtenait un rôle qui écrit. `resolve_user_role()` retombe maintenant
+    sur "viewer" (fail-closed) — voir core/rbac.py. Le test vérifie donc le comportement
+    sûr, et échouera si quelqu'un réintroduit le défaut permissif.
+    """
     r = client.get("/api/auth/me", headers=_auth(_token("ghost", role="analyst")))
     assert r.status_code == 200
     body = r.json()
     assert body["username"] == "ghost"
-    assert body["role"] == "analyst"
+    assert body["role"] == "viewer"          # fail-closed, pas "analyst"
     assert body["email"] is None
     assert body["is_active"] is True
+
+
+def test_missing_user_cannot_write(client):
+    """Corollaire: le fallback viewer doit réellement interdire les écritures."""
+    token = _token("ghost-writer", role="admin")   # le JWT revendique admin
+    r = client.post("/api/rules", headers=_auth(token), json={"name": "x"})
+    assert r.status_code in (401, 403), (
+        "un utilisateur absent de TenantUser ne doit pas pouvoir écrire, "
+        f"même si son JWT revendique un rôle élevé (obtenu {r.status_code})"
+    )
 
 
 def test_me_garbage_token(client):

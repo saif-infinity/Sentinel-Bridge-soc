@@ -4,12 +4,11 @@ import logging
 import os
 import shutil
 import subprocess
-from typing import Tuple
 
 logger = logging.getLogger(__name__)
 
 
-def quarantine_file(db, tenant_id: str, *, host: str, path: str, quarantine_dir: str = "/var/quarantine") -> Tuple[bool, dict | None, str | None]:
+def quarantine_file(db, tenant_id: str, *, host: str, path: str, quarantine_dir: str = "/var/quarantine") -> tuple[bool, dict | None, str | None]:
     """Move a file to quarantine after hashing it. Never deletes."""
     try:
         sha256 = hashlib.sha256()
@@ -26,7 +25,7 @@ def quarantine_file(db, tenant_id: str, *, host: str, path: str, quarantine_dir:
         return False, None, str(e)
 
 
-def unquarantine_file(db, tenant_id: str, *, host: str, original_path: str, quarantine_path: str, expected_sha256: str) -> Tuple[bool, dict | None, str | None]:
+def unquarantine_file(db, tenant_id: str, *, host: str, original_path: str, quarantine_path: str, expected_sha256: str) -> tuple[bool, dict | None, str | None]:
     """Move file back from quarantine and verify sha256. Never deletes."""
     try:
         sha256 = hashlib.sha256()
@@ -42,7 +41,7 @@ def unquarantine_file(db, tenant_id: str, *, host: str, original_path: str, quar
         return False, None, str(e)
 
 
-def restart_service(db, tenant_id: str, *, host: str, service: str) -> Tuple[bool, dict | None, str | None]:
+def restart_service(db, tenant_id: str, *, host: str, service: str) -> tuple[bool, dict | None, str | None]:
     """Restart a service via systemctl."""
     try:
         result = subprocess.run(

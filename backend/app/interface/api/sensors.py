@@ -1,19 +1,19 @@
-import logging
 import asyncio
+import logging
 import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import psutil
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import desc
+from sqlalchemy.orm import Session
 
-from ...db import get_db, SessionLocal, get_tenant_id, query_with_tenant
-from ...models import NetworkSensor, AccessLog, Alert, ActionLog, SuricataAlert
-from ...schemas import NetworkSensorCreate
 from ...auth import get_api_key_or_jwt, has_scopes_or_api_key
+from ...db import get_db, get_tenant_id, query_with_tenant
+from ...models import AccessLog, ActionLog, Alert, NetworkSensor, SuricataAlert
+from ...schemas import NetworkSensorCreate
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ async def get_analyst_bandwidth(
     _user: Any = Depends(has_scopes_or_api_key(["devices:read"])),
 ):
     """Get bandwidth readings for a specific analyst over the last N hours."""
-    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    since = datetime.now(UTC) - timedelta(hours=hours)
     readings = (
         query_with_tenant(NetworkSensor, request, db)
         .filter(NetworkSensor.username == username, NetworkSensor.timestamp >= since)
@@ -77,12 +77,12 @@ async def get_all_bandwidth(
     _user: Any = Depends(has_scopes_or_api_key(["devices:read"])),
 ):
     """Get the latest bandwidth snapshot for each online analyst + system."""
-    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    since = datetime.now(UTC) - timedelta(hours=hours)
 
     online_users = (
         query_with_tenant(AccessLog, request, db)
         .with_entities(AccessLog.username, AccessLog.ip_address)
-        .filter(AccessLog.is_online == True)
+        .filter(AccessLog.is_online.is_(True))
         .all()
     )
     usernames = [(u, ip) for u, ip in online_users]
@@ -160,7 +160,7 @@ async def get_system_health(
 ):
     """Full system health: resources, services, alerts, errors, actions."""
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     today_start = datetime(now.year, now.month, now.day)
 
     # ── System Resources (psutil) ──
@@ -244,7 +244,7 @@ async def get_system_health(
     today_suricata = query_with_tenant(SuricataAlert, request, db).filter(SuricataAlert.timestamp >= today_start).count()
     critical_suricata = query_with_tenant(SuricataAlert, request, db).filter(SuricataAlert.severity <= 1).count()
 
-    online_users = query_with_tenant(AccessLog, request, db).filter(AccessLog.is_online == True).count()
+    online_users = query_with_tenant(AccessLog, request, db).filter(AccessLog.is_online.is_(True)).count()
     today_logins = query_with_tenant(AccessLog, request, db).filter(AccessLog.login_time >= today_start).count()
 
     today_actions = query_with_tenant(ActionLog, request, db).filter(ActionLog.timestamp >= today_start).count()
@@ -373,17 +373,25 @@ async def get_system_health(
     }
 
 
-async def sample_bandwidth_for_online_analysts(db_factory):
-    """Background task: periodically sample server bandwidth and record per-analyst readings."""
+async def sample_server_bandwidth(db_factory):
+    """Échantillonne le débit **du serveur** (compteurs psutil de l'hôte).
+
+    Anciennement `sample_bandwidth_for_online_analysts` : la fonction divisait le
+    débit global du serveur par le nombre d'analystes connectés et écrivait une
+    ligne `NetworkSensor` par utilisateur, comme s'il s'agissait du trafic de
+    chacun. Ces chiffres étaient donc inventés — un analyste voyait « son » débit
+    alors que c'était 1/N du trafic de la machine. On n'écrit plus qu'une seule
+    mesure, clairement étiquetée côté serveur.
+    """
     prev_io = psutil.net_io_counters()
-    prev_time = datetime.now(timezone.utc).timestamp()
+    prev_time = datetime.now(UTC).timestamp()
 
     while True:
         try:
             await asyncio.sleep(10)
 
             curr_io = psutil.net_io_counters()
-            curr_time = datetime.now(timezone.utc).timestamp()
+            curr_time = datetime.now(UTC).timestamp()
             interval = curr_time - prev_time
             if interval <= 0:
                 continue
@@ -399,34 +407,28 @@ async def sample_bandwidth_for_online_analysts(db_factory):
             try:
                 online = (
                     db.query(AccessLog.username, AccessLog.ip_address, AccessLog.tenant_id)
-                    .filter(AccessLog.is_online == True)
+                    .filter(AccessLog.is_online.is_(True))
                     .all()
                 )
 
+                # Une seule mesure, celle du serveur — plus de ventilation fictive
+                # par analyste. `online` n'est conservé que pour le log.
+                db.add(NetworkSensor(
+                    username="__server__",
+                    ip_address="127.0.0.1",
+                    tenant_id="default",
+                    bytes_sent=int(total_sent),
+                    bytes_recv=int(total_recv),
+                    bandwidth_mbps=round(total_mbps, 3),
+                    interface="server",
+                ))
                 if online:
-                    for username, ip_address, tenant_id in online:
-                        per_user_mbps = total_mbps / len(online)
-                        sensor = NetworkSensor(
-                            username=username,
-                            ip_address=ip_address,
-                            tenant_id=tenant_id,
-                            bytes_sent=int(total_sent / len(online)),
-                            bytes_recv=int(total_recv / len(online)),
-                            bandwidth_mbps=round(per_user_mbps, 3),
-                            interface="all",
-                        )
-                        db.add(sensor)
-                else:
-                    sensor = NetworkSensor(
-                        username="__server__",
-                        ip_address="127.0.0.1",
-                        tenant_id="default",
-                        bytes_sent=int(total_sent),
-                        bytes_recv=int(total_recv),
-                        bandwidth_mbps=round(total_mbps, 3),
-                        interface="all",
+                    logger.info(
+                        "Débit serveur échantillonné (%.3f Mbps) ; %d analyste(s) connecté(s) "
+                        "— aucune mesure par utilisateur n'est produite (le serveur ne voit "
+                        "que son propre trafic agrégé).",
+                        total_mbps, len(online),
                     )
-                    db.add(sensor)
 
                 db.commit()
             finally:

@@ -6,6 +6,7 @@ import { useTranslation } from "../i18n";
 import AlertRow from "../components/AlertRow";
 import InvestigationModal from "./InvestigationModal";
 import AlertHistoryModal from "./AlertHistoryModal";
+import { SEVERITY_CRITICAL, SEVERITY_HIGH, SEVERITY_MEDIUM } from "../lib/formatters";
 
 export default function TerminalAlertsPage() {
   const { fetchWithAuth, headers } = useAuth();
@@ -43,9 +44,9 @@ export default function TerminalAlertsPage() {
     const now = new Date().getTime();
 
     let passSeverity = true;
-    if (alertFilterSeverity === "12") passSeverity = sev >= 12;
-    else if (alertFilterSeverity === "8") passSeverity = sev >= 8 && sev < 12;
-    else if (alertFilterSeverity === "4") passSeverity = sev >= 4 && sev < 8;
+    if (alertFilterSeverity === String(SEVERITY_CRITICAL)) passSeverity = sev >= SEVERITY_CRITICAL;
+    else if (alertFilterSeverity === String(SEVERITY_HIGH)) passSeverity = sev >= SEVERITY_HIGH && sev < SEVERITY_CRITICAL;
+    else if (alertFilterSeverity === String(SEVERITY_MEDIUM)) passSeverity = sev >= SEVERITY_MEDIUM && sev < SEVERITY_HIGH;
     else if (alertFilterSeverity === "0") passSeverity = sev >= 0 && sev < 4;
 
     let passTime = true;

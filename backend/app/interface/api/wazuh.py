@@ -1,13 +1,11 @@
-import httpx
-import base64
+import urllib3
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from ...db import get_db
-from ...models import Device
+
 from ...auth import get_api_key_or_jwt
+from ...db import get_db
 from ...services.wazuh_service import wazuh_service
-import urllib3
 
 # Désactive les avertissements pour les certificats SSL auto-signés de Wazuh
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -16,8 +14,8 @@ router = APIRouter(prefix="/api/wazuh", tags=["Wazuh Orchestrator"], dependencie
 
 @router.get("/topology")
 async def get_network_topology():
-    """ 
-    Génère la topologie réseau dynamiquement en fonction des agents Wazuh 
+    """
+    Génère la topologie réseau dynamiquement en fonction des agents Wazuh
     et de leurs sous-réseaux respectifs.
     """
     try:

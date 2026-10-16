@@ -1,16 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from sqlalchemy.orm import Session
-from sqlalchemy import func
-from ...db import get_db, get_tenant_id, query_with_tenant
-from ...models import Device, Asset, SuricataAlert
-from ...schemas import DeviceCreate, DeviceRead, AssetRead, AssetCreate
-from ...auth import has_scopes_or_api_key
-from typing import List, Optional
 import json
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.orm import Session
+
+from ...auth import has_scopes_or_api_key
+from ...db import get_db, get_tenant_id, query_with_tenant
+from ...models import Asset, Device, SuricataAlert
+from ...schemas import AssetCreate, AssetRead, DeviceCreate, DeviceRead
 
 router = APIRouter(prefix="/devices", tags=["devices"])
 
-@router.get("", response_model=List[DeviceRead], dependencies=[Depends(has_scopes_or_api_key(["devices:read"]))])
+@router.get("", response_model=list[DeviceRead], dependencies=[Depends(has_scopes_or_api_key(["devices:read"]))])
 def list_devices(request: Request, db: Session = Depends(get_db)):
     return query_with_tenant(Device, request, db).all()
 
@@ -20,13 +20,13 @@ def create_device(request: Request, device: DeviceCreate, db: Session = Depends(
     existing_device = query_with_tenant(Device, request, db).filter(
         (Device.ip == device.ip) | (Device.mac == device.mac)
     ).first()
-    
+
     if existing_device:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Asset already exists"
         )
-    
+
     new_device = Device(ip=device.ip, mac=device.mac, is_online=True, tenant_id=get_tenant_id(request))
     db.add(new_device)
     db.commit()
@@ -34,7 +34,7 @@ def create_device(request: Request, device: DeviceCreate, db: Session = Depends(
     return new_device
 
 # Inventory Center - Combined Assets + Devices
-@router.get("/inventory", response_model=List[AssetRead], dependencies=[Depends(has_scopes_or_api_key(["devices:read"]))])
+@router.get("/inventory", response_model=list[AssetRead], dependencies=[Depends(has_scopes_or_api_key(["devices:read"]))])
 def get_inventory(request: Request, db: Session = Depends(get_db)):
     """
     Retourne l'inventaire enrichi : tous les Device de la DB,
@@ -119,7 +119,7 @@ def create_asset(request: Request, asset: AssetCreate, db: Session = Depends(get
         db.commit()
         db.refresh(existing)
         return existing
-    
+
     new_asset = Asset(**asset.model_dump(), tenant_id=get_tenant_id(request))
     db.add(new_asset)
     db.commit()

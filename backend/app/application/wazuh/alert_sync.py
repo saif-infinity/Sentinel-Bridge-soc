@@ -14,7 +14,7 @@ class WazuhAlertSync:
         auth_b64 = await self._get_indexer_auth()
         if not auth_b64:
             return
-        
+
         try:
             async with httpx.AsyncClient(verify=ssl_ctx) as client:
                 query = {
@@ -29,27 +29,27 @@ class WazuhAlertSync:
                     json=query,
                     timeout=5.0
                 )
-                
+
                 if response.status_code == 200:
                     self._indexer_auth_failure_count = 0
                     if not self._indexer_available:
                         logger.info("Wazuh Indexer connection restored")
                         self._indexer_available = True
-                    
+
                     hits = response.json().get('hits', {}).get('hits', [])
-                    from ...models import Device, Asset
-                    from ...application.pipeline import ingest_alert
                     from ...application.normalization import map_wazuh, to_pipeline_payload
-                    
+                    from ...application.pipeline import ingest_alert
+                    from ...models import Asset, Device
+
                     db = db_session_factory()
                     try:
                         for hit in hits:
                             source = hit['_source']
-                            
+
                             agent_data = source.get('agent', {})
                             agent_id = agent_data.get('id', '000')
                             agent_name = agent_data.get('name', 'Unknown')
-                            
+
                             async with self._cache_lock:
                                 if agent_id not in self._agent_ip_cache:
                                     identity = await self.get_agent_real_identity(agent_id, fallback_name=agent_name)
@@ -69,7 +69,7 @@ class WazuhAlertSync:
                                     db.add(device)
                                 else:
                                     device.is_wazuh_agent = True
-                                
+
                                 # Update Asset
                                 asset = db.query(Asset).filter(Asset.ip == real_ip).first()
                                 if not asset:

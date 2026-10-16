@@ -2,7 +2,7 @@ import { ShieldAlert, Activity, Zap, FileSearch, BrainCircuit, RefreshCw, AlertC
 import { AreaChart, Area, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useData } from "../contexts/DataContext";
 import { useTranslation } from "../i18n";
-import { getHourlyAlertsData } from "../lib/formatters";
+import { SEVERITY_HIGH, getHourlyAlertsData, severityOf } from "../lib/formatters";
 import { useAuth } from "../contexts/AuthContext";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -75,7 +75,7 @@ export default function DashboardPage() {
             <Activity size={20} />
           </div>
           <div className="stat-info">
-            <span className="stat-value">{wazuhAlerts.filter((a) => a.Severity >= 8).length}</span>
+            <span className="stat-value">{wazuhAlerts.filter((a) => severityOf(a) >= SEVERITY_HIGH).length}</span>
             <span className="stat-label">{t("critical_alerts")}</span>
           </div>
         </div>

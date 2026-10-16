@@ -1,23 +1,26 @@
-import logging
 import asyncio
+import json
+import logging
 import re
+
+import httpx
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
-from typing import List
-import httpx
-import json
 from sqlalchemy.orm import Session
+
 from ...auth import has_scopes_or_api_key
 from ...config import settings
+from ...db import SessionLocal, get_db, get_tenant_id, query_with_tenant
+from ...schemas import ThreatAnalysisRequest
+from ...services.system_config_service import get_config_value
+
 
 def _sanitize(text: str) -> str:
     text = re.sub(r'!\[.*?\]\(.*?\)', '', text)
     text = re.sub(r'<img[^>]*>', '', text)
     text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', text)
     return text.strip()[:500]
-from ...schemas import ThreatAnalysisRequest
-from ...db import SessionLocal, get_db, get_tenant_id, query_with_tenant
-from ...services.system_config_service import get_config_value
+
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +41,7 @@ async def _save_threat_report(content: str, tenant_id: str = "default"):
         db.close()
 
 
-async def _get_critical_wazuh_alerts(limit: int = 5, tenant_id: str = "default") -> List[str]:
+async def _get_critical_wazuh_alerts(limit: int = 5, tenant_id: str = "default") -> list[str]:
     """Fetch most recent Wazuh alerts with severity >= 7, scoped by tenant."""
     db = SessionLocal()
     try:

@@ -4,14 +4,11 @@ Extracted Wazuh API + active-response actions. SSH actions live in ssh_actions.p
 """
 import base64
 import logging
-from typing import Any, Dict, Optional, Tuple
 
 import httpx
 
-from ...infrastructure.wazuh.ssl_context import ssl_ctx
-from ...config import settings
 from ...application.system_config import get_config_value
-from ...db import SessionLocal
+from ...infrastructure.wazuh.ssl_context import ssl_ctx
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +25,7 @@ def wazuh_token(base: str, user: str, password: str) -> str:
         return r.json()["data"]["token"]
 
 
-def wazuh_active_response(db, base: str, ip: str, action: str) -> Tuple[bool, Optional[Dict], Optional[str]]:
+def wazuh_active_response(db, base: str, ip: str, action: str) -> tuple[bool, dict | None, str | None]:
     """Execute Wazuh active-response command. action='add'|'remove'."""
     user = get_config_value(db, "wazuh_api", "user", "wazuh")
     password = get_config_value(db, "wazuh_api", "password", "")
@@ -52,19 +49,19 @@ def wazuh_active_response(db, base: str, ip: str, action: str) -> Tuple[bool, Op
         return False, None, str(e)
 
 
-def wazuh_block(db, ip: str) -> Tuple[bool, Optional[Dict], Optional[str]]:
+def wazuh_block(db, ip: str) -> tuple[bool, dict | None, str | None]:
     """Block an IP via Wazuh active-response."""
     base = get_config_value(db, "wazuh_api", "base_url", "https://localhost:55000")
     return wazuh_active_response(db, base, ip, "add")
 
 
-def wazuh_unblock(db, ip: str) -> Tuple[bool, Optional[Dict], Optional[str]]:
+def wazuh_unblock(db, ip: str) -> tuple[bool, dict | None, str | None]:
     """Unblock an IP via Wazuh active-response."""
     base = get_config_value(db, "wazuh_api", "base_url", "https://localhost:55000")
     return wazuh_active_response(db, base, ip, "remove")
 
 
-def wazuh_isolate_agent(db, agent_id: str, isolate: bool = True) -> Tuple[bool, Optional[Dict], Optional[str]]:
+def wazuh_isolate_agent(db, agent_id: str, isolate: bool = True) -> tuple[bool, dict | None, str | None]:
     """Isolate or restore a Wazuh agent.
 
     Primary: Wazuh API endpoint PUT/DELETE /agents/{id}/isolation (per design).

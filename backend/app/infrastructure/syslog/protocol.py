@@ -1,10 +1,11 @@
 """Syslog message parsers: RFC 5424 (primary) + RFC 3164 fallback."""
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 try:
-    from syslog_rfc5424_parser import SyslogMessage, ParseError as SyslogParseError
+    from syslog_rfc5424_parser import ParseError as SyslogParseError
+    from syslog_rfc5424_parser import SyslogMessage
 except ImportError:
     SyslogMessage = None  # type: ignore
     SyslogParseError = Exception  # type: ignore
@@ -88,9 +89,9 @@ def parse_rfc3164(raw: str) -> dict[str, Any] | None:
     ts_str, hostname, appname, procid, message = m.groups()
 
     # Parse timestamp (no year in RFC 3164!)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     try:
-        ts = datetime.strptime(ts_str, "%b %d %H:%M:%S").replace(tzinfo=timezone.utc)
+        ts = datetime.strptime(ts_str, "%b %d %H:%M:%S").replace(tzinfo=UTC)
         ts = ts.replace(year=now.year)
         # Handle Dec→Jan rollover
         if ts.month == 1 and now.month == 12:

@@ -1,1 +1,1 @@
-from ..core.broadcaster import broadcaster
+from ..core.broadcaster import broadcaster  # noqa: F401

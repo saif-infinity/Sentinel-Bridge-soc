@@ -7,6 +7,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useData } from "../contexts/DataContext";
 import { useTranslation } from "../i18n";
 import { toast } from "react-toastify";
+import { SEVERITY_CRITICAL, SEVERITY_HIGH, SEVERITY_MEDIUM } from "../lib/formatters";
 
 const OPS = [
   { value: "eq", label: "est égal à" },
@@ -176,7 +177,8 @@ export default function RulesPage() {
   };
 
   const sevClass = (s) =>
-    s >= 12 ? "text-red-400" : s >= 8 ? "text-orange-400" : s >= 5 ? "text-yellow-400" : "text-gray-400";
+    s >= SEVERITY_CRITICAL ? "text-red-400" : s >= SEVERITY_HIGH ? "text-orange-400"
+    : s >= SEVERITY_MEDIUM ? "text-yellow-400" : "text-gray-400";
 
   return (
     <div className="p-6 space-y-6">

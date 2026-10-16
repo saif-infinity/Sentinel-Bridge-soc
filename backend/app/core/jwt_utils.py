@@ -1,6 +1,7 @@
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Union
+from datetime import UTC, datetime, timedelta
+
 from jose import JWTError, jwt
+
 from .config import settings
 
 # To get a string like this run:
@@ -9,12 +10,12 @@ SECRET_KEY = settings.JWT_SECRET_KEY.get_secret_value()
 ALGORITHM = settings.JWT_ALGORITHM
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt

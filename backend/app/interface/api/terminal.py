@@ -1,9 +1,11 @@
-import paramiko
-import subprocess
-import shlex
 import logging
-from fastapi import APIRouter, Depends, Request
+import shlex
+import subprocess
+
+import paramiko
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+
 from ...auth import get_api_key_or_jwt, has_scopes_or_api_key
 from ...config import settings
 from ...db import get_db
@@ -11,18 +13,47 @@ from ...schemas import CommandRequest
 
 logger = logging.getLogger(__name__)
 
+# ══════════════════════════════════════════════════════════════════════
+# FIX — the previous allowlist only ever checked parts[0], which made it
+# trivially escapable:
+#   • `docker` was allowed -> `docker exec <c> docker run --privileged -v /:/h …`
+#     (the Wazuh container is entered from the backend host, i.e. with the docker
+#      socket => root on the host);
+#   • `find` only had its FIRST path argument checked, so
+#     `find /var/log -type f -exec cat /etc/shadow +` ran `cat` anywhere
+#     (`+` and `-exec` were not in the blocked-character list);
+#   • `grep` had no path restriction at all -> `grep -r root /etc/shadow`;
+#   • `systemctl` allowed `edit` / `set-property` (writing a unit file = RCE);
+#   • `top` / `htop` are interactive and always burned the 15 s timeout;
+#   • the multi-word entries "docker ps" / "docker stats" could never match,
+#     because only the first word was compared.
+# Below: two-word commands are matched as such, dangerous flags are rejected, and
+# every absolute path argument of a read command must be inside a safe directory.
+# ══════════════════════════════════════════════════════════════════════
 ALLOWED_COMMANDS = {
     "wazuh": {
-        "status", "agent_control", "ossec-control", "cat", "tail", "head",
-        "grep", "find", "ls", "df", "free", "uptime", "whoami", "id",
-        "ps", "netstat", "ss", "ip", "ifconfig", "top", "htop",
-        "journalctl", "systemctl", "docker", "docker ps", "docker stats",
+        "status", "agent_control", "ossec-control",
+        "cat", "tail", "head", "ls", "df", "free", "uptime", "whoami", "id",
+        "ps", "netstat", "ss", "ip", "journalctl",
+        "systemctl status", "systemctl is-active", "systemctl list-units", "systemctl show",
     },
     "suricata": {
-        "status", "cat", "tail", "head", "grep", "find", "ls", "df",
-        "free", "uptime", "whoami", "id", "ps", "netstat", "ss",
-        "ip", "ifconfig", "suricatasc", "systemctl",
+        "status", "cat", "tail", "head", "ls", "df", "free", "uptime", "whoami", "id",
+        "ps", "netstat", "ss", "ip", "suricatasc",
+        "systemctl status", "systemctl is-active", "systemctl list-units", "systemctl show",
     },
+}
+
+# `grep` and `find` were deliberately REMOVED from the allowlists above: even with a
+# directory restriction they are execution primitives (`find -exec`) and arbitrary
+# file readers. `ls` + `cat` + `tail` + `head` + `journalctl` cover every legitimate
+# diagnostic need. They stay listed here as defence in depth if re-added later.
+FILE_READING_COMMANDS = {"cat", "tail", "head", "ls", "grep", "find"}
+
+# Flags that turn a "read-only" binary into an execution/arbitrary-read primitive.
+FORBIDDEN_FLAGS = {
+    "-exec", "-execdir", "-ok", "-okdir", "-delete", "-fprint", "-fprintf", "-fls",
+    "--directory", "--file", "--output", "-o", "--eval", "-e",
 }
 
 # Restrict file-reading commands to known safe directories only
@@ -31,10 +62,6 @@ SAFE_READ_DIRS = {
     "suricata": ["/var/log/", "/etc/suricata/"],
 }
 
-SAFE_FIND_DIRS = {
-    "wazuh": ["/var/log/", "/var/ossec/", "/var/run/"],
-    "suricata": ["/var/log/", "/etc/suricata/"],
-}
 
 def sanitize_command(cmd: str, target: str) -> str:
     cmd = cmd.strip()
@@ -56,27 +83,40 @@ def sanitize_command(cmd: str, target: str) -> str:
     if not parts:
         raise ValueError("Empty command")
 
-    base_cmd = parts[0].lower()
+    lowered = [part.lower() for part in parts]
     allowed = ALLOWED_COMMANDS.get(target, set())
 
-    if base_cmd not in allowed:
-        raise ValueError(f"Command '{base_cmd}' is not allowed. Allowed: {', '.join(sorted(allowed))}")
+    # Match the longest allowed prefix ("systemctl status" beats "systemctl").
+    base_cmd = None
+    for words in (2, 1):
+        candidate = " ".join(lowered[:words])
+        if candidate in allowed:
+            base_cmd = candidate
+            break
+    if base_cmd is None:
+        raise ValueError(f"Command '{lowered[0]}' is not allowed. Allowed: {', '.join(sorted(allowed))}")
 
-    # Restrict file-reading commands (cat, tail, head) to known safe directories
-    if base_cmd in ("cat", "tail", "head") and len(parts) >= 2:
-        target_path = parts[-1]
+    argv = parts[len(base_cmd.split()):]
+
+    for arg in argv:
+        if arg in FORBIDDEN_FLAGS or arg.split("=", 1)[0] in FORBIDDEN_FLAGS:
+            raise ValueError(f"Flag '{arg}' is not allowed")
+        if arg.startswith("-exec") or arg.startswith("-delete"):
+            raise ValueError(f"Flag '{arg}' is not allowed")
+
+    # Every absolute path handed to a reading command must be inside a safe dir.
+    if lowered[0] in FILE_READING_COMMANDS:
         safe_dirs = SAFE_READ_DIRS.get(target, [])
-        if safe_dirs and not any(target_path.startswith(d) for d in safe_dirs):
-            raise ValueError(f"Access to '{target_path}' is restricted to: {', '.join(safe_dirs)}")
-
-    # Restrict find to safe directories only
-    if base_cmd == "find" and len(parts) >= 2:
-        search_path = parts[1]
-        safe_find = SAFE_FIND_DIRS.get(target, [])
-        if safe_find and not any(search_path.startswith(d) for d in safe_find):
-            raise ValueError(f"find is restricted to: {', '.join(safe_find)}")
+        for arg in argv:
+            if ".." in arg:
+                raise ValueError("Path traversal ('..') is not allowed")
+            if not arg.startswith("/"):
+                continue
+            if not any(arg == d.rstrip("/") or arg.startswith(d) for d in safe_dirs):
+                raise ValueError(f"Access to '{arg}' is restricted to: {', '.join(safe_dirs)}")
 
     return cmd
+
 
 router = APIRouter(prefix="/api/terminal", tags=["Terminal"], dependencies=[Depends(get_api_key_or_jwt)])
 
@@ -164,7 +204,9 @@ async def execute_ssh_command(request: Request, req: CommandRequest, db: Session
                 return {"output": "Connection to Suricata failed", "status": "error"}
 
     except ValueError as e:
-        return {"output": f"Command rejected: {e}", "status": "error"}
+        # FIX: a rejected command used to come back as HTTP 200 with
+        # {"status": "error"}, which the UI cannot distinguish from success.
+        raise HTTPException(status_code=400, detail=f"Command rejected: {e}")
     except Exception as e:
         logger.exception("Terminal execution failed")
         return {"output": "Internal error during command execution", "status": "error"}

@@ -1,7 +1,7 @@
 import logging
 
 from ...core.celery import celery_app
-from ..ollama.client import _sanitize, _call_ollama
+from ..ollama.client import _call_ollama, _sanitize
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 def analyze_threat_task(tenant_id: str = "default"):
     logger.info("Démarrage analyse IA Wazuh — récupération des 10 alertes critiques (level >= 7)...")
 
-    from ...models import Alert
     from ...db import SessionLocal
+    from ...models import Alert
 
     db = SessionLocal()
     try:
@@ -80,8 +80,8 @@ Be concise."""
 def analyze_network_global_task(tenant_id: str = "default"):
     logger.info("Démarrage analyse IA réseau — récupération des 10 alertes Suricata critiques (severity >= 7)...")
 
-    from ...models import SuricataAlert, Device
     from ...db import SessionLocal
+    from ...models import Device, SuricataAlert
 
     db = SessionLocal()
     try:
@@ -103,10 +103,14 @@ def analyze_network_global_task(tenant_id: str = "default"):
             by_sev = {"critical": 0, "high": 0, "medium": 0, "low": 0}
             for a in suricata_alerts:
                 s = int(a.severity or 0)
-                if s >= 7:   by_sev["critical"] += 1
-                elif s >= 5: by_sev["high"]     += 1
-                elif s >= 3: by_sev["medium"]   += 1
-                else:        by_sev["low"]      += 1
+                if s >= 7:
+                    by_sev["critical"] += 1
+                elif s >= 5:
+                    by_sev["high"] += 1
+                elif s >= 3:
+                    by_sev["medium"] += 1
+                else:
+                    by_sev["low"] += 1
 
             recent_lines = [
                 f"- [{a.timestamp.strftime('%H:%M')}] S{a.severity}: "

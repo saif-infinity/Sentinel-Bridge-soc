@@ -30,13 +30,13 @@ os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB}"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app.core.db import Base, engine, SessionLocal  # noqa: E402
-import app.models  # noqa: E402, F401 — modèles existants AVANT create_all
-import app.domain.rule_models  # noqa: E402, F401 — Rule / RuleMatchOutbox / CorrelationState
 import app.domain.pipeline_models  # noqa: E402, F401 — PipelineEvent
+import app.domain.rule_models  # noqa: E402, F401 — Rule / RuleMatchOutbox / CorrelationState
+import app.models  # noqa: E402, F401 — modèles existants AVANT create_all
 from app.config import settings  # noqa: E402
+from app.core.db import Base, SessionLocal, engine  # noqa: E402
 from app.interface.main import app  # noqa: E402
-from app.models import Alert, SuricataAlert, Device  # noqa: E402
+from app.models import Alert, Device, SuricataAlert  # noqa: E402
 
 API_KEY = settings.API_KEY.get_secret_value()
 HEADERS = {"X-API-Key": API_KEY}
@@ -75,7 +75,6 @@ def db(_ensure_tables):
 
 def test_mappers_produce_canonical_keys():
     from app.application.normalization import (
-        CANONICAL_KEYS,
         map_generic,
         map_suricata,
         map_wazuh,

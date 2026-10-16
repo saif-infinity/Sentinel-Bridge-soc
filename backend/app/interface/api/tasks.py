@@ -1,16 +1,14 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Request
-from ...auth import has_scopes_or_api_key, get_api_key_or_jwt
-from ...config import settings
-from ...db import SessionLocal, get_tenant_id
-from ...models import IaReport, Asset, Device, Alert
-from ...schemas import TaskResponse, ThreatAnalysisRequest
-from ...core.broadcaster import broadcaster
-from ...worker import analyze_threat_task, analyze_network_global_task
-from ...infrastructure.jobs.nmap_tasks import deep_nmap_scan_task
+
 from celery.result import AsyncResult
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from typing import Optional, List
+
+from ...auth import get_api_key_or_jwt, has_scopes_or_api_key
+from ...db import get_tenant_id
+from ...infrastructure.jobs.nmap_tasks import deep_nmap_scan_task
+from ...schemas import TaskResponse, ThreatAnalysisRequest
+from ...worker import analyze_network_global_task, analyze_threat_task
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +76,6 @@ async def trigger_nmap_scan(body: NmapScanRequest):
         args = f"{base_args} -sV --script=vuln"
     else:
         args = f"{base_args} -p 1-1000"
-        
+
     task = deep_nmap_scan_task.delay(target, args)
     return {"task_id": task.id, "status": "PENDING"}

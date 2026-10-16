@@ -4,17 +4,15 @@ Each step is a function: (db, tenant_id, investigation, event) -> (step_key, evi
 """
 import json
 import logging
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, Optional, Tuple
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy.orm import Session
 from sqlalchemy import or_
+from sqlalchemy.orm import Session
 
 from ...application.events import RuleMatchEvent
 from ...application.system_config import get_config_value
-from ...db import SessionLocal
-from ...domain.investigations import Investigation, InvestigationEvidence
-from ...domain.models import Alert, SuricataAlert, Asset
+from ...domain.investigations import Investigation
+from ...domain.models import Alert, Asset, SuricataAlert
 from ...infrastructure.threat_intel.client import lookup_ip
 
 logger = logging.getLogger(__name__)
@@ -22,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 def step_threat_intel_src(
     db: Session, tenant_id: str, investigation: Investigation, event: RuleMatchEvent
-) -> Tuple[str, Optional[Dict], Optional[str]]:
+) -> tuple[str, dict | None, str | None]:
     """Lookup source IP via AbuseIPDB. Never raises."""
     src_ip = event.normalized_alert.get("src_ip")
     if not src_ip:
@@ -40,7 +38,7 @@ def step_threat_intel_src(
 
 def step_threat_intel_dest(
     db: Session, tenant_id: str, investigation: Investigation, event: RuleMatchEvent
-) -> Tuple[str, Optional[Dict], Optional[str]]:
+) -> tuple[str, dict | None, str | None]:
     """Lookup destination IP via AbuseIPDB. Never raises."""
     dest_ip = event.normalized_alert.get("dest_ip")
     if not dest_ip:
@@ -58,7 +56,7 @@ def step_threat_intel_dest(
 
 def step_host_wazuh(
     db: Session, tenant_id: str, investigation: Investigation, event: RuleMatchEvent
-) -> Tuple[str, Optional[Dict], Optional[str]]:
+) -> tuple[str, dict | None, str | None]:
     """Resolve Wazuh agent identity via agent_id or IP → Device/Asset."""
     agent_id = event.normalized_alert.get("agent_id")
     src_ip = event.normalized_alert.get("src_ip")
@@ -108,7 +106,7 @@ def _get_wazuh_service():
 
 def step_asset(
     db: Session, tenant_id: str, investigation: Investigation, event: RuleMatchEvent
-) -> Tuple[str, Optional[Dict], Optional[str]]:
+) -> tuple[str, dict | None, str | None]:
     """Asset lookup by IP."""
     ip = event.normalized_alert.get("src_ip") or event.normalized_alert.get("dest_ip")
     if not ip:
@@ -128,7 +126,7 @@ def step_asset(
 
 def step_related_alerts(
     db: Session, tenant_id: str, investigation: Investigation, event: RuleMatchEvent
-) -> Tuple[str, Optional[Dict], Optional[str]]:
+) -> tuple[str, dict | None, str | None]:
     """Windowed query on Alert + SuricataAlert sharing src/dest IP."""
     src_ip = event.normalized_alert.get("src_ip")
     dest_ip = event.normalized_alert.get("dest_ip")
@@ -136,7 +134,7 @@ def step_related_alerts(
         return "corr:related:0:src:-", None, None
 
     window_min = int(get_config_value(db, "investigation", "related_window_minutes", "60", tenant_id=tenant_id))
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=window_min)
+    cutoff = datetime.now(UTC) - timedelta(minutes=window_min)
 
     src_ips = [ip for ip in [src_ip, dest_ip] if ip]
     conditions = []
@@ -167,7 +165,7 @@ def step_related_alerts(
 
 def step_mitre_context(
     db: Session, tenant_id: str, investigation: Investigation, event: RuleMatchEvent
-) -> Tuple[str, Optional[Dict], Optional[str]]:
+) -> tuple[str, dict | None, str | None]:
     """Extract MITRE context from matched_rules."""
     matched_rules = event.matched_rules or []
     mitre_ids = []

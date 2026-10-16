@@ -1,9 +1,10 @@
-from pydantic import BaseModel
-from typing import List, Optional
 from datetime import datetime
 
+from pydantic import BaseModel
+
+
 class DeviceBase(BaseModel):
-    ip: Optional[str] = None
+    ip: str | None = None
     mac: str
     is_wazuh_agent: bool = False
 
@@ -20,7 +21,7 @@ class DeviceRead(DeviceBase):
 class ScanResult(BaseModel):
     ip: str
     mac: str
-    status: List[str]
+    status: list[str]
 
 class ThreatAnalysisRequest(BaseModel):
     # Le backend ignore toute donnée frontend et récupère directement
@@ -36,13 +37,13 @@ class SuricataAlertRead(BaseModel):
     id: int
     timestamp: datetime
     event_type: str
-    src_ip: Optional[str] = None
-    dest_ip: Optional[str] = None
-    proto: Optional[str] = None
-    alert_msg: Optional[str] = None
+    src_ip: str | None = None
+    dest_ip: str | None = None
+    proto: str | None = None
+    alert_msg: str | None = None
     severity: int
-    verdict: Optional[str] = None
-    payload: Optional[str] = None
+    verdict: str | None = None
+    payload: str | None = None
 
     class Config:
         from_attributes = True
@@ -59,7 +60,7 @@ class IaReportRead(BaseModel):
     id: int
     timestamp: datetime
     report_type: str
-    agent_id: Optional[str] = None
+    agent_id: str | None = None
     content: str
 
     class Config:
@@ -75,7 +76,7 @@ class AssetCreate(AssetBase):
 
 class AssetRead(AssetBase):
     id: int
-    mac: Optional[str] = None
+    mac: str | None = None
     is_online: bool = False
     is_wazuh_agent: bool = False
     bandwidth_in: float = 0.0
@@ -87,9 +88,9 @@ class AssetRead(AssetBase):
 
 class AccessLogCreate(BaseModel):
     username: str
-    face_image: Optional[str] = None
+    face_image: str | None = None
     face_verified: bool = False
-    ip_address: Optional[str] = None
+    ip_address: str | None = None
     login_method: str = "password"
 
 
@@ -97,13 +98,13 @@ class AccessLogRead(BaseModel):
     id: int
     username: str
     login_time: datetime
-    logout_time: Optional[datetime] = None
+    logout_time: datetime | None = None
     is_online: bool
-    face_image: Optional[str] = None
+    face_image: str | None = None
     face_verified: bool
-    ip_address: Optional[str] = None
+    ip_address: str | None = None
     login_method: str
-    session_duration: Optional[int] = None
+    session_duration: int | None = None
 
     class Config:
         from_attributes = True
@@ -112,14 +113,14 @@ class AccessLogRead(BaseModel):
 class AccessLogStatus(BaseModel):
     username: str
     is_online: bool
-    login_time: Optional[datetime] = None
+    login_time: datetime | None = None
     face_verified: bool = False
 
 
 class SurveillanceStats(BaseModel):
     total_logins_today: int
     users_online: int
-    avg_session_minutes: Optional[float] = None
+    avg_session_minutes: float | None = None
     total_users_registered: int
     face_auth_percentage: float
 
@@ -127,9 +128,9 @@ class SurveillanceStats(BaseModel):
 class ActionLogCreate(BaseModel):
     username: str
     action: str
-    details: Optional[str] = None
-    resource: Optional[str] = None
-    ip_address: Optional[str] = None
+    details: str | None = None
+    resource: str | None = None
+    ip_address: str | None = None
     face_verified: bool = False
 
 
@@ -137,9 +138,9 @@ class ActionLogRead(BaseModel):
     id: int
     username: str
     action: str
-    details: Optional[str] = None
-    resource: Optional[str] = None
-    ip_address: Optional[str] = None
+    details: str | None = None
+    resource: str | None = None
+    ip_address: str | None = None
     face_verified: bool
     timestamp: datetime
 
@@ -157,21 +158,21 @@ class AdminStats(BaseModel):
 
 class NetworkSensorCreate(BaseModel):
     username: str
-    ip_address: Optional[str] = None
+    ip_address: str | None = None
     bytes_sent: int = 0
     bytes_recv: int = 0
     bandwidth_mbps: float = 0.0
-    interface: Optional[str] = None
+    interface: str | None = None
 
 
 class NetworkSensorRead(BaseModel):
     id: int
     username: str
-    ip_address: Optional[str] = None
+    ip_address: str | None = None
     bytes_sent: int
     bytes_recv: int
     bandwidth_mbps: float
-    interface: Optional[str] = None
+    interface: str | None = None
     timestamp: datetime
 
     class Config:

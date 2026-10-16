@@ -1,6 +1,5 @@
 """F1 — Statistiques du pipeline + ingestion manuelle (tests / démo)."""
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -21,11 +20,11 @@ class PipelineIngestRequest(BaseModel):
     severity: int = Field(5, ge=0, le=15)
     signature: str = Field("", max_length=255)
     description: str = Field("", max_length=500)
-    src_ip: Optional[str] = Field(None, max_length=45)
-    dest_ip: Optional[str] = Field(None, max_length=45)
-    proto: Optional[str] = Field(None, max_length=20)
-    agent_id: Optional[str] = Field(None, max_length=10)
-    category: Optional[str] = Field(None, max_length=100)
+    src_ip: str | None = Field(None, max_length=45)
+    dest_ip: str | None = Field(None, max_length=45)
+    proto: str | None = Field(None, max_length=20)
+    agent_id: str | None = Field(None, max_length=10)
+    category: str | None = Field(None, max_length=100)
     raw: dict = Field(default_factory=dict)
 
 

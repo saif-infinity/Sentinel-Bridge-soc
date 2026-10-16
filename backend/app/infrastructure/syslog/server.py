@@ -10,21 +10,18 @@ import json
 import logging
 import os
 import signal
-import sys
 
 import redis
 
 from .protocol import parse_syslog
 from .stream import (
-    DLQ_STREAM,
     GROUP_NAME,
-    STREAM_KEY,
     ensure_group,
     get_redis_client,
     publish_event,
-    send_to_dlq,
 )
-from .tenant_resolver import configure as configure_tenants, resolve_tenant
+from .tenant_resolver import configure as configure_tenants
+from .tenant_resolver import resolve_tenant
 
 logger = logging.getLogger("syslog_receiver")
 

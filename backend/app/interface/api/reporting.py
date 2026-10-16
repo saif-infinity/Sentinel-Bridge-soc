@@ -1,28 +1,27 @@
 """F5 — Routes API : reports and templates."""
 import logging
-from datetime import datetime, timezone, timedelta
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, Request, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import func
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
 
-from ...auth import get_api_key_or_jwt, has_scopes_or_api_key
-from ...db import get_db, get_tenant_id, query_with_tenant
-from ...domain.reporting import Report, ReportTemplate, ReportSchedule, ReportRecipient
-from ...models import Alert, SuricataAlert, Case, CaseAlertLink, PipelineEvent
 from ...application.reporting import (
-    generate_daily_report, generate_trends_report,
-    generate_case_closure_report, generate_investigation_summary_report,
-    send_report,
+    generate_case_closure_report,
+    generate_daily_report,
+    generate_investigation_summary_report,
+    generate_trends_report,
 )
-from ...application.system_config import get_config_value
+from ...auth import get_api_key_or_jwt, has_scopes_or_api_key
+from ...db import get_db, get_tenant_id
+from ...domain.reporting import Report, ReportRecipient, ReportSchedule, ReportTemplate
 from ...infrastructure.jobs.reporting_tasks import (
+    deliver_pending_reports_task,
     generate_daily_report_task,
     generate_trends_report_task,
-    deliver_pending_reports_task,
     process_scheduled_reports_task,
 )
+from ...models import Alert, Case, CaseAlertLink, SuricataAlert
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +33,9 @@ REPORT_WRITE = ["reporting:write"]
 
 @router.get("/reports")
 def list_reports(request: Request, db: Session = Depends(get_db),
-                    report_type: Optional[str] = None,
-                    status: Optional[str] = None,
-                    case_id: Optional[int] = None,
+                    report_type: str | None = None,
+                    status: str | None = None,
+                    case_id: int | None = None,
                     limit: int = Query(default=100, le=500),
                     offset: int = 0):
     tenant_id = get_tenant_id(request)
@@ -66,7 +65,7 @@ def get_report(request: Request, id: int, db: Session = Depends(get_db)):
 
 @router.post("/reports/generate/daily")
 def generate_daily_endpoint(request: Request, db: Session = Depends(get_db),
-                               params: Optional[dict] = None,
+                               params: dict | None = None,
                                principal: dict = Depends(has_scopes_or_api_key(REPORT_WRITE))):
     tenant_id = get_tenant_id(request)
     p = params or {}
@@ -78,7 +77,7 @@ def generate_daily_endpoint(request: Request, db: Session = Depends(get_db),
 
 @router.post("/reports/generate/trends")
 def generate_trends_endpoint(request: Request, db: Session = Depends(get_db),
-                                params: Optional[dict] = None,
+                                params: dict | None = None,
                                 principal: dict = Depends(has_scopes_or_api_key(REPORT_WRITE))):
     tenant_id = get_tenant_id(request)
     p = params or {}
@@ -99,7 +98,7 @@ def generate_case_closure_endpoint(request: Request, case_id: int, db: Session =
 
 @router.post("/reports/generate/investigation_summary")
 def generate_investigation_summary_endpoint(request: Request, db: Session = Depends(get_db),
-                                               params: Optional[dict] = None,
+                                               params: dict | None = None,
                                                principal: dict = Depends(has_scopes_or_api_key(REPORT_WRITE))):
     tenant_id = get_tenant_id(request)
     p = params or {}
@@ -111,7 +110,7 @@ def generate_investigation_summary_endpoint(request: Request, db: Session = Depe
 
 @router.get("/reports/{id}/download")
 def download_report(request: Request, id: int, db: Session = Depends(get_db),
-                       format: Optional[str] = None):
+                       format: str | None = None):
     tenant_id = get_tenant_id(request)
     report = db.query(Report).filter(Report.id == id, Report.tenant_id == tenant_id).first()
     if report is None:
@@ -196,7 +195,7 @@ def trigger_report_task(request: Request, id: int, db: Session = Depends(get_db)
 @router.get("/metrics")
 def get_metrics(request: Request, db: Session = Depends(get_db)):
     tenant_id = get_tenant_id(request)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     thirty_days_ago = now - timedelta(days=30)
     seven_days_ago = now - timedelta(days=7)
 
@@ -259,10 +258,14 @@ def get_metrics(request: Request, db: Session = Depends(get_db)):
 
     # ── Breakdown sévérité (échelle 0-15) ──
     def _sev_bucket(n: int) -> str:
-        if n <= 3: return "info"
-        if n <= 6: return "low"
-        if n <= 9: return "medium"
-        if n <= 12: return "high"
+        if n <= 3:
+            return "info"
+        if n <= 6:
+            return "low"
+        if n <= 9:
+            return "medium"
+        if n <= 12:
+            return "high"
         return "critical"
 
     severity_breakdown = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}

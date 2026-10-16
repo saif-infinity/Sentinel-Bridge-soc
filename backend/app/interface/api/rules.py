@@ -5,7 +5,6 @@ par API key ; règles de tenant visibles/modifiables par le tenant uniquement.
 """
 import json
 import logging
-from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -38,11 +37,11 @@ class ConditionModel(BaseModel):
 
 class CorrelationModel(BaseModel):
     window_seconds: int = 60
-    sequence: List[int] = Field(default_factory=list, description="Indices des conditions, ordre attendu")
+    sequence: list[int] = Field(default_factory=list, description="Indices des conditions, ordre attendu")
     require_same_src: bool = False
     require_same_dest: bool = False
-    count: Optional[int] = Field(None, ge=1, description="R13 — seuil d'agrégat : déclenche après N matches dans la fenêtre")
-    threshold_window_seconds: Optional[int] = Field(None, ge=1, description="R13 — fenêtre du seuil (défaut = window_seconds)")
+    count: int | None = Field(None, ge=1, description="R13 — seuil d'agrégat : déclenche après N matches dans la fenêtre")
+    threshold_window_seconds: int | None = Field(None, ge=1, description="R13 — fenêtre du seuil (défaut = window_seconds)")
 
 
 class RuleCreate(BaseModel):
@@ -50,25 +49,25 @@ class RuleCreate(BaseModel):
     description: str = ""
     enabled: bool = True
     severity: int = Field(5, ge=0, le=15)
-    tags: List[str] = Field(default_factory=list)
-    conditions: List[ConditionModel] = Field(default_factory=list)
-    correlation: Optional[CorrelationModel] = None
+    tags: list[str] = Field(default_factory=list)
+    conditions: list[ConditionModel] = Field(default_factory=list)
+    correlation: CorrelationModel | None = None
     action_flags: dict = Field(default_factory=dict)
-    mitre_attack_ids: List[str] = Field(default_factory=list, description="R2 — IDs MITRE ATT&CK (ex: T1059.001)")
-    tactics: List[str] = Field(default_factory=list, description="R2 — tactiques dérivées des IDs")
+    mitre_attack_ids: list[str] = Field(default_factory=list, description="R2 — IDs MITRE ATT&CK (ex: T1059.001)")
+    tactics: list[str] = Field(default_factory=list, description="R2 — tactiques dérivées des IDs")
 
 
 class RuleUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    enabled: Optional[bool] = None
-    severity: Optional[int] = Field(None, ge=0, le=15)
-    tags: Optional[List[str]] = None
-    conditions: Optional[List[ConditionModel]] = None
-    correlation: Optional[CorrelationModel] = None
-    action_flags: Optional[dict] = None
-    mitre_attack_ids: Optional[List[str]] = None
-    tactics: Optional[List[str]] = None
+    name: str | None = None
+    description: str | None = None
+    enabled: bool | None = None
+    severity: int | None = Field(None, ge=0, le=15)
+    tags: list[str] | None = None
+    conditions: list[ConditionModel] | None = None
+    correlation: CorrelationModel | None = None
+    action_flags: dict | None = None
+    mitre_attack_ids: list[str] | None = None
+    tactics: list[str] | None = None
 
 
 class RuleTestRequest(BaseModel):
@@ -76,7 +75,7 @@ class RuleTestRequest(BaseModel):
     sample_alert: dict = Field(default_factory=dict)
 
 
-def _loads(s: Optional[str], fallback: str):
+def _loads(s: str | None, fallback: str):
     try:
         v = json.loads(s or fallback)
     except (TypeError, ValueError):

@@ -1,10 +1,67 @@
+# Development infrastructure — the services the backend needs locally.
+#
+# FIX: this file used to define ONLY `redis` while declaring an orphan top-level
+# `pgdata:` volume, so `docker compose up` gave you a broker with no database and
+# no way to run the API. It is now the real dev counterpart of
+# docker-compose.prod.yml (same images, same volume name, ports bound to loopback).
+#
+# Usage:
+#   docker compose up -d            # postgres + redis (+ ollama profile)
+#   docker compose --profile ai up -d
+#   make dev-backend                # uvicorn against these services
+#
+# Credentials are dev-only defaults; override them in a local .env if you want.
+
+name: sentinel-dev
+
 services:
+  postgres:
+    image: timescale/timescaledb:2.29.1-pg16
+    container_name: sentinel-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      TIMESCALEDB_TELEMETRY: "off"
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   redis:
     image: redis:7
     container_name: sentinel-redis
+    # No password in dev so `redis-cli` and the test suite work out of the box.
+    # Production sets one (see docker-compose.prod.yml).
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Optional: `docker compose --profile ai up -d`
+  ollama:
+    image: ollama/ollama:latest
+    container_name: sentinel-ollama
+    profiles: ["ai"]
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
     restart: unless-stopped
 
 volumes:
   pgdata:
+  redisdata:
+  ollama_data:

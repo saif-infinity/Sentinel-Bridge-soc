@@ -1,16 +1,16 @@
-import logging
 import json
+import logging
+
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from ...db import get_db, get_tenant_id, query_with_tenant
-from ...models import SuricataAlert
-from ...schemas import SuricataAlertRead
-from ...auth import get_api_key_or_jwt, webhook_token_auth, webhook_slug_auth
+from sqlalchemy.orm import Session
+
 from ...application.normalization import map_suricata, to_pipeline_payload
 from ...application.pipeline import ingest_alert
 from ...application.source_control import is_source_enabled
-from typing import List, Optional
+from ...auth import get_api_key_or_jwt, webhook_slug_auth, webhook_token_auth
+from ...db import get_db, get_tenant_id, query_with_tenant
+from ...models import SuricataAlert
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ def get_suricata_alerts(request: Request, db: Session = Depends(get_db)):
     # Prioritize fetching actual alerts so they don't get buried by flow/stats
     alerts = query_with_tenant(SuricataAlert, request, db).filter(SuricataAlert.event_type == "alert").order_by(desc(SuricataAlert.timestamp)).limit(100).all()
     others = query_with_tenant(SuricataAlert, request, db).filter(SuricataAlert.event_type != "alert").order_by(desc(SuricataAlert.timestamp)).limit(200).all()
-    
+
     combined = alerts + others
     combined.sort(key=lambda x: x.timestamp, reverse=True)
 
@@ -46,7 +46,13 @@ def get_suricata_alerts(request: Request, db: Session = Depends(get_db)):
             "dest_ip": a.dest_ip,
             "proto": a.proto,
             "alert_msg": a.alert_msg,
+            # `severity` est la valeur BRUTE de Suricata, dont l'échelle est
+            # inversée (1 = le plus grave, 4 = le moins grave). `normalized_severity`
+            # est la même alerte ramenée par le pipeline sur l'échelle 0-15 partagée
+            # avec Wazuh et Syslog. Renvoyer les deux laisse le client choisir —
+            # et évite qu'un écran compare un "1" Suricata à un seuil Wazuh.
             "severity": a.severity,
+            "normalized_severity": a.normalized_severity,
             "verdict": verdict,
             "payload": a.payload,
         })
@@ -76,13 +82,13 @@ async def receive_suricata_alert(request: Request, db: Session = Depends(get_db)
 
     if not isinstance(payload_data, list):
         payload_data = [payload_data]
-        
+
     tenant_id = get_tenant_id(request)
     alerts_added = 0
     for original_data in payload_data:
         if not isinstance(original_data, dict):
             continue
-            
+
         data = original_data
         # Unwrap if the actual Suricata JSON is inside a 'message' string
         if "message" in data and isinstance(data["message"], str):
@@ -90,9 +96,9 @@ async def receive_suricata_alert(request: Request, db: Session = Depends(get_db)
                 data = json.loads(data["message"])
             except json.JSONDecodeError:
                 pass
-                
+
         event_type = data.get("event_type", "unknown")
-        
+
         # Simplify huge payloads to avoid truncation (which breaks JSON.parse in frontend)
         if event_type == "stats" and "stats" in data:
             s = data["stats"]
@@ -122,10 +128,10 @@ async def receive_suricata_alert(request: Request, db: Session = Depends(get_db)
             alerts_added += 1
         except Exception as e:
             logger.error("Suricata webhook: pipeline ingest échoué: %s", e)
-            
+
     if alerts_added > 0:
         return {"status": "success", "alerts_processed": alerts_added}
-            
+
     # For debugging, let's see what we are ignoring
     for original_data in payload_data:
         if isinstance(original_data, dict):
@@ -136,7 +142,7 @@ async def receive_suricata_alert(request: Request, db: Session = Depends(get_db)
                 except Exception:
                     pass
             logger.debug("Suricata Ignored Event Type: %s", data.get('event_type', 'still_unknown'))
-            
+
     return {"status": "ignored"}
 
 

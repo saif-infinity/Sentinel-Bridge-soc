@@ -6,16 +6,14 @@ Missing components are renormalized out (their weight excluded).
 import json
 import logging
 import math
-from typing import Dict, List, Tuple
 
 from sqlalchemy.orm import Session
 
 from ...application.system_config import get_config_value
-from ...domain.investigations import Investigation
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_WEIGHTS: Dict[str, float] = {
+DEFAULT_WEIGHTS: dict[str, float] = {
     "severity": 0.35,
     "threat_intel": 0.20,
     "host_criticality": 0.15,
@@ -26,7 +24,7 @@ DEFAULT_WEIGHTS: Dict[str, float] = {
 
 CRITICAL_DEPARTMENTS_DEFAULT = "it,admin,finance,management"
 
-_MITRE_SCORES: Dict[str, float] = {
+_MITRE_SCORES: dict[str, float] = {
     "initial-access": 1.0,
     "lateral-movement": 1.0,
     "execution": 0.9,
@@ -36,7 +34,7 @@ _MITRE_SCORES: Dict[str, float] = {
 }
 
 
-def _load_weights(db: Session, tenant_id: str = "default") -> Dict[str, float]:
+def _load_weights(db: Session, tenant_id: str = "default") -> dict[str, float]:
     """Load optional override weights from investigation.weights config."""
     raw = get_config_value(db, "investigation", "weights", "{}", tenant_id=tenant_id)
     try:
@@ -48,7 +46,7 @@ def _load_weights(db: Session, tenant_id: str = "default") -> Dict[str, float]:
     return DEFAULT_WEIGHTS.copy()
 
 
-def _renormalize(weights_available: Dict[str, float]) -> float:
+def _renormalize(weights_available: dict[str, float]) -> float:
     """Return the sum of available component weights for renormalisation."""
     total = sum(weights_available.values())
     return total if total > 0 else 1.0
@@ -65,10 +63,10 @@ def compute_risk_score(
     is_wazuh_agent: bool = False,
     has_asset: bool = False,
     related_count: int = 0,
-    mitre_tactics: List[str] | None = None,
+    mitre_tactics: list[str] | None = None,
     age_hours: float = 0.0,
     critical_departments: str | None = None,
-) -> Tuple[int, str, Dict]:
+) -> tuple[int, str, dict]:
     """Compute weighted risk score with renormalisation.
 
     Returns (score: int 0-100, level: str, breakdown: dict).
@@ -79,8 +77,8 @@ def compute_risk_score(
     mitre_tactics = mitre_tactics or []
 
     # Build available component scores and their weights
-    available: Dict[str, float] = {}
-    breakdown: Dict[str, dict] = {}
+    available: dict[str, float] = {}
+    breakdown: dict[str, dict] = {}
 
     # ── severity (0.35) ──
     sev_raw = severity

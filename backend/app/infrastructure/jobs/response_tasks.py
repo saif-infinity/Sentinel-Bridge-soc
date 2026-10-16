@@ -2,14 +2,12 @@
 
 Includes worker-side subscriber registration at module import time.
 """
-import json
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
+from ...application.system_config import get_config_value
 from ...core.celery import celery_app
 from ...db import SessionLocal
-from ...application.system_config import get_config_value
-from ...domain.investigations import Investigation
 from ...domain.response import ResponseRun
 
 logger = logging.getLogger(__name__)
@@ -60,7 +58,7 @@ def retry_stuck() -> dict:
         if approval_timeout < 10:
             approval_timeout = 60
 
-        cutoff = datetime.now(timezone.utc) - timedelta(minutes=approval_timeout)
+        cutoff = datetime.now(UTC) - timedelta(minutes=approval_timeout)
 
         # Reject pending_approval runs older than timeout
         stuck_approval = db.query(ResponseRun).filter(
@@ -79,7 +77,7 @@ def retry_stuck() -> dict:
                 ).first()
                 if rec:
                     rec.status = "dismissed"
-                    rec.resolved_at = datetime.now(timezone.utc)
+                    rec.resolved_at = datetime.now(UTC)
                     db.commit()
             except Exception:
                 db.rollback()
@@ -87,11 +85,11 @@ def retry_stuck() -> dict:
         # Fail running runs older than 30min
         stuck_running = db.query(ResponseRun).filter(
             ResponseRun.status == "running",
-            ResponseRun.started_at < datetime.now(timezone.utc) - timedelta(minutes=30),
+            ResponseRun.started_at < datetime.now(UTC) - timedelta(minutes=30),
         ).all()
         for run in stuck_running:
             run.status = "failed"
-            run.finished_at = datetime.now(timezone.utc)
+            run.finished_at = datetime.now(UTC)
             db.commit()
 
         return {"status": "ok", "rejected": len(stuck_approval), "failed": len(stuck_running)}
@@ -108,8 +106,8 @@ def retry_stuck() -> dict:
 def _register_worker_subscriber():
     """Register the on_investigation_complete handler on the Celery worker."""
     try:
-        from ...application.response.handler import on_investigation_complete
         from ...application.events import CHANNEL_INVESTIGATION_COMPLETE, event_bus
+        from ...application.response.handler import on_investigation_complete
         event_bus.subscribe(CHANNEL_INVESTIGATION_COMPLETE, on_investigation_complete)
         logger.info("Worker-side investigation complete subscriber registered")
     except Exception as e:

@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="850" viewBox="0 0 1280 850" role="img" aria-labelledby="title description">
+  <title id="title">Du problème au bénéfice attendu</title>
+  <desc id="description">Cinq liens qualitatifs entre un problème SOC, un mécanisme du code et son apport attendu. Ces bénéfices ne sont pas des résultats chiffrés : logs dispersés vers lecture cohérente, répétitions vers déduplication, contexte éparpillé vers dossier partagé, actions vers contrôle, évolutions en silos vers couches et tests.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#081521" />
+      <stop offset="1" stop-color="#102b37" />
+    </linearGradient>
+    <marker id="arrow-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#5eead4" />
+    </marker>
+    <marker id="arrow-start-teal" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M10 0L0 5L10 10Z" fill="#5eead4" />
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#7dd3fc" />
+    </marker>
+    <marker id="arrow-start-blue" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M10 0L0 5L10 10Z" fill="#7dd3fc" />
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#fcd34d" />
+    </marker>
+    <marker id="arrow-start-amber" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M10 0L0 5L10 10Z" fill="#fcd34d" />
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1280" height="850" rx="20" fill="url(#background)" stroke="none" />
+  <rect x="40" y="28" width="4" height="28" rx="2" fill="#5eead4" stroke="none" />
+  <text x="58" y="47" fill="#5eead4" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1.6">
+    <tspan x="58" dy="0">SENTINEL BRIDGE / 04 · VALEUR APPORTÉE</tspan>
+  </text>
+  <text x="40" y="101" fill="#edf5fb" font-size="36" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="40" dy="0">Du problème au bénéfice attendu</tspan>
+  </text>
+  <text x="40" y="137" fill="#b3c6d4" font-size="18" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="40" dy="0">Des objectifs explicables, sans pourcentage de gain, SLA ou ROI inventé.</tspan>
+  </text>
+  <text x="60" y="181" fill="#b3c6d4" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1.2">
+    <tspan x="60" dy="0">PROBLÈME OBSERVÉ</tspan>
+  </text>
+  <text x="480" y="181" fill="#7dd3fc" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1.2">
+    <tspan x="480" dy="0">MÉCANISME DU CODE</tspan>
+  </text>
+  <text x="900" y="181" fill="#5eead4" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1.2">
+    <tspan x="900" dy="0">APPORT ATTENDU</tspan>
+  </text>
+  <rect x="40" y="204" width="360" height="94" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="58" y="227" width="3" height="46" rx="1" fill="#b3c6d4" stroke="none" />
+  <text x="78" y="243" fill="#edf5fb" font-size="20" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="78" dy="0">Sources de logs</tspan>
+    <tspan x="78" dy="29">dispersées</tspan>
+  </text>
+  <rect x="460" y="204" width="360" height="94" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="478" y="227" width="3" height="46" rx="1" fill="#7dd3fc" stroke="none" />
+  <text x="498" y="243" fill="#edf5fb" font-size="20" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="498" dy="0">Normalisation</tspan>
+    <tspan x="498" dy="29">et corrélation</tspan>
+  </text>
+  <rect x="880" y="204" width="360" height="94" rx="14" fill="#102433" stroke="#28685f" />
+  <rect x="898" y="227" width="3" height="46" rx="1" fill="#5eead4" stroke="none" />
+  <text x="918" y="243" fill="#edf5fb" font-size="20" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="918" dy="0">Lecture cohérente</tspan>
+    <tspan x="918" dy="29">des signaux</tspan>
+  </text>
+  <path d="M412 251H448" fill="none" stroke="#7dd3fc" stroke-width="2" marker-end="url(#arrow-blue)" />
+  <path d="M832 251H868" fill="none" stroke="#5eead4" stroke-width="2" marker-end="url(#arrow-teal)" />
+  <rect x="40" y="320" width="360" height="94" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="58" y="343" width="3" height="46" rx="1" fill="#b3c6d4" stroke="none" />
+  <text x="78" y="359" fill="#edf5fb" font-size="20" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="78" dy="0">Alertes</tspan>
+    <tspan x="78" dy="29">répétitives</tspan>
+  </text>
+  <rect x="460" y="320" width="360" height="94" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="478" y="343" width="3" height="46" rx="1" fill="#7dd3fc" stroke="none" />
+  <text x="498" y="359" fill="#edf5fb" font-size="20" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="498" dy="0">Déduplication</tspan>
+    <tspan x="498" dy="29">sur fenêtre</tspan>
+  </text>
+  <rect x="880" y="320" width="360" height="94" rx="14" fill="#102433" stroke="#28685f" />
+  <rect x="898" y="343" width="3" height="46" rx="1" fill="#5eead4" stroke="none" />
+  <text x="918" y="359" fill="#edf5fb" font-size="20" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="918" dy="0">Moins de répétitions</tspan>
+    <tspan x="918" dy="29">à présenter</tspan>
+  </text>
+  <path d="M412 367H448" fill="none" stroke="#7dd3fc" stroke-width="2" marker-end="url(#arrow-blue)" />
+  <path d="M832 367H868" fill="none" stroke="#5eead4" stroke-width="2" marker-end="url(#arrow-teal)" />
+  <rect x="40" y="436" width="360" height="94" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="58" y="459" width="3" height="46" rx="1" fill="#b3c6d4" stroke="none" />
+  <text x="78" y="475" fill="#edf5fb" font-size="20" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="78" dy="0">Contexte</tspan>
+    <tspan x="78" dy="29">éparpillé</tspan>
+  </text>
+  <rect x="460" y="436" width="360" height="94" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="478" y="459" width="3" height="46" rx="1" fill="#7dd3fc" stroke="none" />
+  <text x="498" y="475" fill="#edf5fb" font-size="20" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="498" dy="0">Cases, preuves</tspan>
+    <tspan x="498" dy="29">et timeline</tspan>
+  </text>
+  <rect x="880" y="436" width="360" height="94" rx="14" fill="#102433" stroke="#28685f" />
+  <rect x="898" y="459" width="3" height="46" rx="1" fill="#5eead4" stroke="none" />
+  <text x="918" y="475" fill="#edf5fb" font-size="20" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="918" dy="0">Investigation</tspan>
+    <tspan x="918" dy="29">partageable</tspan>
+  </text>
+  <path d="M412 483H448" fill="none" stroke="#7dd3fc" stroke-width="2" marker-end="url(#arrow-blue)" />
+  <path d="M832 483H868" fill="none" stroke="#5eead4" stroke-width="2" marker-end="url(#arrow-teal)" />
+  <rect x="40" y="552" width="360" height="94" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="58" y="575" width="3" height="46" rx="1" fill="#b3c6d4" stroke="none" />
+  <text x="78" y="591" fill="#edf5fb" font-size="20" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="78" dy="0">Actions difficiles</tspan>
+    <tspan x="78" dy="29">à expliquer</tspan>
+  </text>
+  <rect x="460" y="552" width="360" height="94" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="478" y="575" width="3" height="46" rx="1" fill="#7dd3fc" stroke="none" />
+  <text x="498" y="591" fill="#edf5fb" font-size="20" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="498" dy="0">Approbation</tspan>
+    <tspan x="498" dy="29">et résultats tracés</tspan>
+  </text>
+  <rect x="880" y="552" width="360" height="94" rx="14" fill="#102433" stroke="#28685f" />
+  <rect x="898" y="575" width="3" height="46" rx="1" fill="#5eead4" stroke="none" />
+  <text x="918" y="591" fill="#edf5fb" font-size="20" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="918" dy="0">Décision et effets</tspan>
+    <tspan x="918" dy="29">plus explicites</tspan>
+  </text>
+  <path d="M412 599H448" fill="none" stroke="#7dd3fc" stroke-width="2" marker-end="url(#arrow-blue)" />
+  <path d="M832 599H868" fill="none" stroke="#5eead4" stroke-width="2" marker-end="url(#arrow-teal)" />
+  <rect x="40" y="668" width="360" height="94" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="58" y="691" width="3" height="46" rx="1" fill="#b3c6d4" stroke="none" />
+  <text x="78" y="707" fill="#edf5fb" font-size="20" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="78" dy="0">Évolutions</tspan>
+    <tspan x="78" dy="29">en silos</tspan>
+  </text>
+  <rect x="460" y="668" width="360" height="94" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="478" y="691" width="3" height="46" rx="1" fill="#7dd3fc" stroke="none" />
+  <text x="498" y="707" fill="#edf5fb" font-size="20" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="498" dy="0">Couches, connecteurs</tspan>
+    <tspan x="498" dy="29">et tests</tspan>
+  </text>
+  <rect x="880" y="668" width="360" height="94" rx="14" fill="#102433" stroke="#28685f" />
+  <rect x="898" y="691" width="3" height="46" rx="1" fill="#5eead4" stroke="none" />
+  <text x="918" y="707" fill="#edf5fb" font-size="20" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="918" dy="0">Base pédagogique</tspan>
+    <tspan x="918" dy="29">plus facile à étendre</tspan>
+  </text>
+  <path d="M412 715H448" fill="none" stroke="#7dd3fc" stroke-width="2" marker-end="url(#arrow-blue)" />
+  <path d="M832 715H868" fill="none" stroke="#5eead4" stroke-width="2" marker-end="url(#arrow-teal)" />
+  <rect x="40" y="800" width="1200" height="40" rx="10" fill="#172a32" stroke="#41535e" />
+  <text x="58" y="825" fill="#fcd34d" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="58" dy="0">Ces apports dépendent des règles, des connecteurs, des droits et de l’exploitation effective.</tspan>
+  </text>
+</svg>

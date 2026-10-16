@@ -1,8 +1,8 @@
 import asyncio
 import base64
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import httpx
 
@@ -17,29 +17,29 @@ class WazuhAPIClient:
     async def _rate_limited_request(self, client: httpx.AsyncClient, method: str, url: str, **kwargs) -> httpx.Response:
         """Make a rate-limited request with exponential backoff on 429."""
         async with self._rate_limit_lock:
-            now = datetime.now(timezone.utc).timestamp()
-            
+            now = datetime.now(UTC).timestamp()
+
             if self._backoff_until and now < self._backoff_until:
                 wait_time = self._backoff_until - now
                 logger.debug("Rate limit backoff: waiting %.1fs", wait_time)
                 await asyncio.sleep(wait_time)
-                now = datetime.now(timezone.utc).timestamp()
-            
+                now = datetime.now(UTC).timestamp()
+
             last_time = self._last_request_time.get(url, 0)
             elapsed = now - last_time
             if elapsed < self._min_request_interval:
                 wait_time = self._min_request_interval - elapsed
                 logger.debug("Rate limiting: waiting %.1fs", wait_time)
                 await asyncio.sleep(wait_time)
-            
-            self._last_request_time[url] = datetime.now(timezone.utc).timestamp()
-        
+
+            self._last_request_time[url] = datetime.now(UTC).timestamp()
+
         response = await client.request(method, url, **kwargs)
-        
+
         if response.status_code == 429:
             self._consecutive_429_count += 1
             backoff = min(2 ** self._consecutive_429_count, 60)
-            self._backoff_until = datetime.now(timezone.utc).timestamp() + backoff
+            self._backoff_until = datetime.now(UTC).timestamp() + backoff
             self._min_request_interval = min(self._min_request_interval * 1.5, 10.0)
             logger.warning("Wazuh API rate limited (429). Backing off for %ds, interval=%.1fs", backoff, self._min_request_interval)
             raise httpx.HTTPStatusError("Rate limited", request=response.request, response=response)
@@ -47,16 +47,16 @@ class WazuhAPIClient:
             self._consecutive_429_count = max(0, self._consecutive_429_count - 1)
             self._min_request_interval = max(self._min_request_interval * 0.9, 1.0)
             self._backoff_until = None
-        
+
         return response
 
-    async def _get_token(self) -> Optional[str]:
+    async def _get_token(self) -> str | None:
         async with self._auth_lock:
-            now = datetime.now(timezone.utc)
-            
+            now = datetime.now(UTC)
+
             if self.token and self.token_expires_at and now < self.token_expires_at:
                 return self.token
-            
+
             if self._last_auth_attempt:
                 elapsed = (now - self._last_auth_attempt).total_seconds()
                 backoff = min(2 ** self._auth_failure_count, 300)
@@ -104,7 +104,7 @@ class WazuhAPIClient:
                     logger.warning("Wazuh auth error: %s", e)
                 return None
 
-    async def get_agents(self) -> List[Dict[str, Any]]:
+    async def get_agents(self) -> list[dict[str, Any]]:
         token = await self._get_token()
         if not token:
             return []
@@ -135,7 +135,7 @@ class WazuhAPIClient:
             logger.warning("Error fetching agents: %s", e)
             return []
 
-    async def get_agent_netinfo(self, agent_id: str) -> Dict[str, Any]:
+    async def get_agent_netinfo(self, agent_id: str) -> dict[str, Any]:
         token = await self._get_token()
         if not token:
             return {"ip": "0.0.0.0", "mac": "00:00:00:00:00:00", "iface": "unknown"}
@@ -175,20 +175,20 @@ class WazuhAPIClient:
                             iface_orig = item.get('iface', '')
                             iface = iface_orig.lower()
                             proto = item.get('proto', '').lower()
-                            
-                            if not ip or ":" in ip or proto == 'ipv6' or ip == "127.0.0.1" or ip.startswith("169.254."): 
+
+                            if not ip or ":" in ip or proto == 'ipv6' or ip == "127.0.0.1" or ip.startswith("169.254."):
                                 continue
-                            
+
                             is_virtual = any(x in iface for x in ['wsl', 'vethernet', 'docker', 'virtual', 'vmware', 'pseudo', 'loopback', 'tunnel'])
                             priority = 10
                             if any(hw in iface for hw in ['eth', 'en', 'wi-fi', 'wlan', 'wl']):
                                 priority = 100
                             if is_virtual or ip.startswith("172."):
                                 priority = 1
-                            
+
                             mac = mac_map.get(iface, "00:00:00:00:00:00")
                             possible_ips.append((ip, priority, iface, mac))
-                        
+
                         if possible_ips:
                             possible_ips.sort(key=lambda x: x[1], reverse=True)
                             best = possible_ips[0]
@@ -209,7 +209,7 @@ class WazuhAPIClient:
     async def get_agent_users(self, agent_id: str) -> str:
         """Fetch the primary logged-in user from the agent OS."""
         token = await self._get_token()
-        if not token: 
+        if not token:
             return "Unknown"
         try:
             async with httpx.AsyncClient(verify=ssl_ctx) as client:
@@ -230,7 +230,7 @@ class WazuhAPIClient:
                         name = u.get('name', '').lower()
                         if name and name not in ['system', 'local service', 'network service', 'root', 'nobody', 'daemon']:
                             return u.get('name', 'Unknown')
-                    if users: 
+                    if users:
                         return users[0].get('name', 'Unknown')
         except httpx.ConnectError:
             self._wazuh_available = False
@@ -243,27 +243,41 @@ class WazuhAPIClient:
             logger.warning("Error fetching agent users: %s", e)
         return "Unknown"
 
-    async def get_agent_real_identity(self, agent_id: str, fallback_name: str = "Unknown") -> Dict[str, str]:
+    async def get_agent_real_identity(self, agent_id: str, fallback_name: str = "Unknown") -> dict[str, str]:
         """Fetch the true physical IP, MAC, and OS User from Syscollector directly."""
         if agent_id == "000":
             return {"ip": "127.0.0.1", "mac": "00:00:00:00:00:00", "user": "System (Manager)"}
-            
+
         net_info = await self.get_agent_netinfo(agent_id)
         os_user = await self.get_agent_users(agent_id)
-        
+
         # Smart Fallback: If Syscollector hasn't scanned users yet, use the PC Name (Agent Name)
         if os_user == "Unknown" and fallback_name != "Unknown":
             os_user = fallback_name
-            
+
         real_ip = net_info.get('ip', '0.0.0.0')
         real_mac = net_info.get('mac', '00:00:00:00:00:00')
-        
+
         return {"ip": real_ip, "mac": real_mac, "user": os_user}
 
-    async def get_agent_hardware(self, agent_id: str) -> Dict[str, Any]:
+    async def get_agent_hardware(self, agent_id: str) -> dict[str, Any]:
         token = await self._get_token()
         if not token:
-            return {"cpu_name": "Intel Core i7-10700K (Mock)", "ram_total": 16777216, "ram_free": 8388608, "os_name": "Ubuntu Linux", "os_version": "22.04 LTS", "board_serial": "MB-X99-PRO"}
+            # Avant : {"cpu_name": "Intel Core i7-10700K (Mock)", "ram_total": 16777216,
+            # "ram_free": 8388608, "os_name": "Ubuntu Linux", "os_version": "22.04 LTS",
+            # "board_serial": "MB-X99-PRO"} — un inventaire matériel complet, inventé,
+            # renvoyé comme s'il venait de l'agent. Les clés sont conservées (pour ne
+            # casser aucun consommateur) mais nulles, avec "available": False.
+            return {
+                "available": False,
+                "reason": "wazuh_unauthenticated",
+                "cpu_name": None,
+                "ram_total": None,
+                "ram_free": None,
+                "os_name": None,
+                "os_version": None,
+                "board_serial": None,
+            }
 
         try:
             async with httpx.AsyncClient(verify=ssl_ctx) as client:
@@ -279,7 +293,8 @@ class WazuhAPIClient:
                     return {"cpu_name": "Unknown Processor (Data Unavailable)", "ram_total": 0, "ram_free": 0, "os_name": "Unknown", "board_serial": "N/A"}
                 if response.status_code == 200:
                     items = response.json().get('data', {}).get('affected_items', [])
-                    if items: return items[0]
+                    if items:
+                        return items[0]
         except httpx.ConnectError:
             self._wazuh_available = False
             return {"cpu_name": "Unknown Processor (Data Unavailable)", "ram_total": 0, "ram_free": 0, "os_name": "Unknown", "board_serial": "N/A"}
@@ -291,7 +306,7 @@ class WazuhAPIClient:
             logger.warning("Error getting agent hardware: %s", e)
         return {"cpu_name": "Unknown Processor (Data Unavailable)", "ram_total": 0, "ram_free": 0, "os_name": "Unknown", "board_serial": "N/A"}
 
-    async def get_agent_packages(self, agent_id: str, limit: int = 5) -> List[Dict[str, Any]]:
+    async def get_agent_packages(self, agent_id: str, limit: int = 5) -> list[dict[str, Any]]:
         token = await self._get_token()
         if not token:
             return []

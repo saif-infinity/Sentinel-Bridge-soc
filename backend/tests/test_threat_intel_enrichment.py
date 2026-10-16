@@ -15,20 +15,22 @@ os.environ["WAZUH_SSH_PASS"] = "test-ssh-pass"
 os.environ["ADMIN_API_KEY"] = "test-admin-key"
 os.environ["ADMIN_JWT_SECRET"] = "test-admin-jwt-secret"
 os.environ["DATABASE_URL"] = f"sqlite:///{os.path.join(tempfile.gettempdir(), 'sentinel_ti_enrichment_test.db')}"
-os.environ["THREAT_INTEL_ENABLED"] = "true"
 
-import pytest  # noqa: E402
-from sqlalchemy import inspect as sa_inspect
 from unittest.mock import patch
 
+import pytest  # noqa: E402
+
 import app.models  # noqa: E402,F401
+from app.application.pipeline import ingest_alert, reset_pipeline  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.db import Base, SessionLocal  # noqa: E402
-from app.application.pipeline import ingest_alert, reset_pipeline  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def _setup_db():
+def _setup_db(monkeypatch):
+    # Settings peut déjà être chargé par un autre module pendant la collecte.
+    # Activer TI pour chaque test, puis restaurer sa valeur à la fin du test.
+    monkeypatch.setattr(settings, "THREAT_INTEL_ENABLED", True)
     Base.metadata.drop_all(bind=SessionLocal().get_bind())
     Base.metadata.create_all(bind=SessionLocal().get_bind())
     reset_pipeline()

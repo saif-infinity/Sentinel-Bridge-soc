@@ -22,8 +22,6 @@ def _db_count_quick():
 def on_alert_ingested(channel: str, event: dict) -> None:
     """Handler SYNC abonné à CHANNEL_ALERT_INGESTED (event_bus.publish_local)."""
     try:
-        from ...core.config import settings
-        from ..system_config import get_config_value
         from .service import load_ai_auto_config
 
         tenant_id = str(event.get("tenant_id") or "default")

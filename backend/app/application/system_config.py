@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
-from ..models import SystemConfig
+
 from ..config import settings
+from ..models import SystemConfig
 
 DEFAULT_CONFIGS = {
     "sources": {

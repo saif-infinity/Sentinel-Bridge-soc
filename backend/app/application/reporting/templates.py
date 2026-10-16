@@ -3,10 +3,9 @@
 Provides reusable HTML template strings and CSV header/row builders
 for each report type.
 """
-import json
 import csv
 import io
-from datetime import datetime, timezone
+from datetime import datetime
 
 
 def _fmt_date(dt: datetime | None) -> str:

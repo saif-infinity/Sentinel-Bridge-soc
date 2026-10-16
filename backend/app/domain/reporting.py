@@ -3,11 +3,15 @@
 Multi-tenant tables: reports, report_templates, report_schedules,
 report_recipients, report_logs. All queries filter by tenant_id.
 """
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy import (
-    Index, Integer, String, Text, DateTime, Float, ForeignKey, Boolean,
-    Enum, JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 

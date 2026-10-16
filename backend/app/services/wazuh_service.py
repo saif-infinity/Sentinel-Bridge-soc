@@ -1,1 +1,1 @@
-from ..application.wazuh.service import wazuh_service
+from ..application.wazuh.service import wazuh_service  # noqa: F401

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-labelledby="title description">
+  <title id="title">Sentinel Bridge — Security Operations</title>
+  <desc id="description">Bannière du projet : un bouclier et des lignes de connexion illustrent la collecte, la corrélation, l’investigation et la réponse aux incidents.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07131f"/>
+      <stop offset="1" stop-color="#102a35"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6ee7b7"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+    <radialGradient id="halo">
+      <stop offset="0" stop-color="#2dd4bf" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#2dd4bf" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#e2e8f0" stroke-opacity="0.04"/>
+    </pattern>
+  </defs>
+  <rect width="1280" height="320" rx="20" fill="url(#background)"/>
+  <rect width="1280" height="320" rx="20" fill="url(#grid)"/>
+  <ellipse cx="1100" cy="150" rx="270" ry="240" fill="url(#halo)"/>
+  <path d="M0 319H1280" stroke="url(#accent)" stroke-opacity="0.35"/>
+  <g fill="none" stroke="#2dd4bf" stroke-opacity="0.18" stroke-width="1.5">
+    <path d="M838 64H913L949 100H1072"/>
+    <path d="M807 258H894L947 205H1086"/>
+    <path d="M1206 68H1156L1117 107"/>
+    <path d="M1211 250H1170L1130 210"/>
+    <circle cx="1086" cy="155" r="102"/>
+    <circle cx="1086" cy="155" r="125" stroke-dasharray="5 12"/>
+  </g>
+  <g fill="#2dd4bf">
+    <circle cx="838" cy="64" r="3"/>
+    <circle cx="807" cy="258" r="3"/>
+    <circle cx="1206" cy="68" r="3"/>
+    <circle cx="1211" cy="250" r="3"/>
+  </g>
+  <path d="M1086 77L1146 101V149C1146 188 1122 216 1086 235C1050 216 1026 188 1026 149V101Z" fill="#102d36" stroke="url(#accent)" stroke-width="2.5"/>
+  <path d="M1086 99L1127 116V150C1127 177 1111 197 1086 212C1061 197 1045 177 1045 150V116Z" fill="none" stroke="#6ee7b7" stroke-opacity="0.2"/>
+  <path d="M1064 155L1080 171L1110 139" fill="none" stroke="url(#accent)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif">
+    <rect x="56" y="44" width="210" height="28" rx="14" fill="#2dd4bf" fill-opacity="0.1" stroke="#2dd4bf" stroke-opacity="0.25"/>
+    <circle cx="72" cy="58" r="3" fill="#6ee7b7"/>
+    <text x="86" y="63" fill="#99f6e4" font-size="12" font-weight="600" letter-spacing="2">SECURITY OPERATIONS</text>
+    <text x="53" y="143" fill="#f1f5f9" font-size="68" font-weight="700" letter-spacing="-2">Sentinel Bridge</text>
+    <text x="56" y="182" fill="#a5b9c7" font-size="20">Une vision unifiée. Une réponse éclairée.</text>
+    <g font-size="12" font-weight="600" letter-spacing="1.5">
+      <text x="56" y="253" fill="#6ee7b7">COLLECTER</text>
+      <text x="197" y="253" fill="#94a3b8">/</text>
+      <text x="225" y="253" fill="#6ee7b7">CORRÉLER</text>
+      <text x="362" y="253" fill="#94a3b8">/</text>
+      <text x="390" y="253" fill="#6ee7b7">INVESTIGUER</text>
+      <text x="558" y="253" fill="#94a3b8">/</text>
+      <text x="586" y="253" fill="#6ee7b7">RÉPONDRE</text>
+    </g>
+  </g>
+</svg>

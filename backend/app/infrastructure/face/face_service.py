@@ -1,8 +1,8 @@
-import os
 import base64
-import json
 import hashlib
+import json
 import logging
+import os
 import threading
 from pathlib import Path
 
@@ -44,7 +44,7 @@ def _read_mapping(tenant_id: str = "default") -> dict:
     mfile = _mapping_file(tenant_id)
     if mfile.exists():
         try:
-            with open(mfile, "r") as f:
+            with open(mfile) as f:
                 return json.load(f)
         except (json.JSONDecodeError, Exception):
             return {}
@@ -291,7 +291,10 @@ class FaceService:
             faces = _try_pass(big, "upscaled")
             if faces is not None:
                 (x, y, fw, fh) = faces[0]
-                x //= scale; y //= scale; fw //= scale; fh //= scale
+                x //= scale
+                y //= scale
+                fw //= scale
+                fh //= scale
                 return gray[y:y + fh, x:x + fw]
 
         logger.info("  face not found after all passes")

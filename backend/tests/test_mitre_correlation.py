@@ -14,7 +14,7 @@ Pattern (SQLite temp DB) :
 import json
 import os
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -25,20 +25,20 @@ os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB}"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app.core.db import Base, engine, SessionLocal  # noqa: E402
-import app.models  # noqa: E402, F401 — modèles existants AVANT create_all
 import app.domain.rule_models  # noqa: E402, F401 — Rule / RuleMatchOutbox / CorrelationState
-from app.config import settings  # noqa: E402
-from app.interface.main import app  # noqa: E402
+import app.models  # noqa: E402, F401 — modèles existants AVANT create_all
 from app.application.events import CHANNEL_RULE_MATCH, event_bus  # noqa: E402
+from app.application.rules.correlator import WindowedCorrelator  # noqa: E402
+from app.application.rules.engine import evaluate_normalized_alert, invalidate_rules_cache  # noqa: E402
 from app.application.rules.evaluator import (  # noqa: E402
     NORMALIZED_KEYS,
     build_normalized_alert,
     mitre_tactics_for,
 )
-from app.application.rules.engine import evaluate_normalized_alert, invalidate_rules_cache  # noqa: E402
-from app.application.rules.correlator import WindowedCorrelator  # noqa: E402
-from app.domain.rule_models import Rule, RuleMatchOutbox, CorrelationState  # noqa: E402
+from app.config import settings  # noqa: E402
+from app.core.db import Base, SessionLocal, engine  # noqa: E402
+from app.domain.rule_models import CorrelationState, Rule, RuleMatchOutbox  # noqa: E402
+from app.interface.main import app  # noqa: E402
 from app.models import Tenant  # noqa: E402
 
 API_KEY = settings.API_KEY.get_secret_value()
@@ -252,7 +252,7 @@ def test_sequence_correlation_persists_across_restart(db):
         mitre_ids=["T1059"], tactics=["execution"],
     )
     conditions = json.loads(rule.conditions)
-    base = datetime.now(timezone.utc) - timedelta(seconds=10)
+    base = datetime.now(UTC) - timedelta(seconds=10)
 
     ev_a = build_normalized_alert({
         "tenant_id": "default", "signature": "stage-A",

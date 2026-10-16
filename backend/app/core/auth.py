@@ -1,8 +1,10 @@
 import secrets
-from fastapi import Header, HTTPException, Request, status, Query, Depends
-from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPAuthorizationCredentials
-from .jwt_utils import verify_token
+
+from fastapi import Depends, Header, HTTPException, Query, Request, status
+from fastapi.security import HTTPBearer, OAuth2PasswordBearer
+
 from .config import settings
+from .jwt_utils import verify_token
 
 # We are going to use the OAuth2PasswordBearer to extract the token from the Authorization header.
 # However, for WebSocket, we don't have headers, so we will also support token as a query parameter.
@@ -30,8 +32,15 @@ async def get_token_from_query(token: str = Query(None)):
     return token
 
 # Let's create a simple API key authentication for services that need it
+def _key_matches(provided, expected) -> bool:
+    """Constant-time comparison. `==` on a secret leaks length/prefix via timing."""
+    if not provided or not expected:
+        return False
+    return secrets.compare_digest(provided, expected)
+
+
 async def get_api_key(api_key: str = Header(None, alias="X-API-Key")):
-    if api_key is None or api_key != settings.API_KEY.get_secret_value():
+    if not _key_matches(api_key, settings.API_KEY.get_secret_value()):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Could not validate API key",
@@ -44,9 +53,9 @@ async def get_api_key_or_jwt(
     authorization: str = Header(None, alias="Authorization"),
 ):
     # Try API key first
-    if api_key and api_key == settings.API_KEY.get_secret_value():
+    if _key_matches(api_key, settings.API_KEY.get_secret_value()):
         return api_key
-    
+
     # Try JWT Bearer token
     if authorization:
         scheme, token = authorization.split() if " " in authorization else (None, None)
@@ -59,7 +68,7 @@ async def get_api_key_or_jwt(
             from ..admin_auth import verify_admin_token
             if verify_admin_token(token) is not None:
                 return token
-    
+
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Could not validate credentials. Provide X-API-Key header or Bearer token.",
@@ -68,23 +77,9 @@ async def get_api_key_or_jwt(
 # Create the api_key_auth dependency that analyse.py expects
 api_key_auth = Depends(get_api_key)
 
-# We'll create a dependency that tries to get the token from the header first, then from the query.
-async def get_token(
-    header_token: str = Depends(get_token_from_header, use_cache=False),
-    query_token: str = Depends(get_token_from_query, use_cache=False),
-):
-    # If header token is provided, use it; otherwise, use query token.
-    # Note: the Depends with use_cache=False is to allow both to be called? Actually, we want to try header first.
-    # We can do: if header_token is not None, return header_token, else return query_token.
-    # But note: the dependency system will call both functions. We want to avoid calling the query token function if header token is present?
-    # We can't easily do that with Depends. We'll create a new function that takes both as optional and then choose.
-    pass
-
-# Let's do it differently: we'll create a single function that tries to get the token from the header, and if not present, from the query.
-# We can't do that with two separate dependencies because we don't know which one will be called first.
-# We'll create a custom dependency that gets the token from the request.
-
-from fastapi import Request
+# FIX: removed the dead `get_token()` stub (its body was `pass`) together with the
+# ~12 lines of draft reasoning comments left above it ("Let's do it differently:",
+# "Actually, we want to try header first."). get_token_from_request below is the real one.
 
 async def get_token_from_request(request: Request):
     # Try to get token from Authorization header
@@ -104,9 +99,8 @@ async def get_token_from_request(request: Request):
     )
 
 # Now we create a dependency that uses the get_token_from_request and then verifies the token and checks scopes.
-from typing import List, Set, Optional
 
-def has_scopes(required_scopes: List[str]):
+def has_scopes(required_scopes: list[str]):
     async def scope_verifier(token: str = Depends(get_token_from_request)):
         payload = verify_token(token)
         if payload is None:
@@ -115,8 +109,8 @@ def has_scopes(required_scopes: List[str]):
                 detail="Could not validate credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        token_scopes: Set[str] = set(payload.get("scopes", []))
-        required_scopes_set: Set[str] = set(required_scopes)
+        token_scopes: set[str] = set(payload.get("scopes", []))
+        required_scopes_set: set[str] = set(required_scopes)
         if not required_scopes_set.issubset(token_scopes):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -127,25 +121,25 @@ def has_scopes(required_scopes: List[str]):
     return scope_verifier
 
 # Combined scope checker: accepts either JWT with required scopes OR API key
-def has_scopes_or_api_key(required_scopes: List[str]):
+def has_scopes_or_api_key(required_scopes: list[str]):
     async def scope_verifier(
         api_key: str = Header(None, alias="X-API-Key"),
         authorization: str = Header(None, alias="Authorization"),
         x_tenant_id: str = Header(None, alias="X-Tenant-ID"),
     ):
         # Try API key first (has all permissions)
-        if api_key and api_key == settings.API_KEY.get_secret_value():
+        if _key_matches(api_key, settings.API_KEY.get_secret_value()):
             tenant_id = x_tenant_id or "default"
             return {"scopes": required_scopes, "sub": "api_key", "tenant_id": tenant_id}
-        
+
         # Try JWT Bearer token
         if authorization:
             scheme, token = authorization.split() if " " in authorization else (None, None)
             if scheme and scheme.lower() == "bearer" and token:
                 payload = verify_token(token)
                 if payload:
-                    token_scopes: Set[str] = set(payload.get("scopes", []))
-                    required_scopes_set: Set[str] = set(required_scopes)
+                    token_scopes: set[str] = set(payload.get("scopes", []))
+                    required_scopes_set: set[str] = set(required_scopes)
                     if required_scopes_set.issubset(token_scopes):
                         return payload
                 else:
@@ -154,7 +148,7 @@ def has_scopes_or_api_key(required_scopes: List[str]):
                     admin_payload = verify_admin_token(token)
                     if admin_payload is not None:
                         return admin_payload
-        
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated. Provide X-API-Key header or Bearer token with required scopes.",

@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from ...db import SessionLocal
 
@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 class WazuhTopology:
     """Wazuh read queries: active alerts, agent logs, topology graph."""
 
-    async def get_active_alerts(self, tenant_id: str = "default") -> List[Dict[str, Any]]:
+    async def get_active_alerts(self, tenant_id: str = "default") -> list[dict[str, Any]]:
         db = SessionLocal()
         try:
             from ...models import Alert
@@ -31,7 +31,7 @@ class WazuhTopology:
         finally:
             db.close()
 
-    async def get_topology(self) -> Dict[str, Any]:
+    async def get_topology(self) -> dict[str, Any]:
         agents = await self.get_agents()
         nodes = []
         edges = []
@@ -41,18 +41,24 @@ class WazuhTopology:
         nodes.append({
             "id": "manager",
             "type": "custom",
-            "data": {"label": "Wazuh Manager", "status": "normal", "ip": "127.0.0.1", "type": "manager", "os": "Linux"},
+            # Le statut du manager reflète la réalité de la connexion, pas "normal" en dur.
+            "data": {
+                "label": "Wazuh Manager",
+                "status": "normal" if self._wazuh_available else "unavailable",
+                "ip": "127.0.0.1",
+                "type": "manager",
+                "os": "Linux",
+            },
             "position": {"x": 0, "y": 0}
         })
 
-        # If Wazuh is unavailable and we have no agents, provide mock topology for UI
-        if not agents and not self._wazuh_available:
-            mock_agents = [
-                {"id": "001", "name": "Workstation-01", "status": "active", "ip": "192.168.1.10", "os": {"name": "Windows 10"}},
-                {"id": "002", "name": "Server-01", "status": "active", "ip": "192.168.1.20", "os": {"name": "Ubuntu 22.04"}},
-                {"id": "003", "name": "Laptop-01", "status": "disconnected", "ip": "192.168.1.30", "os": {"name": "Windows 11"}},
-            ]
-            agents = mock_agents
+        # Plus de « mock topology for UI » : trois hôtes inventés
+        # (Workstation-01/Server-01/Laptop-01, IPs 192.168.1.x) étaient renvoyés
+        # dès que Wazuh était injoignable. Un analyste voyait donc un parc fictif
+        # présenté comme réel — exactement ce qu'un outil de défense ne doit jamais
+        # faire. On renvoie désormais l'état vide + un drapeau explicite que le
+        # frontend affiche comme « source indisponible ».
+        source_unavailable = bool(not agents and not self._wazuh_available)
 
         for agent in agents:
             agent_id = agent['id']
@@ -164,7 +170,7 @@ class WazuhTopology:
 
         return {"nodes": nodes, "edges": edges}
 
-    async def get_agent_logs(self, agent_id: str, tenant_id: str = "default", limit: int = 40) -> List[Dict[str, Any]]:
+    async def get_agent_logs(self, agent_id: str, tenant_id: str = "default", limit: int = 40) -> list[dict[str, Any]]:
         db = SessionLocal()
         try:
             from ...models import Alert

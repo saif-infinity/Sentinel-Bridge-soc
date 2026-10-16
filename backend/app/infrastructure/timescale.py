@@ -1,7 +1,8 @@
 """TimescaleDB: hypertable conversion, compression, retention policies.
 Called from bootstrap.py after create_all + ensure_columns."""
 import logging
-from sqlalchemy import text, inspect
+
+from sqlalchemy import inspect, text
 
 logger = logging.getLogger(__name__)
 

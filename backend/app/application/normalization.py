@@ -10,8 +10,8 @@ payload inconnu). `to_pipeline_payload()` convertit le canonique vers le
 payload attendu par `ingest_alert()` (pipeline.py).
 """
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict
+from datetime import UTC, datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ def _get(raw: Any, *paths: str) -> Any:
     return None
 
 
-def _host(raw: dict) -> Dict[str, Any]:
+def _host(raw: dict) -> dict[str, Any]:
     host = raw.get("host") if isinstance(raw.get("host"), dict) else {}
     return {
         "name": host.get("name") or raw.get("hostname"),
@@ -49,12 +49,12 @@ def _host(raw: dict) -> Dict[str, Any]:
     }
 
 
-def _user(raw: dict) -> Dict[str, Any]:
+def _user(raw: dict) -> dict[str, Any]:
     user = raw.get("user") if isinstance(raw.get("user"), dict) else {}
     return {"name": user.get("name") or raw.get("username")}
 
 
-def map_suricata(raw: dict) -> Dict[str, Any]:
+def map_suricata(raw: dict) -> dict[str, Any]:
     """Suricata eve.json → canonique.
 
     Exemple d'entrée : {timestamp, event_type, src_ip, dest_ip, proto,
@@ -83,7 +83,7 @@ def map_suricata(raw: dict) -> Dict[str, Any]:
     }
 
 
-def map_wazuh(raw: dict) -> Dict[str, Any]:
+def map_wazuh(raw: dict) -> dict[str, Any]:
     """Alerte Wazuh (webhook ou hit indexer) → canonique.
 
     Exemple d'entrée : {timestamp, rule {id, level, description},
@@ -112,7 +112,7 @@ def map_wazuh(raw: dict) -> Dict[str, Any]:
     }
 
 
-def map_generic(raw: dict) -> Dict[str, Any]:
+def map_generic(raw: dict) -> dict[str, Any]:
     """Source générique → canonique (fallback tolérant, jamais d'exception)."""
     if not isinstance(raw, dict):
         return {}
@@ -134,7 +134,7 @@ def map_generic(raw: dict) -> Dict[str, Any]:
     }
 
 
-def map_syslog(raw: dict) -> Dict[str, Any]:
+def map_syslog(raw: dict) -> dict[str, Any]:
     """Syslog (RFC 5424/3164, agentless) → canonique.
 
     Entrée : dict produit par app.infrastructure.syslog.protocol.parse_syslog()
@@ -143,7 +143,7 @@ def map_syslog(raw: dict) -> Dict[str, Any]:
     if not isinstance(raw, dict):
         return {}
     c = {k: None for k in CANONICAL_KEYS}
-    c["@timestamp"] = _get(raw, "timestamp") or datetime.now(timezone.utc).isoformat()
+    c["@timestamp"] = _get(raw, "timestamp") or datetime.now(UTC).isoformat()
     c["event.kind"] = "alert"
     c["event.category"] = "network"
     c["event.type"] = "info"
@@ -171,7 +171,7 @@ def map_syslog(raw: dict) -> Dict[str, Any]:
     return c
 
 
-def normalize_event(raw: dict, source: str) -> Dict[str, Any]:
+def normalize_event(raw: dict, source: str) -> dict[str, Any]:
     """Dispatche vers le mapper de la source (suricata | wazuh | syslog | générique)."""
     src = (source or "generic").lower()
     if src == "suricata":
@@ -183,7 +183,7 @@ def normalize_event(raw: dict, source: str) -> Dict[str, Any]:
     return map_generic(raw)
 
 
-def to_pipeline_payload(canonical: Dict[str, Any], source: str) -> Dict[str, Any]:
+def to_pipeline_payload(canonical: dict[str, Any], source: str) -> dict[str, Any]:
     """Convertit un événement canonique en payload ingest_alert() (pipeline.py)."""
     return {
         "source": source,

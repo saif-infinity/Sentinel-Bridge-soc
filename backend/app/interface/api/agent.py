@@ -1,21 +1,22 @@
 import json
 import logging
+import secrets
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy import desc, func
+from sqlalchemy.orm import Session
 
-from ...db import get_db, get_tenant_id
-from ...domain.models import Agent, AgentTelemetryEvent, AgentOrder
-from ...core.config import settings
-from ...application.source_control import is_source_enabled
-from ...auth import get_api_key_or_jwt
-from ...application.system_config import get_all_settings
-from ...application.pipeline import ingest_alert
 from ...application.normalization import normalize_event, to_pipeline_payload
+from ...application.pipeline import ingest_alert
+from ...application.source_control import is_source_enabled
+from ...application.system_config import get_all_settings
+from ...auth import get_api_key_or_jwt
+from ...core.config import settings
+from ...db import get_db, get_tenant_id
+from ...domain.models import Agent, AgentOrder, AgentTelemetryEvent
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ _agent_action_types = {"block_ip", "unblock_ip", "kill_process", "quarantine_fil
 _AGENT_FIELD_MAX = {"agent_id": 64, "hostname": 255, "os": 128, "arch": 64, "version": 64}
 
 
-def _clip(value: Any, max_len: int) -> Optional[str]:
+def _clip(value: Any, max_len: int) -> str | None:
     """Truncate a possibly-oversized value so it fits its DB column (never raises)."""
     if value is None:
         return None
@@ -42,11 +43,11 @@ async def agent_auth(
     api_key: str = Header(None, alias="X-API-Key"),
     authorization: str = Header(None, alias="Authorization"),
 ):
-    if api_key and api_key == settings.API_KEY.get_secret_value():
+    if api_key and secrets.compare_digest(api_key, settings.API_KEY.get_secret_value()):
         return api_key
     if authorization:
         scheme, _, token = authorization.partition(" ")
-        if scheme.lower() == "bearer" and token == settings.API_KEY.get_secret_value():
+        if scheme.lower() == "bearer" and secrets.compare_digest(token, settings.API_KEY.get_secret_value()):
             return token
     raise HTTPException(status_code=403, detail="Could not validate credentials")
 
@@ -77,7 +78,7 @@ async def create_order(
         target=body.get("target"),
         params=json.dumps(body.get("params")) if body.get("params") is not None else None,
         status="pending",
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     db.add(order)
     db.commit()
@@ -139,7 +140,7 @@ async def register_agent(
     if not agent_id:
         raise HTTPException(status_code=400, detail="agent_id is required")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     existing = db.query(Agent).filter(Agent.agent_id == agent_id).first()
     if existing:
         existing.hostname = _clip(data.get("hostname", existing.hostname), 255)
@@ -186,7 +187,7 @@ async def receive_telemetry(
         raise HTTPException(status_code=400, detail="agent_id is required")
 
     seq = body.get("seq", 0)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Upsert Agent row
     existing = db.query(Agent).filter(Agent.agent_id == agent_id).first()
@@ -309,7 +310,7 @@ def _forward_to_pipeline(agent_id: str, items: list, db: Session, category: str,
 
 @router.get("/status", dependencies=[Depends(get_api_key_or_jwt)])
 async def get_status(db: Session = Depends(get_db)):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     agents = (
         db.query(Agent)
         .order_by(desc(Agent.last_seen))
@@ -348,7 +349,7 @@ async def get_status(db: Session = Depends(get_db)):
 @router.get("/processes", dependencies=[Depends(get_api_key_or_jwt)])
 async def get_processes(
     limit: int = Query(200, ge=1, le=1000),
-    agent_id: Optional[str] = Query(None),
+    agent_id: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
     query = (
@@ -381,8 +382,8 @@ async def get_processes(
 @router.get("/events", dependencies=[Depends(get_api_key_or_jwt)])
 async def get_events(
     limit: int = Query(100, ge=1, le=500),
-    agent_id: Optional[str] = Query(None),
-    category: Optional[str] = Query(None, description="Filtre par catégorie, ex. 'misconfig'"),
+    agent_id: str | None = Query(None),
+    category: str | None = Query(None, description="Filtre par catégorie, ex. 'misconfig'"),
     db: Session = Depends(get_db),
 ):
     event_categories = [
@@ -435,7 +436,7 @@ async def get_pending_orders(
         .limit(limit)
         .all()
     )
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for row in rows:
         row.status = "dispatched"
         row.dispatched_at = now
@@ -474,7 +475,7 @@ async def submit_order_result(
     row.status = status
     row.output = body.get("output")
     row.error = body.get("error")
-    row.completed_at = datetime.now(timezone.utc)
+    row.completed_at = datetime.now(UTC)
     db.commit()
 
     return {"status": "ok"}

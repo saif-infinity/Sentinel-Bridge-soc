@@ -1,12 +1,12 @@
 """Tests for R10 syslog ingestion components."""
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from app.infrastructure.syslog.protocol import parse_rfc5424, parse_rfc3164, parse_syslog
-from app.infrastructure.syslog.tenant_resolver import configure, resolve_tenant
 from app.application.normalization import map_syslog, normalize_event
+from app.infrastructure.syslog.protocol import parse_rfc3164, parse_rfc5424, parse_syslog
+from app.infrastructure.syslog.tenant_resolver import configure, resolve_tenant
 
 
 class TestSyslogProtocol:
@@ -109,8 +109,9 @@ class TestStreamHelpers:
         assert fields["error"] == "boom"
 
     def test_ensure_group_idempotent(self):
-        from app.infrastructure.syslog.stream import ensure_group
         from redis import ResponseError
+
+        from app.infrastructure.syslog.stream import ensure_group
 
         r = MagicMock()
         r.xgroup_create.side_effect = ResponseError("BUSYGROUP Consumer Group name already exists")

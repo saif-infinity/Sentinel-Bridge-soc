@@ -1,9 +1,13 @@
 import logging
-from fastapi import Request, HTTPException
+import secrets
+from datetime import UTC
+
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-from ...jwt_utils import verify_token
+
 from ...config import settings
+from ...jwt_utils import verify_token
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +52,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
         # Only fall back to X-Tenant-ID header if no JWT AND valid API key
         if not tenant_id:
             api_key = request.headers.get("x-api-key")
-            if api_key and api_key == settings.API_KEY.get_secret_value():
+            if api_key and secrets.compare_digest(api_key, settings.API_KEY.get_secret_value()):
                 tenant_id = request.headers.get("X-Tenant-ID")
 
         # Default tenant for backward compatibility
@@ -74,8 +78,8 @@ class TenantMiddleware(BaseHTTPMiddleware):
                         content={"detail": "Tenant suspended"}
                     )
                 if tenant and tenant.subscription_end:
-                    from datetime import datetime, timezone
-                    if tenant.subscription_end < datetime.now(timezone.utc):
+                    from datetime import datetime
+                    if tenant.subscription_end < datetime.now(UTC):
                         return JSONResponse(
                             status_code=403,
                             content={"detail": "Subscription expired"}

@@ -1,0 +1,203 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="890" viewBox="0 0 1280 890" role="img" aria-labelledby="title description">
+  <title id="title">Huit étapes pour lire le parcours SOC</title>
+  <desc id="description">Parcours pédagogique : collecter, structurer, contextualiser, dédupliquer, corréler, investiguer, décider et capitaliser. Les doublons sortent avant la corrélation. Une correspondance peut déclencher des branches indépendantes d’investigation ou de SOAR. Toute alerte ne devient pas automatiquement une case, une action ou un rapport.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#081521" />
+      <stop offset="1" stop-color="#102b37" />
+    </linearGradient>
+    <marker id="arrow-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#5eead4" />
+    </marker>
+    <marker id="arrow-start-teal" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M10 0L0 5L10 10Z" fill="#5eead4" />
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#7dd3fc" />
+    </marker>
+    <marker id="arrow-start-blue" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M10 0L0 5L10 10Z" fill="#7dd3fc" />
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#fcd34d" />
+    </marker>
+    <marker id="arrow-start-amber" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M10 0L0 5L10 10Z" fill="#fcd34d" />
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1280" height="890" rx="20" fill="url(#background)" stroke="none" />
+  <rect x="40" y="28" width="4" height="28" rx="2" fill="#5eead4" stroke="none" />
+  <text x="58" y="47" fill="#5eead4" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1.6">
+    <tspan x="58" dy="0">SENTINEL BRIDGE / 03 · PARCOURS D’UN ÉVÉNEMENT</tspan>
+  </text>
+  <text x="40" y="101" fill="#edf5fb" font-size="36" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="40" dy="0">Huit étapes pour lire le parcours SOC</tspan>
+  </text>
+  <text x="40" y="137" fill="#b3c6d4" font-size="18" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="40" dy="0">Lire de gauche à droite, puis suivre le retour. Les branches détaillées sont dans le guide.</tspan>
+  </text>
+  <rect x="40" y="180" width="282" height="240" rx="14" fill="#102433" stroke="#294253" />
+  <text x="62" y="215" fill="#5eead4" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="62" dy="0">01 / ENTRÉE</tspan>
+  </text>
+  <text x="62" y="259" fill="#edf5fb" font-size="23" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="62" dy="0">Collecter</tspan>
+  </text>
+  <text x="62" y="295" fill="#b3c6d4" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="62" dy="0">Wazuh, Suricata, syslog</tspan>
+    <tspan x="62" dy="25">ou injection de laboratoire</tspan>
+  </text>
+  <path d="M62 344H300" fill="none" stroke="#294253" stroke-width="1" />
+  <text x="62" y="364" fill="#5eead4" font-size="11" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="62" dy="0">SORTIE / REPÈRE</tspan>
+  </text>
+  <text x="62" y="388" fill="#edf5fb" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="62" dy="0">Payload reçu</tspan>
+  </text>
+  <rect x="346" y="180" width="282" height="240" rx="14" fill="#102433" stroke="#294253" />
+  <text x="368" y="215" fill="#5eead4" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="368" dy="0">02 / FORMAT</tspan>
+  </text>
+  <text x="368" y="259" fill="#edf5fb" font-size="23" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="368" dy="0">Structurer</tspan>
+  </text>
+  <text x="368" y="295" fill="#b3c6d4" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="368" dy="0">Tenant, temps, IP et type</tspan>
+    <tspan x="368" dy="25">Adaptateurs de normalisation</tspan>
+  </text>
+  <path d="M368 344H606" fill="none" stroke="#294253" stroke-width="1" />
+  <text x="368" y="364" fill="#5eead4" font-size="11" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="368" dy="0">SORTIE / REPÈRE</tspan>
+  </text>
+  <text x="368" y="388" fill="#edf5fb" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="368" dy="0">Événement canonique</tspan>
+  </text>
+  <rect x="652" y="180" width="282" height="240" rx="14" fill="#102433" stroke="#294253" />
+  <text x="674" y="215" fill="#5eead4" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="674" dy="0">03 / CONTEXTE</tspan>
+  </text>
+  <text x="674" y="259" fill="#edf5fb" font-size="23" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="674" dy="0">Sévérité et TI</tspan>
+  </text>
+  <text x="674" y="295" fill="#b3c6d4" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="674" dy="0">Échelle 0–15</tspan>
+    <tspan x="674" dy="25">TI uniquement si activée</tspan>
+  </text>
+  <path d="M674 344H912" fill="none" stroke="#294253" stroke-width="1" />
+  <text x="674" y="364" fill="#5eead4" font-size="11" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="674" dy="0">SORTIE / REPÈRE</tspan>
+  </text>
+  <text x="674" y="388" fill="#edf5fb" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="674" dy="0">normalized_severity</tspan>
+  </text>
+  <rect x="958" y="180" width="282" height="240" rx="14" fill="#102433" stroke="#294253" />
+  <text x="980" y="215" fill="#5eead4" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="980" dy="0">04 / BRUIT</tspan>
+  </text>
+  <text x="980" y="259" fill="#edf5fb" font-size="23" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="980" dy="0">Dédupliquer</tspan>
+  </text>
+  <text x="980" y="295" fill="#b3c6d4" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="980" dy="0">Empreinte et fenêtre</tspan>
+    <tspan x="980" dy="25">Compteurs du pipeline</tspan>
+  </text>
+  <path d="M980 344H1218" fill="none" stroke="#294253" stroke-width="1" />
+  <text x="980" y="364" fill="#5eead4" font-size="11" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="980" dy="0">SORTIE / REPÈRE</tspan>
+  </text>
+  <text x="980" y="388" fill="#edf5fb" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="980" dy="0">accepted / deduped</tspan>
+    <tspan x="980" dy="19">/ suppressed</tspan>
+  </text>
+  <rect x="958" y="494" width="282" height="240" rx="14" fill="#102433" stroke="#294253" />
+  <text x="980" y="529" fill="#7dd3fc" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="980" dy="0">05 / DÉTECTION</tspan>
+  </text>
+  <text x="980" y="573" fill="#edf5fb" font-size="23" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="980" dy="0">Corréler</tspan>
+  </text>
+  <text x="980" y="609" fill="#b3c6d4" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="980" dy="0">Conditions et séquences</tspan>
+    <tspan x="980" dy="25">Contexte MITRE si présent</tspan>
+  </text>
+  <path d="M980 658H1218" fill="none" stroke="#294253" stroke-width="1" />
+  <text x="980" y="678" fill="#7dd3fc" font-size="11" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="980" dy="0">SORTIE / REPÈRE</tspan>
+  </text>
+  <text x="980" y="702" fill="#edf5fb" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="980" dy="0">Match ou aucun match</tspan>
+  </text>
+  <rect x="652" y="494" width="282" height="240" rx="14" fill="#102433" stroke="#294253" />
+  <text x="674" y="529" fill="#7dd3fc" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="674" dy="0">06 / ENQUÊTE</tspan>
+  </text>
+  <text x="674" y="573" fill="#edf5fb" font-size="23" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="674" dy="0">Investiguer</tspan>
+  </text>
+  <text x="674" y="609" fill="#b3c6d4" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="674" dy="0">Si déclenchée : case</tspan>
+    <tspan x="674" dy="25">preuves, score et synthèse</tspan>
+  </text>
+  <path d="M674 658H912" fill="none" stroke="#294253" stroke-width="1" />
+  <text x="674" y="678" fill="#7dd3fc" font-size="11" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="674" dy="0">SORTIE / REPÈRE</tspan>
+  </text>
+  <text x="674" y="702" fill="#edf5fb" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="674" dy="0">Investigation / Case</tspan>
+  </text>
+  <rect x="346" y="494" width="282" height="240" rx="14" fill="#102433" stroke="#294253" />
+  <text x="368" y="529" fill="#fcd34d" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="368" dy="0">07 / CONTRÔLE</tspan>
+  </text>
+  <text x="368" y="573" fill="#edf5fb" font-size="23" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="368" dy="0">Décider / répondre</tspan>
+  </text>
+  <text x="368" y="609" fill="#b3c6d4" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="368" dy="0">Approbation si requise</tspan>
+    <tspan x="368" dy="25">Connecteurs autorisés</tspan>
+  </text>
+  <path d="M368 658H606" fill="none" stroke="#294253" stroke-width="1" />
+  <text x="368" y="678" fill="#fcd34d" font-size="11" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="368" dy="0">SORTIE / REPÈRE</tspan>
+  </text>
+  <text x="368" y="702" fill="#edf5fb" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="368" dy="0">Résultat ou attente</tspan>
+  </text>
+  <rect x="40" y="494" width="282" height="240" rx="14" fill="#102433" stroke="#294253" />
+  <text x="62" y="529" fill="#c4b5fd" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="62" dy="0">08 / RESTITUTION</tspan>
+  </text>
+  <text x="62" y="573" fill="#edf5fb" font-size="23" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="62" dy="0">Capitaliser</tspan>
+  </text>
+  <text x="62" y="609" fill="#b3c6d4" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="62" dy="0">Clôture, rapports et exports</tspan>
+    <tspan x="62" dy="25">Livraison selon configuration</tspan>
+  </text>
+  <path d="M62 658H300" fill="none" stroke="#294253" stroke-width="1" />
+  <text x="62" y="678" fill="#c4b5fd" font-size="11" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="62" dy="0">SORTIE / REPÈRE</tspan>
+  </text>
+  <text x="62" y="702" fill="#edf5fb" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="62" dy="0">Timeline / rapport</tspan>
+  </text>
+  <path d="M325 300H342" fill="none" stroke="#5eead4" stroke-width="2" marker-end="url(#arrow-teal)" />
+  <path d="M631 300H648" fill="none" stroke="#5eead4" stroke-width="2" marker-end="url(#arrow-teal)" />
+  <path d="M937 300H954" fill="none" stroke="#5eead4" stroke-width="2" marker-end="url(#arrow-teal)" />
+  <path d="M1099 431V483" fill="none" stroke="#5eead4" stroke-width="2" marker-end="url(#arrow-teal)" />
+  <text x="1116" y="462" fill="#5eead4" font-size="13" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="1116" dy="0">si accepté</tspan>
+  </text>
+  <path d="M955 614H938" fill="none" stroke="#7dd3fc" stroke-width="2" marker-end="url(#arrow-blue)" stroke-dasharray="7 6" />
+  <path d="M649 614H632" fill="none" stroke="#7dd3fc" stroke-width="2" marker-end="url(#arrow-blue)" stroke-dasharray="7 6" />
+  <path d="M343 614H326" fill="none" stroke="#7dd3fc" stroke-width="2" marker-end="url(#arrow-blue)" stroke-dasharray="7 6" />
+  <path d="M1099 734V768H487V734" fill="none" stroke="#fcd34d" stroke-width="2" marker-end="url(#arrow-amber)" stroke-dasharray="7 6" />
+  <text x="666" y="757" fill="#fcd34d" font-size="13" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="666" dy="0">SOAR direct si éligible : sans attendre l’investigation</tspan>
+  </text>
+  <rect x="40" y="790" width="1200" height="65" rx="10" fill="#172a32" stroke="#41535e" />
+  <text x="58" y="815" fill="#fcd34d" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="58" dy="0">01–05 : chemin d’ingestion. Doublons et événements supprimés ne poursuivent pas ce chemin.</tspan>
+    <tspan x="58" dy="23">06–08 : parcours conditionnels. Un match peut déclencher l’investigation, le SOAR ou les deux.</tspan>
+  </text>
+</svg>

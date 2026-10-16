@@ -1,6 +1,8 @@
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from sqlalchemy.orm import Session
+
 from ..models import ActionLog
 
 logger = logging.getLogger(__name__)
@@ -25,7 +27,7 @@ def log_action(
             ip_address=ip_address,
             face_verified=face_verified,
             tenant_id=tenant_id,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
         db.add(log)
         db.commit()

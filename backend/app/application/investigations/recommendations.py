@@ -1,11 +1,9 @@
 """F5 — Rule-based recommendation generation for investigations."""
 import json
 import logging
-from typing import Dict, List
 
 from sqlalchemy.orm import Session
 
-from ...application.system_config import get_config_value
 from ...domain.investigations import Investigation, InvestigationEvidence
 
 logger = logging.getLogger(__name__)
@@ -16,12 +14,12 @@ def generate_recommendations(
     tenant_id: str,
     investigation: Investigation,
     event,
-    evidence_rows: List[InvestigationEvidence],
+    evidence_rows: list[InvestigationEvidence],
     score: int,
     level: str,
-) -> List[Dict]:
+) -> list[dict]:
     """Generate rule-based recommendations from investigation state."""
-    recs: List[Dict] = []
+    recs: list[dict] = []
 
     # Extract evidence data
     src_ip = event.normalized_alert.get("src_ip")
@@ -110,7 +108,7 @@ def generate_recommendations(
     return recs
 
 
-def _find_evidence_step(evidence_rows: List[InvestigationEvidence], prefix: str) -> str:
+def _find_evidence_step(evidence_rows: list[InvestigationEvidence], prefix: str) -> str:
     """Find the first evidence step_key matching a prefix."""
     for ev in evidence_rows:
         if ev.step_key and ev.step_key.startswith(prefix):

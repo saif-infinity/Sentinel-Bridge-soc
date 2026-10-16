@@ -1,10 +1,17 @@
 name: Sentinel SOC CI/CD
 
+# FIX: the repo's only branch is `master`, so the previous `branches: [main, develop]`
+# trigger meant this workflow NEVER ran (verified: actions/runs total_count = 0 since
+# the repo was created). Everything it claimed to gate was therefore unverified —
+# including a frontend that cannot compile.
 on:
   push:
-    branches: [main, develop]
+    branches: [master, main, develop]
   pull_request:
-    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   PYTHON_VERSION: "3.13"
@@ -23,84 +30,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - run: pip install -r requirements.txt ruff
-      # insightface tire opencv-python (GUI) -> collision fichiers avec headless
-      - run: pip uninstall -y opencv-python && pip install --force-reinstall --no-deps opencv-python-headless==4.14.0.94
+      # FIX: linting does not need the runtime deps (insightface/onnxruntime/opencv),
+      # and ruff.toml ignored `W503`, a flake8 code ruff does not know — ruff aborted
+      # with "Unknown rule selector" before reading a single file.
+      - run: pip install ruff
       - run: ruff check .
 
-  lint-frontend:
-    name: Lint Frontend
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-      - run: npx eslint src --ext .jsx,.js
-
-  test-backend:
-    name: Test Backend
-    runs-on: ubuntu-latest
-    needs: lint-backend
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: test-password-ci-only
-          POSTGRES_DB: postgres_test
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      redis:
-        image: redis:7
-        ports: ["6379:6379"]
-    env:
-      DATABASE_URL: postgresql://postgres:test-password-ci-only@localhost:5432/postgres_test
-      REDIS_URL: redis://localhost:6379/0
-      JWT_SECRET_KEY: ci-test-only-not-for-production-use-32chars!
-      API_KEY: ci-test-only-api-key-not-for-production
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - run: pip install -r requirements.txt pytest
-      # insightface tire opencv-python (GUI) -> collision fichiers avec headless
-      - run: pip uninstall -y opencv-python && pip install --force-reinstall --no-deps opencv-python-headless==4.14.0.94
-      - run: pytest --tb=short -q
-
-  build-backend:
-    name: Build Backend Image
-    runs-on: ubuntu-latest
-    needs: test-backend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          push: false
-          tags: sentinel-soc-backend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
+  # FIX: there was no eslint config and no eslint dependency, so
+  # `npx eslint src --ext .jsx,.js` could only fail. A production build is the gate
+  # that actually catches the class of bug that shipped (missing modules).
   build-frontend:
     name: Build Frontend
     runs-on: ubuntu-latest
-    needs: lint-frontend
     defaults:
       run:
         working-directory: frontend
@@ -118,16 +59,129 @@ jobs:
           name: frontend-dist
           path: frontend/dist/
 
+  build-admin-frontend:
+    name: Build Admin Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: admin-frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  test-backend:
+    name: Test Backend
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: timescale/timescaledb:2.29.1-pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test-password-ci-only
+          POSTGRES_DB: postgres_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+    env:
+      # FIX: Settings declares 8 required SecretStr fields. CI supplied 4 and there
+      # was no conftest.py, so every test module failed at collection with a
+      # pydantic ValidationError. tests/conftest.py now provides throwaway defaults
+      # (env values win), and the real DSNs come from here.
+      DATABASE_URL: postgresql+pg8000://postgres:test-password-ci-only@localhost:5432/postgres_test
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET_KEY: ci-test-only-not-for-production-use-32chars!
+      API_KEY: ci-test-only-api-key-not-for-production
+      ADMIN_API_KEY: ci-test-only-admin-key
+      ADMIN_JWT_SECRET: ci-test-only-admin-jwt-secret
+      WAZUH_PASS: ci-test-only
+      WAZUH_INDEXER_PASS: ci-test-only
+      SURICATA_PASS: ci-test-only
+      WAZUH_SSH_PASS: ci-test-only
+      ENVIRONMENT: test
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt pytest
+      # insightface tire opencv-python (GUI) -> collision fichiers avec headless
+      - run: pip uninstall -y opencv-python && pip install --force-reinstall --no-deps opencv-python-headless==4.14.0.94
+      - run: pytest --tb=short -q
+
+  build-backend:
+    name: Build Backend Image
+    runs-on: ubuntu-latest
+    needs: test-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      # FIX: this job failed instantly — `context: ./backend` had no Dockerfile.
+      - uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: false
+          tags: sentinel-soc-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  compose-config:
+    name: Validate Compose
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Compose resolves env_file even for config -q. Use public placeholders
+      # only on this disposable runner; production still requires its real .env.
+      - name: Prepare disposable env file for Compose validation
+        run: cp backend/.env.example backend/.env
+      # FIX: docker-compose.yml defined only `redis` while declaring an orphan
+      # `pgdata:` volume, and docker-compose.prod.yml builds `./wazuh`, a directory
+      # that does not exist in the repo.
+      - run: docker compose -f docker-compose.yml config -q
+      - run: docker compose -f docker-compose.prod.yml config -q
+        env:
+          POSTGRES_PASSWORD: x
+          REDIS_PASSWORD: x
+
   deploy:
     name: Deploy Production
     runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [build-backend, build-frontend, build-admin-frontend]
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     environment: production
     steps:
       - uses: actions/checkout@v4
+      # FIX: this step used to `echo` the deploy commands instead of running them —
+      # a green "Deploy Production" check that deployed nothing. It now fails loudly
+      # until real SSH credentials are wired as repository secrets.
       - name: Deploy to server
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
         run: |
-          echo "Deploy production deployment step"
-          echo "docker compose -f docker-compose.prod.yml pull"
-          echo "docker compose -f docker-compose.prod.yml up -d --remove-orphans"
+          set -euo pipefail
+          if [ -z "${DEPLOY_HOST:-}" ] || [ -z "${DEPLOY_SSH_KEY:-}" ]; then
+            echo "::error::DEPLOY_HOST / DEPLOY_SSH_KEY secrets are not configured."
+            echo "Either add them, or delete this job — do not ship a deploy step that only echoes."
+            exit 1
+          fi
+          mkdir -p ~/.ssh && printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          ssh -o StrictHostKeyChecking=accept-new "${DEPLOY_USER:-deploy}@${DEPLOY_HOST}" \
+            'cd /opt/sentinel && git pull --ff-only && docker compose -f docker-compose.prod.yml up -d --build --remove-orphans'

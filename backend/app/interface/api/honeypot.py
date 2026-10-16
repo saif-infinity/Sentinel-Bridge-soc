@@ -1,21 +1,20 @@
 import logging
-from typing import Optional
 
-from fastapi import APIRouter, Depends, Request, Query
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import desc, func
+from sqlalchemy.orm import Session
 
-from ...db import get_db, SessionLocal
-from ...models import HoneypotEvent
 from ...auth import get_api_key_or_jwt
+from ...db import get_db
 from ...infrastructure.honeypot.service import HoneypotService
+from ...models import HoneypotEvent
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/honeypot", tags=["honeypot"], dependencies=[Depends(get_api_key_or_jwt)])
 
 # Instance globale du service (initialisée au boot)
-_honeypot_service: Optional[HoneypotService] = None
+_honeypot_service: HoneypotService | None = None
 
 
 def set_honeypot_service(service: HoneypotService):

@@ -1,5 +1,6 @@
 import asyncio
 
+
 class Broadcaster:
     def __init__(self):
         self._clients = set()

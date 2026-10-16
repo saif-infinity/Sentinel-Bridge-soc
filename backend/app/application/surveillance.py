@@ -1,13 +1,13 @@
 import base64
-import os
-import json
 import hashlib
+import json
 import logging
-from datetime import datetime, date, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Optional
+
+from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+
 from ..models import AccessLog
 from ..schemas import AccessLogCreate
 
@@ -24,7 +24,7 @@ def _hash_bytes(data: bytes) -> str:
 def _read_mapping() -> dict:
     if MAPPING_FILE.exists():
         try:
-            with open(MAPPING_FILE, "r") as f:
+            with open(MAPPING_FILE) as f:
                 return json.load(f)
         except (json.JSONDecodeError, Exception):
             return {}
@@ -52,14 +52,14 @@ class SurveillanceService:
             mapping[face_hash] = {
                 "username": data.username,
                 "tenant_id": tenant_id,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
             _write_mapping(mapping)
             mapping_entry = face_hash
 
         log_entry = AccessLog(
             username=data.username,
-            login_time=datetime.now(timezone.utc),
+            login_time=datetime.now(UTC),
             is_online=True,
             face_image=mapping_entry,
             face_verified=data.face_verified,
@@ -78,20 +78,20 @@ class SurveillanceService:
             db.query(AccessLog)
             .filter(
                 AccessLog.username == username,
-                AccessLog.is_online == True,
+                AccessLog.is_online.is_(True),
                 AccessLog.tenant_id == tenant_id,
             )
             .order_by(desc(AccessLog.login_time))
             .first()
         )
         if log_entry:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             log_entry.logout_time = now
             log_entry.is_online = False
             # login_time est relu depuis une colonne TIMESTAMP naive → normaliser en UTC-aware
             login_time = log_entry.login_time
             if login_time.tzinfo is None:
-                login_time = login_time.replace(tzinfo=timezone.utc)
+                login_time = login_time.replace(tzinfo=UTC)
             duration = (now - login_time).total_seconds()
             log_entry.session_duration = int(duration)
             db.commit()
@@ -102,7 +102,7 @@ class SurveillanceService:
     def get_online_users(self, db: Session, tenant_id: str = "default"):
         return (
             db.query(AccessLog)
-            .filter(AccessLog.is_online == True, AccessLog.tenant_id == tenant_id)
+            .filter(AccessLog.is_online.is_(True), AccessLog.tenant_id == tenant_id)
             .order_by(desc(AccessLog.login_time))
             .all()
         )
@@ -131,7 +131,7 @@ class SurveillanceService:
 
         users_online = (
             db.query(AccessLog)
-            .filter(AccessLog.is_online == True, AccessLog.tenant_id == tenant_id)
+            .filter(AccessLog.is_online.is_(True), AccessLog.tenant_id == tenant_id)
             .count()
         )
 
@@ -151,7 +151,7 @@ class SurveillanceService:
 
         total_with_face = (
             db.query(AccessLog)
-            .filter(AccessLog.face_verified == True, AccessLog.tenant_id == tenant_id)
+            .filter(AccessLog.face_verified.is_(True), AccessLog.tenant_id == tenant_id)
             .count()
         )
         total_all = db.query(AccessLog).filter(AccessLog.tenant_id == tenant_id).count()
@@ -177,7 +177,7 @@ class SurveillanceService:
             "hourly_logins": [{"hour": int(r.hour), "count": r.count} for r in hourly_logins],
         }
 
-    def _save_face_image(self, image_data: str, tenant_id: str = "default") -> Optional[str]:
+    def _save_face_image(self, image_data: str, tenant_id: str = "default") -> str | None:
         try:
             if "," in image_data:
                 image_data = image_data.split(",")[1]
@@ -195,7 +195,7 @@ class SurveillanceService:
             logger.error("Failed to save face image: %s", e)
             return None
 
-    def get_face_image_base64(self, image_hash: str, tenant_id: str = "default") -> Optional[str]:
+    def get_face_image_base64(self, image_hash: str, tenant_id: str = "default") -> str | None:
         try:
             tenant_dir = SURVEILLANCE_FACE_DIR / tenant_id
             filepath = tenant_dir / f"{image_hash}.jpg"

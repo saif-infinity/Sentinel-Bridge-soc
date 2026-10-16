@@ -1,0 +1,201 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1090" viewBox="0 0 1280 1090" role="img" aria-labelledby="title description">
+  <title id="title">Carte logique des composants</title>
+  <desc id="description">Les interfaces SOC et admin et les webhooks Wazuh/Suricata utilisent le processus FastAPI. Le backend contient les contrôles d’accès, le pipeline et le bus local avec les modules métier. PostgreSQL conserve les données. Redis transporte les jobs Celery et les Streams syslog. Le récepteur syslog est séparé. Les playbooks directs utilisent des threads du processus appelant. Les services de TI, IA, notification et réponse sont optionnels et exigent leur configuration.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#081521" />
+      <stop offset="1" stop-color="#102b37" />
+    </linearGradient>
+    <marker id="arrow-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#5eead4" />
+    </marker>
+    <marker id="arrow-start-teal" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M10 0L0 5L10 10Z" fill="#5eead4" />
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#7dd3fc" />
+    </marker>
+    <marker id="arrow-start-blue" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M10 0L0 5L10 10Z" fill="#7dd3fc" />
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#fcd34d" />
+    </marker>
+    <marker id="arrow-start-amber" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M10 0L0 5L10 10Z" fill="#fcd34d" />
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1280" height="1090" rx="20" fill="url(#background)" stroke="none" />
+  <rect x="40" y="28" width="4" height="28" rx="2" fill="#5eead4" stroke="none" />
+  <text x="58" y="47" fill="#5eead4" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1.6">
+    <tspan x="58" dy="0">SENTINEL BRIDGE / 02 · ARCHITECTURE</tspan>
+  </text>
+  <text x="40" y="101" fill="#edf5fb" font-size="36" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="40" dy="0">Carte logique des composants</tspan>
+  </text>
+  <text x="40" y="137" fill="#b3c6d4" font-size="18" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="40" dy="0">Schéma de composants, pas une topologie de production ni une garantie de livraison.</tspan>
+  </text>
+  <text x="40" y="163" fill="#b3c6d4" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="40" dy="0">TRAIT CONTINU : FLUX REPRÉSENTÉ    ·    POINTILLÉS : SOURCES À ACTIVER / CONFIGURER</tspan>
+  </text>
+  <rect x="40" y="192" width="280" height="112" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="58" y="214" width="3" height="24" rx="1" fill="#5eead4" stroke="none" />
+  <text x="74" y="234" fill="#edf5fb" font-size="21" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="74" dy="0">Interface SOC</tspan>
+  </text>
+  <text x="64" y="270" fill="#b3c6d4" font-size="17" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="64" dy="0">React · Vite</tspan>
+    <tspan x="64" dy="25">HTTP et WebSocket</tspan>
+  </text>
+  <rect x="346" y="192" width="280" height="112" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="364" y="214" width="3" height="24" rx="1" fill="#5eead4" stroke="none" />
+  <text x="380" y="234" fill="#edf5fb" font-size="21" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="380" dy="0">Console admin</tspan>
+  </text>
+  <text x="370" y="270" fill="#b3c6d4" font-size="17" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="370" dy="0">React · Vite</tspan>
+    <tspan x="370" dy="25">HTTP / accès opérateur</tspan>
+  </text>
+  <rect x="754" y="192" width="222" height="112" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="772" y="214" width="3" height="24" rx="1" fill="#fcd34d" stroke="none" />
+  <text x="788" y="234" fill="#edf5fb" font-size="22" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="788" dy="0">Wazuh</tspan>
+  </text>
+  <text x="778" y="270" fill="#b3c6d4" font-size="17" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="778" dy="0">Manager externe</tspan>
+    <tspan x="778" dy="25">Webhook / API</tspan>
+  </text>
+  <rect x="1002" y="192" width="238" height="112" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="1020" y="214" width="3" height="24" rx="1" fill="#fcd34d" stroke="none" />
+  <text x="1036" y="234" fill="#edf5fb" font-size="22" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="1036" dy="0">Suricata</tspan>
+  </text>
+  <text x="1026" y="270" fill="#b3c6d4" font-size="17" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="1026" dy="0">Sonde externe</tspan>
+    <tspan x="1026" dy="25">EVE JSON / NDJSON</tspan>
+  </text>
+  <path d="M180 304V330H333V366" fill="none" stroke="#5eead4" stroke-width="2" marker-end="url(#arrow-teal)" />
+  <path d="M486 304V330H333" fill="none" stroke="#5eead4" stroke-width="2" />
+  <path d="M865 304V330H995V366" fill="none" stroke="#fcd34d" stroke-width="2" marker-end="url(#arrow-amber)" stroke-dasharray="7 6" />
+  <path d="M1121 304V330H995" fill="none" stroke="#fcd34d" stroke-width="2" stroke-dasharray="7 6" />
+  <rect x="40" y="366" width="1200" height="242" rx="14" fill="#0b2530" stroke="#286b73" />
+  <text x="64" y="397" fill="#5eead4" font-size="14" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="64" dy="0">PROCESSUS API / FastAPI</tspan>
+  </text>
+  <rect x="64" y="423" width="336" height="154" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="82" y="445" width="3" height="24" rx="1" fill="#5eead4" stroke="none" />
+  <text x="98" y="465" fill="#edf5fb" font-size="21" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="98" dy="0">Interfaces + contrôles</tspan>
+  </text>
+  <text x="88" y="501" fill="#b3c6d4" font-size="17" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="88" dy="0">Routes et credentials</tspan>
+    <tspan x="88" dy="25">Rôles, scopes, contexte tenant</tspan>
+    <tspan x="88" dy="25">Adaptation des payloads</tspan>
+  </text>
+  <rect x="464" y="423" width="340" height="154" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="482" y="445" width="3" height="24" rx="1" fill="#5eead4" stroke="none" />
+  <text x="498" y="465" fill="#edf5fb" font-size="21" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="498" dy="0">Pipeline + détection</tspan>
+  </text>
+  <text x="488" y="501" fill="#b3c6d4" font-size="17" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="488" dy="0">Normaliser, enrichir si activé</tspan>
+    <tspan x="488" dy="25">Dédupliquer, persister</tspan>
+    <tspan x="488" dy="25">Évaluer les règles</tspan>
+  </text>
+  <rect x="864" y="423" width="352" height="154" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="882" y="445" width="3" height="24" rx="1" fill="#5eead4" stroke="none" />
+  <text x="898" y="465" fill="#edf5fb" font-size="21" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="898" dy="0">Bus + modules métier</tspan>
+  </text>
+  <text x="888" y="501" fill="#b3c6d4" font-size="17" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="888" dy="0">Outbox, cases et investigations</tspan>
+    <tspan x="888" dy="25">Déclencheurs sous conditions</tspan>
+    <tspan x="888" dy="25">SOAR direct : threads locaux</tspan>
+  </text>
+  <path d="M412 499H452" fill="none" stroke="#5eead4" stroke-width="2" marker-end="url(#arrow-teal)" />
+  <path d="M816 499H852" fill="none" stroke="#5eead4" stroke-width="2" marker-end="url(#arrow-teal)" />
+  <path d="M224 608V684" fill="none" stroke="#5eead4" stroke-width="2" marker-end="url(#arrow-teal)" />
+  <text x="240" y="650" fill="#5eead4" font-size="14" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="240" dy="0">SQL</tspan>
+  </text>
+  <path d="M1040 608V638H501V684" fill="none" stroke="#7dd3fc" stroke-width="2" marker-end="url(#arrow-blue)" />
+  <text x="745" y="629" fill="#7dd3fc" font-size="14" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="745" dy="0">Dispatch des jobs configurés</tspan>
+  </text>
+  <rect x="40" y="684" width="300" height="144" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="58" y="706" width="3" height="24" rx="1" fill="#5eead4" stroke="none" />
+  <text x="74" y="726" fill="#edf5fb" font-size="22" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="74" dy="0">PostgreSQL</tspan>
+  </text>
+  <text x="64" y="762" fill="#b3c6d4" font-size="17" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="64" dy="0">TimescaleDB</tspan>
+    <tspan x="64" dy="25">Alertes, cases, règles, outbox</tspan>
+    <tspan x="64" dy="25">Accès API et workers</tspan>
+  </text>
+  <rect x="382" y="684" width="238" height="144" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="400" y="706" width="3" height="24" rx="1" fill="#7dd3fc" stroke="none" />
+  <text x="416" y="726" fill="#edf5fb" font-size="22" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="416" dy="0">Redis</tspan>
+  </text>
+  <text x="406" y="762" fill="#b3c6d4" font-size="17" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="406" dy="0">Broker et résultats</tspan>
+    <tspan x="406" dy="25">Streams syslog</tspan>
+    <tspan x="406" dy="25">Rate-limit / cache</tspan>
+  </text>
+  <rect x="662" y="684" width="300" height="144" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="680" y="706" width="3" height="24" rx="1" fill="#7dd3fc" stroke="none" />
+  <text x="696" y="726" fill="#edf5fb" font-size="22" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="696" dy="0">Celery + Beat</tspan>
+  </text>
+  <text x="686" y="762" fill="#b3c6d4" font-size="17" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="686" dy="0">Jobs et planification</tspan>
+    <tspan x="686" dy="25">Files celery / investigation</tspan>
+    <tspan x="686" dy="25">Consommateurs à configurer</tspan>
+  </text>
+  <rect x="1004" y="684" width="236" height="144" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="1022" y="706" width="3" height="24" rx="1" fill="#7dd3fc" stroke="none" />
+  <text x="1038" y="726" fill="#edf5fb" font-size="20" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="1038" dy="0">Syslog séparé</tspan>
+  </text>
+  <text x="1028" y="762" fill="#b3c6d4" font-size="17" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="1028" dy="0">TCP / UDP 1514</tspan>
+    <tspan x="1028" dy="25">Résolution IP → tenant</tspan>
+    <tspan x="1028" dy="25">Publication en Stream</tspan>
+  </text>
+  <path d="M631 754H651" fill="none" stroke="#7dd3fc" stroke-width="2" marker-end="url(#arrow-blue)" marker-start="url(#arrow-start-blue)" />
+  <path d="M1122 828V861H501V828" fill="none" stroke="#7dd3fc" stroke-width="2" marker-end="url(#arrow-blue)" />
+  <text x="970" y="853" fill="#7dd3fc" font-size="14" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="970" dy="0">Redis Stream</tspan>
+  </text>
+  <text x="40" y="907" fill="#fcd34d" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="40" dy="0">CONNECTEURS OPTIONNELS / SELON LE MODULE, LES PERMISSIONS ET LA CONFIGURATION</tspan>
+  </text>
+  <rect x="40" y="925" width="376" height="96" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="58" y="947" width="3" height="24" rx="1" fill="#fcd34d" stroke="none" />
+  <text x="74" y="967" fill="#edf5fb" font-size="21" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="74" dy="0">Threat Intelligence</tspan>
+  </text>
+  <text x="64" y="1003" fill="#b3c6d4" font-size="17" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="64" dy="0">AbuseIPDB · pipeline et jobs</tspan>
+  </text>
+  <rect x="452" y="925" width="376" height="96" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="470" y="947" width="3" height="24" rx="1" fill="#fcd34d" stroke="none" />
+  <text x="486" y="967" fill="#edf5fb" font-size="21" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="486" dy="0">Assistance IA</tspan>
+  </text>
+  <text x="476" y="1003" fill="#b3c6d4" font-size="17" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="476" dy="0">Ollama / HF Router · à configurer</tspan>
+  </text>
+  <rect x="864" y="925" width="376" height="96" rx="14" fill="#102433" stroke="#294253" />
+  <rect x="882" y="947" width="3" height="24" rx="1" fill="#fcd34d" stroke="none" />
+  <text x="898" y="967" fill="#edf5fb" font-size="20" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="898" dy="0">Actions et notifications</tspan>
+  </text>
+  <text x="888" y="1003" fill="#b3c6d4" font-size="17" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="888" dy="0">Wazuh / SSH · SMTP / Telegram / HTTP</tspan>
+  </text>
+  <text x="40" y="1060" fill="#b3c6d4" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="40" dy="0">Attention : un bus local, une outbox SQL et un broker Redis sont trois mécanismes différents.</tspan>
+  </text>
+</svg>

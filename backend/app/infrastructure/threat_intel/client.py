@@ -6,8 +6,8 @@ ADD COLUMN idempotent (ensure_intel_columns). Ne lève JAMAIS sur le réseau :
 """
 import json
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict
+from datetime import UTC, datetime
+from typing import Any
 
 import httpx
 import sqlalchemy as sa
@@ -50,7 +50,7 @@ def _verdict_from_score(score: int) -> str:
     return VERDICT_CLEAN
 
 
-def fetch_abuseipdb(ip: str, api_key: str, timeout: int = 10) -> Dict[str, Any]:
+def fetch_abuseipdb(ip: str, api_key: str, timeout: int = 10) -> dict[str, Any]:
     """Appel HTTP réel — remplacé par un mock dans les tests."""
     with httpx.Client(timeout=timeout) as client:
         r = client.get(
@@ -71,11 +71,11 @@ def fetch_abuseipdb(ip: str, api_key: str, timeout: int = 10) -> Dict[str, Any]:
 def _aware(ts) -> datetime:
     """SQLite stocke les DateTime(timezone=True) en naïf — normalise."""
     if ts is not None and ts.tzinfo is None:
-        return ts.replace(tzinfo=timezone.utc)
+        return ts.replace(tzinfo=UTC)
     return ts
 
 
-def _upsert_cache(db, tenant_id: str, ip: str, data: Dict[str, Any]):
+def _upsert_cache(db, tenant_id: str, ip: str, data: dict[str, Any]):
     row = (
         db.query(ThreatIntelCache)
         .filter(
@@ -92,11 +92,11 @@ def _upsert_cache(db, tenant_id: str, ip: str, data: Dict[str, Any]):
     row.risk_score = data["risk_score"]
     row.source_name = data["source_name"]
     row.raw_json = data["raw_json"]
-    row.checked_at = datetime.now(timezone.utc)
+    row.checked_at = datetime.now(UTC)
     db.commit()
 
 
-def lookup_ip(db, tenant_id: str, ip: str, force: bool = False) -> Dict[str, Any]:
+def lookup_ip(db, tenant_id: str, ip: str, force: bool = False) -> dict[str, Any]:
     """Vérifie une IP : cache frais sinon provider. Ne lève JAMAIS."""
     if not ip:
         return {"verdict": VERDICT_UNKNOWN, "risk_score": None, "source_name": None,
@@ -109,7 +109,7 @@ def lookup_ip(db, tenant_id: str, ip: str, force: bool = False) -> Dict[str, Any
         .first()
     )
     if cached and not force:
-        age = (datetime.now(timezone.utc) - _aware(cached.checked_at)).total_seconds()
+        age = (datetime.now(UTC) - _aware(cached.checked_at)).total_seconds()
         if age < int(settings.THREAT_INTEL_CACHE_TTL_SECONDS):
             return {
                 "verdict": cached.verdict, "risk_score": cached.risk_score,
@@ -125,7 +125,7 @@ def lookup_ip(db, tenant_id: str, ip: str, force: bool = False) -> Dict[str, Any
         data = fetch_abuseipdb(ip, settings.THREAT_INTEL_API_KEY.get_secret_value(),
                                int(settings.THREAT_INTEL_TIMEOUT_SECONDS))
         _upsert_cache(db, tenant_id, ip, data)
-        data["checked_at"] = datetime.now(timezone.utc).isoformat()
+        data["checked_at"] = datetime.now(UTC).isoformat()
         data["from_cache"] = False
         return data
     except Exception as e:

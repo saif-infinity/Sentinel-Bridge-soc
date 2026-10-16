@@ -12,13 +12,13 @@ import tempfile
 os.environ["DATABASE_URL"] = f"sqlite:///{os.path.join(tempfile.gettempdir(), 'sentinel_f2_test.db')}"
 
 import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
 
 import app.models  # noqa: E402,F401  # enregistre toutes les tables avant create_all
 from app.core.config import settings  # noqa: E402
 from app.core.db import Base, SessionLocal, engine  # noqa: E402
 from app.interface.main import app  # noqa: E402
 from app.models import Alert  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
 
 API_KEY = settings.API_KEY.get_secret_value()
 HEADERS = {"X-API-Key": API_KEY}

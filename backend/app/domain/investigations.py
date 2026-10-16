@@ -3,13 +3,19 @@
 Multi-tenant tables: investigations, investigation_evidence,
 investigation_recommendations. All queries filter by tenant_id.
 """
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy import (
-    Index, Integer, String, Text, DateTime, Float, ForeignKey,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
     UniqueConstraint,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from ..db import Base
 from .soar import _utcnow

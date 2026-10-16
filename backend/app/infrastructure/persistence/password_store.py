@@ -1,7 +1,7 @@
 import hashlib
 import json
 from pathlib import Path
-from typing import Optional
+
 import bcrypt
 
 HASH_STORE_PATH = Path(__file__).resolve().parents[2] / "face_data" / "password_hashes.json"
@@ -23,8 +23,8 @@ def store_password_hash(identifier: str, password: str, tenant_id: str = "defaul
     hashed = hash_password(password)
 
     # Try DB first
-    from ...models import TenantUser
     from ...db import SessionLocal
+    from ...models import TenantUser
     db = SessionLocal()
     try:
         # Parse identifier to extract username
@@ -53,14 +53,14 @@ def store_password_hash(identifier: str, password: str, tenant_id: str = "defaul
     return hashed
 
 
-def check_password(identifier: str, password: str, tenant_id: Optional[str] = None) -> bool:
+def check_password(identifier: str, password: str, tenant_id: str | None = None) -> bool:
     """Check password against TenantUser table. Falls back to JSON for backward compat.
 
     When tenant_id is provided, only check the user within that tenant.
     When tenant_id is None, check across all tenants (cross-tenant lookup).
     """
-    from ...models import TenantUser
     from ...db import SessionLocal
+    from ...models import TenantUser
     db = SessionLocal()
     try:
         username = identifier.replace("user:", "", 1) if identifier.startswith("user:") else identifier
@@ -93,8 +93,8 @@ def check_password(identifier: str, password: str, tenant_id: Optional[str] = No
 
 def user_exists(identifier: str, tenant_id: str = "default") -> bool:
     """Check if user exists in TenantUser table. Falls back to JSON."""
-    from ...models import TenantUser
     from ...db import SessionLocal
+    from ...models import TenantUser
     db = SessionLocal()
     try:
         username = identifier.replace("user:", "", 1) if identifier.startswith("user:") else identifier
@@ -125,7 +125,7 @@ def _ensure_store():
 def _read_store():
     _ensure_store()
     try:
-        with open(HASH_STORE_PATH, "r") as f:
+        with open(HASH_STORE_PATH) as f:
             return json.load(f)
     except (json.JSONDecodeError, FileNotFoundError):
         return {}

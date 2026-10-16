@@ -1,6 +1,7 @@
 import logging
 import re
 
+
 class SecretScrubber(logging.Filter):
     def filter(self, record):
         if hasattr(record, 'msg') and isinstance(record.msg, str):

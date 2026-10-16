@@ -2,8 +2,8 @@
 import json
 import logging
 import time
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from ...db import SessionLocal
 from ...domain.models import Alert, SuricataAlert
@@ -14,7 +14,7 @@ from .evaluator import build_normalized_alert, evaluate_conditions
 
 logger = logging.getLogger(__name__)
 
-_RULES_CACHE: Dict[str, Any] = {"ts": 0.0, "rules": {}}
+_RULES_CACHE: dict[str, Any] = {"ts": 0.0, "rules": {}}
 _RULES_TTL = 60.0
 _correlator = WindowedCorrelator()
 
@@ -34,7 +34,7 @@ def _ensure_mitre_columns(db) -> None:
         logger.warning("ensure_mitre_columns échoué: %s", e)
 
 
-def _loads(value: Optional[str], fallback: str):
+def _loads(value: str | None, fallback: str):
     try:
         v = json.loads(value or fallback)
     except (TypeError, ValueError):
@@ -42,8 +42,8 @@ def _loads(value: Optional[str], fallback: str):
     return v
 
 
-def _dedupe(items: List[str]) -> List[str]:
-    out: List[str] = []
+def _dedupe(items: list[str]) -> list[str]:
+    out: list[str] = []
     for i in items:
         if i not in out:
             out.append(i)
@@ -56,7 +56,7 @@ def invalidate_rules_cache() -> None:
     _RULES_CACHE["rules"] = {}
 
 
-def load_rules(db, tenant_id: str) -> List[Rule]:
+def load_rules(db, tenant_id: str) -> list[Rule]:
     """Règles actives visibles du tenant : règles globales (tenant_id NULL) + règles du tenant."""
     _ensure_mitre_columns(db)
     now = time.time()
@@ -75,7 +75,7 @@ def load_rules(db, tenant_id: str) -> List[Rule]:
     return rules
 
 
-def visible_rules(db, tenant_id: str) -> List[Rule]:
+def visible_rules(db, tenant_id: str) -> list[Rule]:
     """Toutes les règles visibles (actives ou non) — pour le CRUD API."""
     _ensure_mitre_columns(db)
     return (
@@ -85,8 +85,8 @@ def visible_rules(db, tenant_id: str) -> List[Rule]:
     )
 
 
-def evaluate_normalized_alert(normalized: Dict[str, Any],
-                              source: str = "pipeline") -> Tuple[List[Dict[str, Any]], int]:
+def evaluate_normalized_alert(normalized: dict[str, Any],
+                              source: str = "pipeline") -> tuple[list[dict[str, Any]], int]:
     """Évalue une alerte normalisée contre les règles visibles du tenant.
 
     Publie un RuleMatchEvent si au moins une règle matche.
@@ -96,9 +96,9 @@ def evaluate_normalized_alert(normalized: Dict[str, Any],
     db = SessionLocal()
     try:
         rules = load_rules(db, tenant_id)
-        matched: List[Dict[str, Any]] = []
-        mitre_ids: List[str] = []
-        tactics: List[str] = []
+        matched: list[dict[str, Any]] = []
+        mitre_ids: list[str] = []
+        tactics: list[str] = []
         for rule in rules:
             try:
                 conditions = json.loads(rule.conditions or "[]")
@@ -155,8 +155,9 @@ def evaluate_normalized_alert(normalized: Dict[str, Any],
                 enriched["tactics"] = _dedupe(tactics)
             # R3 — Notification dispatch (thin: DB read + Celery .delay() only)
             try:
-                from ...infrastructure.notifications.dispatch import dispatch_notifications
                 import uuid as _uuid
+
+                from ...infrastructure.notifications.dispatch import dispatch_notifications
                 _event_id = str(_uuid.uuid4())
                 dispatch_notifications(tenant_id, matched, normalized, _event_id)
             except Exception as e:
@@ -168,7 +169,7 @@ def evaluate_normalized_alert(normalized: Dict[str, Any],
         db.close()
 
 
-def build_normalized_from_row(row: Any, mapping: Optional[dict] = None) -> Dict[str, Any]:
+def build_normalized_from_row(row: Any, mapping: dict | None = None) -> dict[str, Any]:
     """Construit l'alerte normalisée depuis une ligne Alert ou SuricataAlert.
 
     normalized_severity est recalculé (payload à None) pour corriger les lignes pré-F1.
@@ -212,7 +213,7 @@ def run_catch_up_sweep(db, tenant_id: str = "default", since_minutes: int = 60) 
     """Sweep de rattrapage : évalue les alertes DB non encore traitées (pipeline_processed_at NULL)."""
     from ..pipeline import load_config  # import local : évite le cycle pipeline↔engine
     mapping = load_config(db).get("severity_mapping")
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=since_minutes)
+    cutoff = datetime.now(UTC) - timedelta(minutes=since_minutes)
     report = {"tenant_id": tenant_id, "processed": 0, "matched": 0, "skipped": 0}
 
     for model in (Alert, SuricataAlert):
@@ -229,7 +230,7 @@ def run_catch_up_sweep(db, tenant_id: str = "default", since_minutes: int = 60) 
                 normalized = build_normalized_from_row(row, mapping)
                 row.normalized_severity = normalized["normalized_severity"]
                 matched, n = evaluate_normalized_alert(normalized, source="catch_up")
-                row.pipeline_processed_at = datetime.now(timezone.utc)
+                row.pipeline_processed_at = datetime.now(UTC)
                 report["processed"] += 1
                 report["matched"] += n
             except Exception as e:

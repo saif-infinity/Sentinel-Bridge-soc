@@ -2,14 +2,14 @@
 Tests for multi-tenant isolation.
 Run with: python -m pytest backend/tests/test_multitenancy.py -v
 """
+from unittest.mock import Mock
+
 import pytest
-from unittest.mock import Mock, patch
 from fastapi import Request
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db import Base, get_tenant_id, query_with_tenant
-from app.interface.middleware.tenant import TenantMiddleware
 
 # Use in-memory SQLite for tests
 TEST_DATABASE_URL = "sqlite:///:memory:"
@@ -18,8 +18,8 @@ TEST_DATABASE_URL = "sqlite:///:memory:"
 def db_session():
     engine = create_engine(TEST_DATABASE_URL)
     Base.metadata.create_all(bind=engine)
-    TestSession = sessionmaker(bind=engine)
-    session = TestSession()
+    session_factory = sessionmaker(bind=engine)
+    session = session_factory()
     yield session
     session.close()
     Base.metadata.drop_all(bind=engine)
@@ -39,16 +39,16 @@ def test_get_tenant_id_from_state():
 def test_query_with_tenant_filter(db_session):
     """Test that query_with_tenant adds tenant_id filter."""
     from app.models import Device
-    
+
     request = Mock(spec=Request)
     request.state.tenant_id = "tenant-a"
-    
+
     # This test verifies the helper exists and works
     # Full integration test requires DB with actual tenant separation
     q = query_with_tenant(Device, request, db_session)
     # q should be a filtered query
     assert q is not None
-    
+
     # Verify the filter actually scopes by tenant
     sql = str(q)
     assert "tenant_id" in sql
@@ -56,8 +56,8 @@ def test_query_with_tenant_filter(db_session):
 def test_tenant_middleware_extracts_from_jwt():
     """Test that middleware correctly extracts tenant_id from JWT."""
     # This is a unit test for middleware logic
-    from app.jwt_utils import verify_token, create_access_token
-    
+    from app.jwt_utils import create_access_token, verify_token
+
     token = create_access_token(
         data={
             "sub": "testuser",
@@ -74,9 +74,9 @@ def test_tenant_middleware_extracts_from_jwt():
 def test_tenant_user_unique_constraint():
     """Verify that (tenant_id, username) uniqueness is enforced."""
     # Schema-level test — the constraint is in the model
+
     from app.models import TenantUser
-    from sqlalchemy import inspect
-    
+
     # Check that the composite index exists in table args
     has_constraint = any(
         "ix_tenant_users_tenant_username" in str(t)
@@ -88,9 +88,11 @@ def test_tenant_user_unique_constraint():
 def test_cross_tenant_isolation(db_session):
     """Verify Tenant A cannot access Tenant B's devices via query_with_tenant."""
     from unittest.mock import Mock
-    from app.models import Device
-    from app.db import query_with_tenant
+
     from fastapi import Request
+
+    from app.db import query_with_tenant
+    from app.models import Device
 
     # Create devices in different tenants
     d1 = Device(ip="10.0.0.1", mac="aa:bb:cc:dd:ee:01", tenant_id="tenant-a", is_online=True)

@@ -7,10 +7,9 @@ Subscription is registered in response_tasks.py — the single worker-side point
 import logging
 
 from ...application.events import CHANNEL_INVESTIGATION_COMPLETE
-from ...db import SessionLocal
-from ...application.system_config import get_config_value
-from ...domain.investigations import Investigation
 from ...application.response.executor import process_pending_recommendations
+from ...db import SessionLocal
+from ...domain.investigations import Investigation
 
 logger = logging.getLogger(__name__)
 

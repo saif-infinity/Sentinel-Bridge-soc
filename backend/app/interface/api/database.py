@@ -2,17 +2,19 @@
 Admin database browser — introspection + CRUD for all PostgreSQL tables.
 Provides table list, column metadata, paginated row data, stats, and write operations.
 """
-import re
 import logging
-from typing import Any, Optional, Dict, List
+import re
+from datetime import UTC
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import text
 from sqlalchemy.orm import Session
-from sqlalchemy import text, inspect as sa_inspect, func
 
-from ...db import get_db, engine
 from ...admin_auth import get_current_admin
+from ...db import engine, get_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin/database", tags=["admin-database"])
@@ -276,10 +278,10 @@ async def table_rows(
     table_name: str,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-    search: Optional[str] = Query(None),
-    sort_by: Optional[str] = Query(None),
+    search: str | None = Query(None),
+    sort_by: str | None = Query(None),
     sort_dir: str = Query("desc", pattern="^(asc|desc)$"),
-    tenant_filter: Optional[str] = Query(None, description="Filter by tenant_id"),
+    tenant_filter: str | None = Query(None, description="Filter by tenant_id"),
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin),
 ):
@@ -384,7 +386,7 @@ async def update_row(
     request: Request,
     table_name: str,
     row_id: int,
-    data: Dict[str, Any] = Body(..., embed=True),
+    data: dict[str, Any] = Body(..., embed=True),
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin),
 ):
@@ -460,7 +462,7 @@ async def delete_row(
 # ── Insert a new row ────────────────────────────────────────────────
 
 class RowInsert(BaseModel):
-    data: Dict[str, Any]
+    data: dict[str, Any]
 
 
 @router.post("/tables/{table_name}/rows", status_code=201)
@@ -475,7 +477,7 @@ async def insert_row(
     inspector = sa_inspect(engine)
     _validate_table(inspector, table_name)
 
-    from datetime import datetime, timezone as tz
+    from datetime import datetime
 
     columns = inspector.get_columns(table_name, schema="public")
     valid_cols = {c["name"] for c in columns}
@@ -490,7 +492,7 @@ async def insert_row(
             col_type_str = str(col["type"]).upper()
             # Auto-fill datetime columns
             if ("timestamp" in col_type_str.lower() or "datetime" in col_type_str.lower()):
-                insert_data[cname] = datetime.now(tz.utc)
+                insert_data[cname] = datetime.now(UTC)
             # Auto-fill boolean columns with False as default
             elif "bool" in col_type_str.lower() and col.get("default") is None:
                 insert_data[cname] = False
@@ -520,14 +522,38 @@ async def insert_row(
 # ── Delete (drop) a table ─────────────────────────────────────────
 
 # Tables that should NEVER be droppable through the UI
-PROTECTED_TABLES = {"users", "connection_logs", "suricata_alerts",
-                    "assets", "alerts", "ia_reports", "access_logs", "action_logs",
-                    "system_config", "network_sensors", "devices",
-                    "tenants", "tenant_users", "network_devices",
-                    "rules", "rule_match_events", "pipeline_events",
-                    "cases", "case_alert_links", "timeline_events", "hunts",
-                    "playbooks", "playbook_runs", "playbook_step_results",
-                    "threat_intel_cache"}
+# FIX: this was a hand-maintained literal of 25 names while the ORM declares 46
+# tables, so 22 real tables (investigations, response_runs, agents,
+# registration_requests, notification_channels, honeypot_events, reports, …) were
+# silently droppable through DELETE /tables/{name} — and the list even protected a
+# "users" table that does not exist. Deriving it from the ORM metadata means it can
+# no longer drift when a model is added.
+_LEGACY_PROTECTED_TABLES = {
+    "users", "connection_logs", "suricata_alerts",
+    "assets", "alerts", "ia_reports", "access_logs", "action_logs",
+    "system_config", "network_sensors", "devices",
+    "tenants", "tenant_users", "network_devices",
+    "rules", "rule_match_events", "pipeline_events",
+    "cases", "case_alert_links", "timeline_events", "hunts",
+    "playbooks", "playbook_runs", "playbook_step_results",
+    "threat_intel_cache",
+}
+
+
+def _protected_tables() -> set:
+    """Every table the application owns = ORM metadata ∪ legacy literal list."""
+    from ...core.db import Base
+    from ...domain import investigations as _inv  # noqa: F401  (populates metadata)
+    from ...domain import models as _models  # noqa: F401
+    from ...domain import reporting as _rep  # noqa: F401
+    from ...domain import response as _res  # noqa: F401
+    from ...domain import rule_models as _rules  # noqa: F401
+    from ...domain import soar as _soar  # noqa: F401
+
+    return set(Base.metadata.tables.keys()) | _LEGACY_PROTECTED_TABLES
+
+
+PROTECTED_TABLES = _protected_tables()
 
 
 @router.delete("/tables/{table_name}")
@@ -542,10 +568,10 @@ async def drop_table(
     valid_tables = set(inspector.get_table_names(schema="public"))
     if table_name not in valid_tables:
         raise HTTPException(status_code=404, detail=f"Table '{table_name}' not found")
-    if table_name in PROTECTED_TABLES:
+    if table_name in _protected_tables():
         raise HTTPException(
             status_code=403,
-            detail=f"Table '{table_name}' is a system table and cannot be dropped",
+            detail=f"Table '{table_name}' is owned by the application and cannot be dropped",
         )
 
     try:
@@ -575,17 +601,67 @@ ALLOWED_TYPES = {
 }
 
 
+_SIZEABLE_TYPES = {"varchar", "character varying", "char", "numeric"}
+_ALLOWED_DEFAULTS = {
+    "now()", "current_timestamp", "current_date", "current_time",
+    "gen_random_uuid()", "uuid_generate_v4()", "true", "false", "null",
+}
+_NUMERIC_DEFAULT_RE = re.compile(r"^-?\d+(\.\d+)?$")
+_STRING_DEFAULT_RE = re.compile(r"^'[^'\\]*'$")
+_TYPE_MODIFIER_RE = re.compile(r"^(.*?)\s*\(\s*(\d+)\s*(?:,\s*(\d+)\s*)?\)$")
+
+
+def _validate_column_type(raw: str) -> str:
+    """FIX: `col.type` was interpolated straight into CREATE TABLE while the
+    ALLOWED_TYPES set declared right above it was NEVER used, so a type such as
+    `integer); DROP TABLE tenants; --` ended up concatenated into the DDL.
+    `col.default` was interpolated raw too, behind a comment claiming it was
+    "validated" — it was not."""
+    collapsed = " ".join(str(raw).split())
+    match = _TYPE_MODIFIER_RE.match(collapsed)
+    if match:
+        base = match.group(1).strip().lower()
+        modifiers = [m for m in match.group(2, 3) if m]
+    else:
+        base, modifiers = collapsed.lower(), []
+
+    if base not in ALLOWED_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Column type '{raw}' is not allowed. Allowed: {', '.join(sorted(ALLOWED_TYPES))}",
+        )
+    if not modifiers:
+        return base.upper()
+    if base not in _SIZEABLE_TYPES:
+        raise HTTPException(status_code=400, detail=f"Type '{base}' does not accept a size modifier")
+    return f"{base.upper()}({', '.join(modifiers)})"
+
+
+def _validate_default(raw: str) -> str:
+    """Only literals and a short list of immutable SQL functions are accepted."""
+    value = " ".join(str(raw).split())
+    lowered = value.lower()
+    if lowered in _ALLOWED_DEFAULTS:
+        return lowered.upper() if lowered in ("true", "false", "null") else value
+    if _NUMERIC_DEFAULT_RE.match(value) or _STRING_DEFAULT_RE.match(value):
+        return value
+    raise HTTPException(
+        status_code=400,
+        detail=f"DEFAULT '{raw}' is not allowed (literals, now(), current_timestamp and gen_random_uuid() only)",
+    )
+
+
 class ColumnDef(BaseModel):
     name: str
     type: str  # e.g. "integer", "varchar(255)", "text", "boolean"
     nullable: bool = True
     primary_key: bool = False
-    default: Optional[str] = None  # raw SQL default e.g. "now()", "gen_random_uuid()"
+    default: str | None = None  # raw SQL default e.g. "now()", "gen_random_uuid()"
 
 
 class CreateTableRequest(BaseModel):
     table_name: str
-    columns: List[ColumnDef]
+    columns: list[ColumnDef]
 
 
 def _validate_identifier(name: str) -> str:
@@ -625,7 +701,7 @@ async def create_table(
     for col in body.columns:
         col_name = col.name.strip()
         # Normalize type: "varchar(255)" → "VARCHAR(255)", "text" → "TEXT", etc.
-        col_type = col.type.strip().upper()
+        col_type = _validate_column_type(col.type)
 
         parts = [f'"{col_name}" {col_type}']
 
@@ -636,8 +712,7 @@ async def create_table(
             pk_cols.append(f'"{col_name}"')
             parts.append("PRIMARY KEY")
         elif col.default is not None:
-            # Validate default is a simple safe SQL expression
-            parts.append(f"DEFAULT {col.default}")
+            parts.append(f"DEFAULT {_validate_default(col.default)}")
 
         col_defs.append("    " + " ".join(parts))
 

@@ -61,7 +61,9 @@ def _no_rate_limit(monkeypatch):
     """Désactive le rate-limit Redis (register + token) pour chaque test."""
     from app.interface.api import auth as auth_api
 
-    async def _no_rate_limit(request, max_attempts=5, window_seconds=60):
+    async def _no_rate_limit(request, max_attempts=5, window_seconds=60, **_kwargs):
+        # **_kwargs : check_rate_limit() accepte désormais `username=` (limite par
+        # compte en plus de l'IP). Sans ça, le stub levait TypeError.
         return None
 
     monkeypatch.setattr(auth_api, "check_rate_limit", _no_rate_limit)

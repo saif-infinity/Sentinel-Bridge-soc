@@ -1,12 +1,11 @@
 import asyncio
 import logging
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
 from ...application.pipeline import ingest_alert
-from ...core.config import settings
 from ...db import SessionLocal
 from ...models import HoneypotEvent
 
@@ -18,13 +17,18 @@ class HoneypotService:
 
     def __init__(self):
         self._running: bool = False
-        self._ports: List[int] = []
-        self._servers: List[asyncio.Server] = []
-        self._tasks: List[asyncio.Task] = []
+        self._ports: list[int] = []
+        self._servers: list[asyncio.Server] = []
+        self._tasks: list[asyncio.Task] = []
         self._total_events: int = 0
         # Rate limit: (src_ip, port) -> last_alert_timestamp
-        self._rate_limit: Dict[tuple, float] = {}
+        self._rate_limit: dict[tuple, float] = {}
         self._rate_limit_window: float = 30.0  # secondes
+        # FIX: db_factory was a bare name inside _handle_connection while only being
+        # a parameter of start() -> NameError on every connection, swallowed by the
+        # surrounding `except Exception`, so the honeypot accepted traffic on
+        # 0.0.0.0:2323/3389/8443/5555 and persisted neither alert nor event.
+        self._db_factory: Callable[[], Session] = SessionLocal
 
     @property
     def running(self) -> bool:
@@ -40,10 +44,12 @@ class HoneypotService:
     async def start(
         self,
         db_factory,
-        broadcast_fn: Optional[Callable] = None,
-        ports: Optional[List[int]] = None,
+        broadcast_fn: Callable | None = None,
+        ports: list[int] | None = None,
     ):
         """Lance un asyncio.Server sur chaque port configurable."""
+        if db_factory is not None:
+            self._db_factory = db_factory
         if ports is None:
             ports = [2323, 3389, 8443, 5555]
         self._ports = ports
@@ -88,7 +94,7 @@ class HoneypotService:
         port = writer.get_extra_info("sockname")[1] if writer.get_extra_info("sockname") else 0
 
         # Rate limit par (src_ip, port)
-        now = datetime.now(timezone.utc).timestamp()
+        now = datetime.now(UTC).timestamp()
         key = (src_ip, port)
         last = self._rate_limit.get(key, 0)
         if now - last < self._rate_limit_window:
@@ -97,12 +103,12 @@ class HoneypotService:
         self._rate_limit[key] = now
 
         # Lire les premiers octets du payload
-        payload_preview: Optional[str] = None
+        payload_preview: str | None = None
         try:
             data = await asyncio.wait_for(reader.read(256), timeout=2)
             if data:
                 payload_preview = data.decode("utf-8", errors="replace")[:500]
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pass
         except Exception:
             pass
@@ -111,9 +117,9 @@ class HoneypotService:
         logger.info("Honeypot event: port=%d src_ip=%s src_port=%d", port, src_ip, src_port)
 
         # Créer l'alerte via le pipeline
-        alert_id: Optional[int] = None
+        alert_id: int | None = None
         try:
-            db = db_factory()
+            db = self._db_factory()
             try:
                 result = ingest_alert({
                     "description": f"Honeypot connection on port {port} from {src_ip}",
@@ -144,7 +150,7 @@ class HoneypotService:
 
         # Persister l'événement
         try:
-            db = db_factory()
+            db = self._db_factory()
             try:
                 event = HoneypotEvent(
                     tenant_id="default",

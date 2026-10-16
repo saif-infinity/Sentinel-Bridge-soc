@@ -1,17 +1,27 @@
 import logging
 import re
-from datetime import datetime, timedelta, timezone
+import secrets
+from datetime import UTC, datetime
+
+import redis as _redis
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
-import redis as _redis
 from sqlalchemy.orm import Session
+
 from ...config import settings
+from ...core.broadcaster import broadcaster
 from ...db import get_db
 from ...jwt_utils import create_access_token, verify_token
-from ...core.broadcaster import broadcaster
 from ...models import RegistrationRequest
-from ...services.password_manager import check_password, user_exists, hash_password, store_password_hash, _read_store, _write_store
+from ...services.password_manager import (
+    _read_store,
+    _write_store,
+    check_password,
+    hash_password,
+    store_password_hash,
+    user_exists,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,20 +52,73 @@ VIEWER_SCOPES = [
 ]
 
 
-async def check_rate_limit(request: Request, max_attempts: int = 5, window_seconds: int = 60):
-    client_ip = request.client.host if request.client else "unknown"
-    key = f"ratelimit:auth:{client_ip}"
+def _client_ip(request: Request) -> str:
+    """IP du pair, en tenant compte d'un reverse proxy de confiance.
+
+    `request.client.host` est l'adresse TCP du pair direct. Derrière nginx/Traefik
+    c'est toujours l'IP du proxy, donc tous les utilisateurs partageraient UN seul
+    seau de rate-limit (déni de service mutuel). On ne lit X-Forwarded-For que si
+    TRUST_PROXY_HEADERS=true : sinon n'importe qui peut forger l'en-tête et faire
+    sauter la limite.
+    """
+    if request is None:
+        return "unknown"
+    if settings.TRUST_PROXY_HEADERS:
+        xff = request.headers.get("X-Forwarded-For")
+        if xff:
+            first_hop = xff.split(",")[0].strip()
+            if first_hop:
+                return first_hop
+    return request.client.host if request.client else "unknown"
+
+
+async def check_rate_limit(
+    request: Request,
+    max_attempts: int = 5,
+    window_seconds: int = 60,
+    username: str | None = None,
+):
+    """Limite les tentatives par IP **et** par compte visé.
+
+    Deux failles de la version précédente :
+
+    1. Clé IP seule. Un attaquant distribué (botnet, VPN, plusieurs IPs)
+       brute-force un compte sans jamais atteindre le seuil — et à l'inverse tout
+       un bureau derrière un NAT partage un seul seau. On compte donc aussi par
+       nom d'utilisateur ciblé, quel que soit l'IP d'origine.
+    2. `except _redis.ConnectionError: pass` → le rate-limit disparaissait pile
+       quand Redis tombait (fail-open). En production on échoue désormais
+       **fermé** (503) : refuser les logins vaut mieux que les laisser illimités.
+       `RedisError` couvre aussi TimeoutError, qui faisait auparavant tomber
+       /auth/token en 500.
+    """
+    buckets = [f"ratelimit:auth:ip:{_client_ip(request)}"]
+    if username:
+        ident = username.strip().lower()
+        if ident:
+            buckets.append(f"ratelimit:auth:user:{ident}")
+
     try:
-        count = _redis_client.incr(key)
-        if count == 1:
-            _redis_client.expire(key, window_seconds)
-        if count > max_attempts:
+        for key in buckets:
+            count = _redis_client.incr(key)
+            if count == 1:
+                _redis_client.expire(key, window_seconds)
+            if count > max_attempts:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Trop de tentatives. Réessayez dans une minute.",
+                )
+    except _redis.RedisError as exc:
+        if settings.ENVIRONMENT.strip().lower() == "production":
+            logger.error("Rate-limit indisponible (Redis: %s) — échec fermé en production", exc)
             raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Trop de tentatives. Réessayez dans une minute.",
-            )
-    except _redis.ConnectionError:
-        pass  # Fail open if Redis is down
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Service d'authentification temporairement indisponible.",
+            ) from exc
+        logger.warning(
+            "Rate-limit indisponible (Redis: %s) — fail-open en environnement %s",
+            exc, settings.ENVIRONMENT,
+        )
 
 
 def _validate_password_strength(password: str) -> None:
@@ -78,7 +141,9 @@ class RegisterRequest(BaseModel):
 
 @router.post("/register")
 async def register_user(data: RegisterRequest, request: Request, db: Session = Depends(get_db)):
-    await check_rate_limit(request, max_attempts=3, window_seconds=300)
+    await check_rate_limit(
+        request, max_attempts=3, window_seconds=300, username=data.username
+    )
     if not data.username.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -100,7 +165,7 @@ async def register_user(data: RegisterRequest, request: Request, db: Session = D
         if scheme and scheme.lower() == "bearer" and token and verify_token(token):
             authenticated = True
     api_key = request.headers.get("X-API-Key")
-    if api_key and api_key == settings.API_KEY.get_secret_value():
+    if api_key and secrets.compare_digest(api_key, settings.API_KEY.get_secret_value()):
         authenticated = True
 
     tenant_id = getattr(request.state, "tenant_id", "default")
@@ -168,8 +233,8 @@ async def register_user(data: RegisterRequest, request: Request, db: Session = D
 
     logger.info("New user registered: %s (role: %s)", data.username, data.role)
 
-    from ...models import TenantUser
     from ...db import SessionLocal
+    from ...models import TenantUser
     db_local = SessionLocal()
     try:
         tenant_user = db_local.query(TenantUser).filter(TenantUser.username == data.username).first()
@@ -194,26 +259,40 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         request,
         max_attempts=settings.AUTH_LOGIN_RATE_LIMIT_MAX,
         window_seconds=settings.AUTH_LOGIN_RATE_LIMIT_WINDOW,
+        username=form_data.username,
     )
 
+    # FIX: tenant_id=None made check_password() test the hash of EVERY tenant that has
+    # this username ("Cross-tenant lookup" in password_store.py), and the role lookup
+    # below took an arbitrary `.first()` row. Two tenants each having a user named
+    # "admin" could therefore authenticate into each other's tenant. /auth/token is a
+    # public route (no JWT to derive the tenant from), so the tenant is taken from an
+    # explicit X-Tenant-ID header.
+    login_tenant = (request.headers.get("X-Tenant-ID") or "default") if request else "default"
+
     user_key = f"user:{form_data.username}"
-    if check_password(user_key, form_data.password, tenant_id=None):
+    if check_password(user_key, form_data.password, tenant_id=login_tenant):
         # Resolve role from TenantUser table (supersedes JSON store)
-        from ...models import TenantUser
         from ...db import SessionLocal
+        from ...models import TenantUser
         db = SessionLocal()
         try:
-            tenant_user = db.query(TenantUser).filter(TenantUser.username == form_data.username).first()
+            tenant_user = db.query(TenantUser).filter(
+                TenantUser.username == form_data.username,
+                TenantUser.tenant_id == login_tenant,
+            ).first()
             if tenant_user:
                 role = tenant_user.role
-                tenant_user.last_login = datetime.now(timezone.utc)
+                tenant_user.last_login = datetime.now(UTC)
                 db.commit()
             else:
                 # Fallback to JSON store for legacy users
                 from ...services.password_manager import _read_store
                 role_store = _read_store()
                 role = role_store.get(f"role:{form_data.username}", "analyst")
-            resolved_tenant_id = tenant_user.tenant_id if tenant_user else "default"
+            resolved_tenant_id = tenant_user.tenant_id if tenant_user else login_tenant
+            if tenant_user and tenant_user.is_active is False:
+                raise HTTPException(status_code=403, detail="Compte désactivé")
         finally:
             db.close()
 

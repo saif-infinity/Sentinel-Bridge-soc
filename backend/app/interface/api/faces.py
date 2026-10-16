@@ -1,16 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, Request, status, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from datetime import datetime, timezone
 
-from ...services.face_service import face_service
-from ...jwt_utils import verify_token
 from ...admin_auth import verify_admin_token
 from ...auth import has_scopes_or_api_key
 from ...core.broadcaster import broadcaster
 from ...db import get_db, get_tenant_id
+from ...jwt_utils import verify_token
 from ...models import FaceLoginRequest, UnverifiedFaceAttempt
+from ...services.face_service import face_service
 
 router = APIRouter(prefix="/api/faces", tags=["faces"])
 
@@ -98,15 +97,16 @@ async def verify_face(
     return {"status": "success", "message": message, "verified": True}
 
 
-@router.post("/identify")
+@router.post("/identify", dependencies=[Depends(has_scopes_or_api_key(["surveillance:read"]))])
 async def identify_face(
     request: FaceIdentifyRequest,
     req: Request,
 ):
     """Identifie un visage parmi les utilisateurs enregistrés du tenant.
-    Public (pré-auth) : comme capture-unknown, permet de savoir si un visage
-    présent correspond à un utilisateur enregistré OU à un visiteur non autorisé.
-    Retourne l'utilisateur reconnu, ou signale un visiteur non autorisé (inconnu)."""
+    FIX: cet endpoint était PUBLIC ("pré-auth") et renvoyait le username reconnu —
+    un oracle d'identification biométrique 1:N sans authentification ni rate-limit,
+    permettant d'énumérer les identités du tenant (donnée biométrique => art. 9 RGPD).
+    Il exige désormais le scope `surveillance:read` (viewer+) ou la clé d'API."""
     tenant_id = get_tenant_id(req)
     username, similarity, message = face_service.identify_face(request.image, tenant_id=tenant_id)
     if username is None:

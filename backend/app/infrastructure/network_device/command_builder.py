@@ -1,11 +1,10 @@
-from typing import Any, Optional, Dict, List
 
 def _sec(c, *lines):
     """Collect non-empty lines."""
-    return [l for l in lines if l]
+    return [line for line in lines if line]
 
 
-def _CiscoIOS_cmds(c: dict, device_type: str = "switch") -> list:
+def _cisco_ios_cmds(c: dict, device_type: str = "switch") -> list:
     """Cisco IOS / IOS-XE / IOS-XR style commands (also Arista EOS, Aruba, Dell OS9/OS10, Netgear)."""
     cmds = []
     sec = c.get("Sécurité", {})
@@ -125,7 +124,7 @@ def _CiscoIOS_cmds(c: dict, device_type: str = "switch") -> list:
     return cmds
 
 
-def _CiscoIOS_sec(c, cmds):
+def _cisco_ios_sec(c, cmds):
     """Shared security commands for IOS-like brands."""
     sec = c.get("Sécurité", {})
     enable_pw = sec.get("enable_password", "")
@@ -225,7 +224,7 @@ def _huawei_vrp_cmds(c: dict, device_type: str = "switch") -> list:
 
     console_pw = term.get("console_password", "")
     if console_pw:
-        cmds.extend(["user-interface console 0", f" authentication-mode password", f" set authentication password cipher {console_pw}", "quit"])
+        cmds.extend(["user-interface console 0", " authentication-mode password", f" set authentication password cipher {console_pw}", "quit"])
 
     enable_pw = sec.get("enable_password", "")
     if enable_pw:
@@ -354,7 +353,7 @@ def _juniper_junos_cmds(c: dict, device_type: str = "switch") -> list:
         if rt.get("bgp_enable", False):
             bgp_as = rt.get("bgp_as", "")
             if bgp_as:
-                cmds.append(f"set protocols bgp group external type external")
+                cmds.append("set protocols bgp group external type external")
                 cmds.append(f"set protocols bgp group external local-as {bgp_as}")
 
     return cmds
@@ -797,11 +796,11 @@ def _zyxel_cmds(c: dict, device_type: str = "switch") -> list:
 # ═══════════════════════════════════════════════════════════════════
 
 _GENERATORS = {
-    "cisco":    _CiscoIOS_cmds,
-    "arista":   _CiscoIOS_cmds,
-    "aruba":    _CiscoIOS_cmds,
-    "dell":     _CiscoIOS_cmds,
-    "netgear":  _CiscoIOS_cmds,
+    "cisco":    _cisco_ios_cmds,
+    "arista":   _cisco_ios_cmds,
+    "aruba":    _cisco_ios_cmds,
+    "dell":     _cisco_ios_cmds,
+    "netgear":  _cisco_ios_cmds,
     "mikrotik": _mikrotik_cmds,
     "huawei":   _huawei_vrp_cmds,
     "juniper":  _juniper_junos_cmds,
@@ -836,10 +835,10 @@ def _advanced_cmds(config: dict, device_type: str, brand: str) -> list:
     if qos.get("bandwidth_limit"):
         if cisco_like:
             cmds.extend([
-                f"policy-map QOS_POLICY",
-                f" class class-default",
+                "policy-map QOS_POLICY",
+                " class class-default",
                 f"  shape average {qos['bandwidth_limit']}000000",
-                f"exit",
+                "exit",
             ])
         elif brand == "mikrotik":
             cmds.append(f"/interface set [find] max-limit={qos['bandwidth_limit']}M")
@@ -847,7 +846,7 @@ def _advanced_cmds(config: dict, device_type: str, brand: str) -> list:
             cmds.append(f"qos car outbound cir {qos['bandwidth_limit']}000")
     if qos.get("priority_queue") and qos["priority_queue"] != "normal":
         if cisco_like:
-            cmds.append(f"priority-queue out")
+            cmds.append("priority-queue out")
     if qos.get("dscp_marking"):
         if cisco_like:
             cmds.extend(["class-map match-all DSCP_MARK", " match dscp af11", "exit",
@@ -943,22 +942,22 @@ def _advanced_cmds(config: dict, device_type: str, brand: str) -> list:
         enc = vpn.get("vpn_encryption", "aes-256")
         if cisco_like:
             cmds.extend([
-                f"crypto isakmp policy 10",
+                "crypto isakmp policy 10",
                 f" encryption {enc}",
-                f" authentication pre-share",
-                f"exit",
+                " authentication pre-share",
+                "exit",
                 f"crypto isakmp key {psk} address {peer}",
                 f"crypto ipsec transform-set VPN_SET esp-{enc.replace('-','')}",
-                f"exit",
-                f"crypto map VPN_MAP 10 ipsec-isakmp",
+                "exit",
+                "crypto map VPN_MAP 10 ipsec-isakmp",
                 f" set peer {peer}",
-                f" set transform-set VPN_SET",
-                f"exit",
+                " set transform-set VPN_SET",
+                "exit",
             ])
         elif brand == "mikrotik":
             cmds.extend([f"/ip ipsec proposal add name=vpn-proposal auth-algorithms=sha256 enc-algorithms={enc}"])
         elif brand == "huawei":
-            cmds.extend([f"ike proposal 1", f" encryption-algorithm {enc}", f"exit"])
+            cmds.extend(["ike proposal 1", f" encryption-algorithm {enc}", "exit"])
     if vpn.get("gre_enable") and vpn.get("tunnel_interface"):
         if cisco_like:
             tun = vpn["tunnel_interface"]
@@ -1021,7 +1020,7 @@ def _advanced_cmds(config: dict, device_type: str, brand: str) -> list:
     if qos_b.get("bandwidth_up") or qos_b.get("bandwidth_down"):
         if cisco_like:
             if qos_b.get("bandwidth_up"):
-                cmds.append(f"interface GigabitEthernet0/0")
+                cmds.append("interface GigabitEthernet0/0")
                 cmds.append(f"  bandwidth {qos_b['bandwidth_up'] * 1000}")
                 cmds.append("exit")
         elif brand == "mikrotik":
@@ -1041,6 +1040,6 @@ def _advanced_cmds(config: dict, device_type: str, brand: str) -> list:
                 if srv:
                     cmds.append(f" ! member: {srv}")
         elif brand == "mikrotik":
-            cmds.append(f"/ip dns set allow-remote-requests=yes")
+            cmds.append("/ip dns set allow-remote-requests=yes")
 
     return cmds
