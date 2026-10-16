@@ -146,6 +146,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Compose resolves env_file even for config -q. Use public placeholders
+      # only on this disposable runner; production still requires its real .env.
+      - name: Prepare disposable env file for Compose validation
+        run: cp backend/.env.example backend/.env
       # FIX: docker-compose.yml defined only `redis` while declaring an orphan
       # `pgdata:` volume, and docker-compose.prod.yml builds `./wazuh`, a directory
       # that does not exist in the repo.
