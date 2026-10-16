@@ -21,17 +21,34 @@ Un laboratoire de sécurité pour relier les événements, les investigations et
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-TimescaleDB-4169e1?style=flat-square&logo=postgresql&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-Celery-dc382d?style=flat-square&logo=redis&logoColor=white)
 
-[Démarrer](#demarrage) · [Architecture](#architecture) · [Fonctionnalités](#fonctionnalites) · [API](#api) · [Sécurité](#securite) · [Contribuer](#contribuer)
+[Démarrer](#demarrage) · [Guide visuel](docs/ARCHITECTURE.md) · [Architecture](#architecture) · [Avantages](#avantages) · [API](#api) · [Sécurité](#securite) · [Contribuer](#contribuer)
 
 </div>
 
 > [!IMPORTANT]
 > **Projet de laboratoire / PFE en cours de consolidation.** Le code contient des mécanismes de collecte, de corrélation et de réponse, mais ne constitue ni un IPS inline, ni une solution certifiée prête à être déployée sans revue de sécurité. Les capacités implémentées, les dépendances externes et les simulations sont distinguées ci-dessous.
 
+<details open>
+<summary><strong>Explorer le projet avec le guide visuel interactif</strong></summary>
+
+Une page autonome complète les SVG : **14 composants cliquables**, les **8 étapes détaillées** (entrée → traitement → sortie), les bénéfices attendus et les limites. Les schémas peuvent être agrandis et zoomés ; la navigation fonctionne aussi au clavier et sur mobile.
+
+Ouvrir **[docs/index.html](docs/index.html)** dans un navigateur après avoir récupéré le dépôt, ou servir uniquement la documentation depuis la racine :
+
+```bash
+python3 -m http.server 8080 --bind 0.0.0.0 --directory docs
+```
+
+Ouvrir le port 8080 exposé par l’environnement ; sur son propre ordinateur, `http://localhost:8080`. Sur GitHub, le lien HTML affiche le **code de la page**, pas un site déjà hébergé. Aucun backend, accès réseau externe, paquet npm ou secret n’est nécessaire pour utiliser le guide. Cette page est une documentation statique, pas un dashboard connecté ni une simulation d’action réelle.
+
+</details>
+
 <details>
 <summary><strong>Sommaire — choisir son parcours de lecture</strong></summary>
 
 - [Présentation et objectifs](#presentation)
+- [Avantages attendus](#avantages)
+- [Guide visuel détaillé — nature, architecture et huit étapes](docs/ARCHITECTURE.md)
 - [Fonctionnalités et statut réel](#fonctionnalites)
 - [Architecture et flux d’un incident](#architecture)
 - [Interfaces SOC et administration](#interfaces)
@@ -64,6 +81,10 @@ Le projet vise trois usages complémentaires :
 | **Démonstration PFE / portfolio** | Présenter un parcours complet : événement → alerte → investigation → décision → rapport. |
 | **Base de développement** | Étudier RBAC, multi-tenancy, tâches asynchrones, outbox, workflows SOAR et intégrations de sécurité. |
 
+![Nature de Sentinel Bridge : centraliser avec le SIEM, expliquer avec les investigations multi-sources et agir sous conditions avec le SOAR.](docs/assets/project-nature.svg)
+
+[Voir le SVG](docs/assets/project-nature.svg) · [Nature du projet et rôle de chaque acteur](docs/ARCHITECTURE.md#nature)
+
 ### Ce que signifient SOC, SIEM, XDR et IPS ici
 
 - **SOC** : les outils de travail de l’analyste, pas un service humain de surveillance fourni par le dépôt.
@@ -72,6 +93,16 @@ Le projet vise trois usages complémentaires :
 - **IPS** : le nom du dépôt évoque la prévention, mais **aucun chemin de blocage Suricata inline n’est implémenté ici**. Les actions Wazuh/SSH ne doivent pas être confondues avec un IPS réseau inline.
 
 **Principe de lecture :** une intégration présente dans le code n’est pas une garantie de fonctionnement sur une infrastructure non configurée. Aucun chiffre de performance, SLA ou niveau de conformité n’est revendiqué.
+
+<a id="avantages"></a>
+
+### Avantages attendus et limites
+
+Chaque apport correspond à un mécanisme identifiable dans le code : normaliser les sources, limiter les répétitions, partager les preuves, encadrer les décisions et faciliter les extensions.
+
+![Des problèmes SOC aux apports attendus : normalisation, déduplication, dossiers partagés, décisions tracées et architecture extensible. Aucun gain chiffré n’est revendiqué.](docs/assets/value-map.svg)
+
+[Voir le SVG](docs/assets/value-map.svg) · [Mécanismes, bénéfices et limites à vérifier](docs/ARCHITECTURE.md#valeur)
 
 <a id="fonctionnalites"></a>
 
@@ -114,6 +145,13 @@ Le helper partagé [formatters.js](frontend/src/lib/formatters.js) privilégie `
 ## 03 · Architecture et flux d’un incident
 
 ### Vue d’ensemble
+
+![Carte logique : interfaces React et sources, FastAPI et pipeline, données PostgreSQL, Redis, workers Celery, récepteur syslog et connecteurs optionnels.](docs/assets/architecture-map.svg)
+
+[Voir le SVG](docs/assets/architecture-map.svg) · [Rôle des processus, du bus local, de l’outbox et des files](docs/ARCHITECTURE.md#composants)
+
+<details>
+<summary><strong>Version Mermaid — vue d’ensemble éditable</strong></summary>
 
 ```mermaid
 flowchart TB
@@ -166,7 +204,9 @@ flowchart TB
     class PG,REDIS data
 ```
 
-Les lignes pointillées représentent des services optionnels ou des actions nécessitant une configuration externe. Ce schéma décrit les composants, pas une topologie de production prête à l’emploi.
+</details>
+
+Les lignes pointillées représentent des services optionnels ou des actions nécessitant une configuration externe. Ce schéma décrit les composants, pas une topologie de production prête à l’emploi. **Les jobs Celery, les threads SOAR, le bus local et l’outbox SQL sont des mécanismes distincts** ; leur présence ne garantit pas une livraison « exactly once ».
 
 <details>
 <summary><strong>Stack technique et rôle des dépendances</strong></summary>
@@ -222,7 +262,12 @@ projet-soc-ips-siem-xdr-/
 │   └── requirements.txt
 ├── frontend/                     # Interface analyste SOC
 ├── admin-frontend/               # Console d’administration distincte
-├── docs/assets/                  # Identité visuelle du README
+├── docs/
+│   ├── index.html                 # Guide interactif, sans backend ni build
+│   ├── ARCHITECTURE.md            # Guide visuel, étapes, décisions et limites
+│   ├── assets/                    # SVG locaux, CSS et JS du guide interactif
+│   ├── tests/                     # Tests statiques de documentation, sans backend
+│   └── diagrams/generate.py       # Générateur SVG Python sans dépendance externe
 ├── docker-compose.yml            # Infrastructure locale : Postgres + Redis
 ├── docker-compose.prod.yml       # Base de déploiement à adapter
 ├── Makefile                      # Raccourcis de développement
@@ -235,22 +280,44 @@ projet-soc-ips-siem-xdr-/
 
 ### Du signal à la réponse
 
+![Parcours pédagogique en huit étapes : collecter, structurer, contextualiser, dédupliquer, corréler, investiguer, décider et capitaliser. Les branches après un match sont conditionnelles.](docs/assets/incident-lifecycle.svg)
+
+[Voir le SVG](docs/assets/incident-lifecycle.svg) · [Guide pas à pas](docs/ARCHITECTURE.md#etapes)
+
+| Collecte et préparation · 01–04 | Détection et suites · 05–08 |
+| :--- | :--- |
+| [01 · Collecter](docs/ARCHITECTURE.md#etape-01) → [02 · Structurer](docs/ARCHITECTURE.md#etape-02) | [05 · Corréler](docs/ARCHITECTURE.md#etape-05) → [06 · Investiguer](docs/ARCHITECTURE.md#etape-06) |
+| [03 · Contextualiser](docs/ARCHITECTURE.md#etape-03) → [04 · Dédupliquer](docs/ARCHITECTURE.md#etape-04) | [07 · Décider / répondre](docs/ARCHITECTURE.md#etape-07) → [08 · Capitaliser](docs/ARCHITECTURE.md#etape-08) |
+
+**Ce parcours n’est pas automatique de bout en bout.** Une source désactivée peut être ignorée ; un doublon s’arrête avant les règles ; un événement sans match ne déclenche pas ces branches. Un match peut déclencher l’investigation, le SOAR direct ou les deux. Une action ne clôture pas mécaniquement une case et ne prouve pas la livraison d’un rapport.
+
+<details>
+<summary><strong>Version Mermaid — décisions et branches du parcours</strong></summary>
+
 ```mermaid
-flowchart LR
-    A[Événement collecté] --> B[Normaliser et associer le tenant]
+flowchart TB
+    A[Événement collecté et source activée] --> B[Adapter, normaliser et contextualiser]
     B --> C{Déduplication / suppression}
-    C -->|Accepté| D[Persister et évaluer les règles]
-    C -->|Doublon ou supprimé| E[Mettre à jour les statistiques]
-    D --> F[Correspondance et outbox]
-    F --> G[Case / investigation / playbook]
-    G --> H{Approbation requise ?}
-    H -->|Oui| I[Décision humaine]
-    H -->|Non| J[Exécution autorisée]
-    I -->|Approuvé| J
-    J --> K[Trace, résultat et rapport]
+    C -->|accepted| D[Persister et évaluer les règles]
+    C -->|deduped / suppressed| E[Compteurs puis retour du pipeline]
+    D --> F{Correspondance ?}
+    F -->|Non| N[Alerte conservée sans RuleMatchEvent]
+    F -->|Oui| M[RuleMatchEvent]
+    M --> O[(Tentative outbox SQL)]
+    M --> BUS[Dispatch local même si écriture outbox échouée]
+    BUS -.->|Si éligible| I[Job sur la file investigation]
+    BUS -.->|Si éligible| S[PlaybookRun : approbation et thread local]
+    I --> V[Case, preuves, score et synthèse]
+    V -.->|Recommandations et politique éligibles| R[ResponseRun : approbation et jobs Celery]
+    S --> T[Résultats et traces]
+    R --> T
+    V --> T
+    T -.->|Sur demande ou selon configuration| Z[Clôture, rapports et exports]
 ```
 
-L’outbox et l’unicité d’une exécution par événement/playbook contribuent à l’idempotence. Elles ne garantissent pas que toutes les actions externes sont transactionnelles ou réversibles.
+</details>
+
+L’outbox et l’unicité d’une exécution par événement/playbook contribuent à l’idempotence. Elles ne garantissent pas que toutes les actions externes sont transactionnelles ou réversibles. Le [guide visuel](docs/ARCHITECTURE.md) décrit les entrées, sorties, gardes et avantages de chaque étape, avec des liens vers le code.
 
 <a id="interfaces"></a>
 
@@ -389,11 +456,12 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
 cd backend
 source venv/bin/activate
 celery -A app.core.celery:celery_app worker \
-  --include app.worker --loglevel=info --pool=solo \
+  --include app.worker --queues celery,investigation \
+  --loglevel=info --pool=solo \
   --beat --schedule /tmp/sentinel-celerybeat
 ```
 
-Cette commande utilise l’objet Celery réel de `app/core/celery.py` et importe `app.worker` pour enregistrer les tâches. La cible historique `app.worker.celery_app` n’est pas exportée par ce module dans l’état actuel ; ne pas reprendre cette commande des anciens scripts sans vérification.
+Cette commande utilise l’objet Celery réel de `app/core/celery.py`, importe `app.worker` pour enregistrer les tâches et consomme les files **`celery` et `investigation`**. La tâche principale d’investigation est explicitement routée vers cette seconde file ; un worker limité à la file par défaut ne la traite pas. La cible historique `app.worker.celery_app` n’est pas exportée par ce module dans l’état actuel ; ne pas reprendre cette commande des anciens scripts sans vérification.
 
 En production, séparer le worker et Beat, garantir une seule instance du scheduler et placer son état dans un emplacement persistant adapté.
 

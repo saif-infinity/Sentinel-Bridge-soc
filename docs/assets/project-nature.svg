@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="700" viewBox="0 0 1280 700" role="img" aria-labelledby="title description">
+  <title id="title">La nature du projet, en un coup d’œil</title>
+  <desc id="description">Sentinel Bridge est un laboratoire SOC/PFE : un SIEM pour centraliser, des investigations multi-sources et du SOAR conditionnel. Analystes, opérateurs et développeurs partagent une API modulaire. Ce n’est pas un IPS inline ni un produit certifié.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#081521" />
+      <stop offset="1" stop-color="#102b37" />
+    </linearGradient>
+    <marker id="arrow-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#5eead4" />
+    </marker>
+    <marker id="arrow-start-teal" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M10 0L0 5L10 10Z" fill="#5eead4" />
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#7dd3fc" />
+    </marker>
+    <marker id="arrow-start-blue" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M10 0L0 5L10 10Z" fill="#7dd3fc" />
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0L10 5L0 10Z" fill="#fcd34d" />
+    </marker>
+    <marker id="arrow-start-amber" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M10 0L0 5L10 10Z" fill="#fcd34d" />
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1280" height="700" rx="20" fill="url(#background)" stroke="none" />
+  <rect x="40" y="28" width="4" height="28" rx="2" fill="#5eead4" stroke="none" />
+  <text x="58" y="47" fill="#5eead4" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1.6">
+    <tspan x="58" dy="0">SENTINEL BRIDGE / 01 · NATURE</tspan>
+  </text>
+  <text x="40" y="101" fill="#edf5fb" font-size="36" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="40" dy="0">La nature du projet, en un coup d’œil</tspan>
+  </text>
+  <text x="40" y="137" fill="#b3c6d4" font-size="18" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="40" dy="0">Monorepo · API modulaire · deux interfaces React · services externes à connecter</tspan>
+  </text>
+  <rect x="40" y="180" width="376" height="294" rx="14" fill="#102433" stroke="#294253" />
+  <text x="64" y="216" fill="#5eead4" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="64" dy="0">01 / SIEM</tspan>
+  </text>
+  <text x="64" y="257" fill="#edf5fb" font-size="26" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="64" dy="0">Centraliser</tspan>
+  </text>
+  <text x="64" y="297" fill="#b3c6d4" font-size="18" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="64" dy="0">Wazuh · Suricata · syslog</tspan>
+    <tspan x="64" dy="29">Normalisation et règles</tspan>
+    <tspan x="64" dy="29">Sévérité et contexte</tspan>
+  </text>
+  <path d="M64 380H392" fill="none" stroke="#294253" stroke-width="1" />
+  <text x="64" y="408" fill="#5eead4" font-size="11" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1.5">
+    <tspan x="64" dy="0">APPORT</tspan>
+  </text>
+  <text x="64" y="438" fill="#edf5fb" font-size="18" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="64" dy="0">Des signaux comparables</tspan>
+    <tspan x="64" dy="25">pour le travail de l’analyste</tspan>
+  </text>
+  <rect x="452" y="180" width="376" height="294" rx="14" fill="#102433" stroke="#294253" />
+  <text x="476" y="216" fill="#7dd3fc" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="476" dy="0">02 / INVESTIGATION XDR</tspan>
+  </text>
+  <text x="476" y="257" fill="#edf5fb" font-size="26" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="476" dy="0">Expliquer</tspan>
+  </text>
+  <text x="476" y="297" fill="#b3c6d4" font-size="18" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="476" dy="0">Cases et preuves</tspan>
+    <tspan x="476" dy="29">Contexte multi-sources</tspan>
+    <tspan x="476" dy="29">Assistance IA optionnelle</tspan>
+  </text>
+  <path d="M476 380H804" fill="none" stroke="#294253" stroke-width="1" />
+  <text x="476" y="408" fill="#7dd3fc" font-size="11" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1.5">
+    <tspan x="476" dy="0">APPORT</tspan>
+  </text>
+  <text x="476" y="438" fill="#edf5fb" font-size="18" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="476" dy="0">Un dossier partagé</tspan>
+    <tspan x="476" dy="25">pour comprendre l’incident</tspan>
+  </text>
+  <rect x="864" y="180" width="376" height="294" rx="14" fill="#102433" stroke="#294253" />
+  <text x="888" y="216" fill="#c4b5fd" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="888" dy="0">03 / ORCHESTRATION SOAR</tspan>
+  </text>
+  <text x="888" y="257" fill="#edf5fb" font-size="26" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700">
+    <tspan x="888" dy="0">Agir sous contrôle</tspan>
+  </text>
+  <text x="888" y="297" fill="#b3c6d4" font-size="18" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="888" dy="0">Playbooks et recommandations</tspan>
+    <tspan x="888" dy="29">Approbation si requise</tspan>
+    <tspan x="888" dy="29">Connecteurs Wazuh / SSH</tspan>
+  </text>
+  <path d="M888 380H1216" fill="none" stroke="#294253" stroke-width="1" />
+  <text x="888" y="408" fill="#c4b5fd" font-size="11" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1.5">
+    <tspan x="888" dy="0">APPORT</tspan>
+  </text>
+  <text x="888" y="438" fill="#edf5fb" font-size="18" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="888" dy="0">Des résultats à vérifier</tspan>
+    <tspan x="888" dy="25">pas un blocage inline</tspan>
+  </text>
+  <rect x="40" y="510" width="1200" height="108" rx="14" fill="#102433" stroke="#294253" />
+  <text x="64" y="541" fill="#5eead4" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="64" dy="0">ANALYSTE</tspan>
+  </text>
+  <text x="64" y="572" fill="#edf5fb" font-size="18" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="64" dy="0">Trier, investiguer</tspan>
+    <tspan x="64" dy="25">et suivre les résultats</tspan>
+  </text>
+  <text x="468" y="541" fill="#5eead4" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="468" dy="0">OPÉRATEUR AUTORISÉ</tspan>
+  </text>
+  <text x="468" y="572" fill="#edf5fb" font-size="18" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="468" dy="0">Configurer les sources</tspan>
+    <tspan x="468" dy="25">et administrer les accès</tspan>
+  </text>
+  <text x="872" y="541" fill="#5eead4" font-size="12" font-family="DejaVu Sans, Arial, sans-serif" font-weight="700" letter-spacing="1">
+    <tspan x="872" dy="0">DÉVELOPPEUR</tspan>
+  </text>
+  <text x="872" y="572" fill="#edf5fb" font-size="18" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="872" dy="0">Tester les parcours</tspan>
+    <tspan x="872" dy="25">et étendre les connecteurs</tspan>
+  </text>
+  <rect x="40" y="644" width="1200" height="40" rx="10" fill="#172a32" stroke="#41535e" />
+  <text x="58" y="669" fill="#fcd34d" font-size="16" font-family="DejaVu Sans, Arial, sans-serif" font-weight="400">
+    <tspan x="58" dy="0">Pas d’IPS inline. Pas de certification. Connecteurs et déploiement à préparer.</tspan>
+  </text>
+</svg>
