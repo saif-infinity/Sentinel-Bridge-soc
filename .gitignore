@@ -78,3 +78,11 @@ backend/app/face_data/
 celerybeat-schedule
 *.pid
 .ruff_cache/
+
+# Sentinel agent (lab) — local config + bounded queue (never commit token or queue)
+agent/config.json
+agent/data/
+agent/**/data/
+agent/**/queue.jsonl
+agent/**/state.json
+agent/**/config.json
