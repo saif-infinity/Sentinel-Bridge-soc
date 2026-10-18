@@ -1,0 +1,31 @@
+{
+  "name": "custom-powershell",
+  "title": "Exécution PowerShell encodée",
+  "description": "Exemple de scénario personnalisé : relance un événement toutes les 15 secondes.",
+  "mitre": ["T1059.001"],
+  "default_host": "win-lab-01.lab.local",
+  "default_interval": 15,
+  "defaults": {
+    "category": "endpoint",
+    "action": "process_start",
+    "outcome": "detected",
+    "severity": "high",
+    "user": "CORP\\labuser",
+    "protocol": "windows",
+    "tags": ["powershell", "exemple"],
+    "details": {"source": "sysmon", "event_id": 1}
+  },
+  "events": [
+    {
+      "message": "Encoded PowerShell command line (attempt {index}) on {host}",
+      "tags": ["powershell", "obfuscation"],
+      "details": {"encoded_command": true},
+      "count": 2
+    },
+    {
+      "message": "PowerShell downloaded a script from 198.51.100.77 (attempt {index})",
+      "severity": "critical",
+      "details": {"download_url": "http://198.51.100.77/a.ps1"}
+    }
+  ]
+}

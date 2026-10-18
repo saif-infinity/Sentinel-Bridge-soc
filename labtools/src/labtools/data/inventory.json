@@ -1,0 +1,386 @@
+{
+  "schema": 1,
+  "updated": "2026-10-18",
+  "note": "Inventaire indicatif d'outils utilisables dans un laboratoire SOC/réseau. lab_safe=false signale un outil puissant à n'employer que dans un cadre explicitement autorisé.",
+  "categories": {
+    "collecte": "Collecte, parsing et normalisation de données",
+    "reseau": "Observation, capture et test réseau",
+    "endpoint": "Télémétrie et investigation hôte",
+    "detection": "Détection, règles et corrélation",
+    "conteneurs": "Isolation et orchestration de laboratoire",
+    "charge": "Génération de charge ou de trafic de test",
+    "soc": "Plateformes et interfaces SOC"
+  },
+  "tools": [
+    {
+      "id": "scapy",
+      "name": "Scapy",
+      "category": "reseau",
+      "purpose": "Forge, émet et dissèque des paquets pour tester des parseurs et des sondes.",
+      "homepage": "https://github.com/secdev/scapy",
+      "language": "Python",
+      "lab_safe": true,
+      "tags": ["paquets", "pcap", "python", "réseau"],
+      "caution": "La forge de paquets peut perturber un réseau réel : rester sur un segment isolé."
+    },
+    {
+      "id": "tcpdump",
+      "name": "tcpdump",
+      "category": "reseau",
+      "purpose": "Capture passif de trafic en ligne de commande pour analyser ou rejouer des flux.",
+      "homepage": "https://www.tcpdump.org/",
+      "language": "C",
+      "lab_safe": true,
+      "tags": ["capture", "pcap", "cli", "réseau"]
+    },
+    {
+      "id": "tshark",
+      "name": "Wireshark / tshark",
+      "category": "reseau",
+      "purpose": "Analyse approfondie de captures et extraction de champs pour les tests.",
+      "homepage": "https://www.wireshark.org/",
+      "language": "C",
+      "lab_safe": true,
+      "tags": ["pcap", "analyse", "protocoles", "cli"]
+    },
+    {
+      "id": "nmap",
+      "name": "Nmap",
+      "category": "reseau",
+      "purpose": "Inventaire de services et de ports sur des cibles de laboratoire autorisées.",
+      "homepage": "https://nmap.org/",
+      "language": "C++",
+      "lab_safe": false,
+      "tags": ["scan", "ports", "services", "reconnaissance"],
+      "caution": "Ne scanner que des systèmes dont vous êtes propriétaire ou explicitement autorisé."
+    },
+    {
+      "id": "suricata",
+      "name": "Suricata",
+      "category": "detection",
+      "purpose": "IDS/IPS et moteur de règles pour valider des signatures sur du trafic rejoué.",
+      "homepage": "https://github.com/OISF/suricata",
+      "language": "C",
+      "lab_safe": true,
+      "tags": ["ids", "ips", "règles", "eve.json", "pcap"]
+    },
+    {
+      "id": "zeek",
+      "name": "Zeek",
+      "category": "reseau",
+      "purpose": "Génère des journaux structurés (conn, dns, http) à partir d'une capture ou d'une interface.",
+      "homepage": "https://github.com/zeek/zeek",
+      "language": "C++",
+      "lab_safe": true,
+      "tags": ["journaux", "dns", "http", "analyse", "réseau"]
+    },
+    {
+      "id": "wazuh",
+      "name": "Wazuh",
+      "category": "soc",
+      "purpose": "HIDS/SIEM open source : agents, décodage, règles et tableau de bord.",
+      "homepage": "https://github.com/wazuh/wazuh",
+      "language": "C / Python",
+      "lab_safe": true,
+      "tags": ["siem", "hids", "agents", "règles", "soc"]
+    },
+    {
+      "id": "sigma",
+      "name": "Sigma",
+      "category": "detection",
+      "purpose": "Format générique de règles de détection, à convertir vers SIEM et EDR.",
+      "homepage": "https://github.com/SigmaHQ/sigma",
+      "language": "YAML",
+      "lab_safe": true,
+      "tags": ["règles", "yaml", "détection", "siem"]
+    },
+    {
+      "id": "chainsaw",
+      "name": "Chainsaw",
+      "category": "endpoint",
+      "purpose": "Recherche rapide d'événements Windows dans des journaux EVTX avec des règles Sigma.",
+      "homepage": "https://github.com/WithSecureLabs/chainsaw",
+      "language": "Rust",
+      "lab_safe": true,
+      "tags": ["evtx", "windows", "sigma", "investigation"]
+    },
+    {
+      "id": "hayabusa",
+      "name": "Hayabusa",
+      "category": "endpoint",
+      "purpose": "Détection et timeline sur journaux EVTX pour des exercices d'investigation.",
+      "homepage": "https://github.com/Yamato-Security/hayabusa",
+      "language": "Rust",
+      "lab_safe": true,
+      "tags": ["evtx", "windows", "timeline", "détection"]
+    },
+    {
+      "id": "sysmon",
+      "name": "Sysmon",
+      "category": "endpoint",
+      "purpose": "Télémétrie Windows riche (processus, réseau, fichiers) pour tester des règles.",
+      "homepage": "https://learn.microsoft.com/sysinternals/downloads/sysmon",
+      "language": "C",
+      "lab_safe": true,
+      "tags": ["windows", "télémétrie", "processus", "réseau"]
+    },
+    {
+      "id": "osquery",
+      "name": "osquery",
+      "category": "endpoint",
+      "purpose": "Interroge l'état d'un hôte comme une base SQL pour l'inventaire et la chasse.",
+      "homepage": "https://github.com/osquery/osquery",
+      "language": "C++",
+      "lab_safe": true,
+      "tags": ["sql", "inventaire", "hôte", "chasse"]
+    },
+    {
+      "id": "velociraptor",
+      "name": "Velociraptor",
+      "category": "endpoint",
+      "purpose": "Collecte et chasse forensique à distance sur des endpoints de laboratoire.",
+      "homepage": "https://github.com/Velocidex/velociraptor",
+      "language": "Go",
+      "lab_safe": true,
+      "tags": ["forensique", "chasse", "endpoint", "vql"]
+    },
+    {
+      "id": "auditbeat",
+      "name": "Auditbeat",
+      "category": "collecte",
+      "purpose": "Collecte d'audit Linux/Windows (fichiers, processus, sockets) vers Elastic.",
+      "homepage": "https://github.com/elastic/beats",
+      "language": "Go",
+      "lab_safe": true,
+      "tags": ["collecte", "audit", "fim", "elastic"]
+    },
+    {
+      "id": "filebeat",
+      "name": "Filebeat",
+      "category": "collecte",
+      "purpose": "Expédition de journaux vers un SIEM, avec modules de parsing prêts à l'emploi.",
+      "homepage": "https://github.com/elastic/beats",
+      "language": "Go",
+      "lab_safe": true,
+      "tags": ["collecte", "journaux", "elastic", "parsing"]
+    },
+    {
+      "id": "vector",
+      "name": "Vector",
+      "category": "collecte",
+      "purpose": "Pipeline de télémétrie (sources, transformations VRL, destinations) pour le labo.",
+      "homepage": "https://github.com/vectordotdev/vector",
+      "language": "Rust",
+      "lab_safe": true,
+      "tags": ["collecte", "pipeline", "vrl", "observabilité"]
+    },
+    {
+      "id": "fluent-bit",
+      "name": "Fluent Bit",
+      "category": "collecte",
+      "purpose": "Collecteur léger de journaux et de métriques, adapté aux conteneurs.",
+      "homepage": "https://github.com/fluent/fluent-bit",
+      "language": "C",
+      "lab_safe": true,
+      "tags": ["collecte", "journaux", "conteneurs", "léger"]
+    },
+    {
+      "id": "logstash",
+      "name": "Logstash",
+      "category": "collecte",
+      "purpose": "Transformation et enrichissement de journaux avec un langage de filtres mûr.",
+      "homepage": "https://github.com/elastic/logstash",
+      "language": "Ruby / Java",
+      "lab_safe": true,
+      "tags": ["collecte", "parsing", "enrichissement", "elastic"]
+    },
+    {
+      "id": "trafilatura",
+      "name": "trafilatura",
+      "category": "collecte",
+      "purpose": "Extraction de contenu textuel depuis des pages HTML pour des corpus de test.",
+      "homepage": "https://github.com/adbar/trafilatura",
+      "language": "Python",
+      "lab_safe": true,
+      "tags": ["web", "extraction", "corpus", "python"],
+      "caution": "Respecter les conditions d'utilisation et le robots.txt des sites visités."
+    },
+    {
+      "id": "nuclei",
+      "name": "Nuclei",
+      "category": "detection",
+      "purpose": "Sondes de vulnérabilité basées sur des modèles YAML, pour valider des détections.",
+      "homepage": "https://github.com/projectdiscovery/nuclei",
+      "language": "Go",
+      "lab_safe": false,
+      "tags": ["vulnérabilités", "http", "modèles", "scan"],
+      "caution": "Les modèles envoient des requêtes actives : usage strictement limité aux cibles autorisées."
+    },
+    {
+      "id": "mitre-attack",
+      "name": "MITRE ATT&CK Navigator",
+      "category": "detection",
+      "purpose": "Cartographie les techniques couvertes par les détections et les scénarios.",
+      "homepage": "https://github.com/mitre-attack/attack-navigator",
+      "language": "JavaScript",
+      "lab_safe": true,
+      "tags": ["mitre", "cartographie", "détection", "couverture"]
+    },
+    {
+      "id": "atomic-red-team",
+      "name": "Atomic Red Team",
+      "category": "endpoint",
+      "purpose": "Tests atomiques et contrôlés pour vérifier qu'une détection se déclenche bien.",
+      "homepage": "https://github.com/redcanaryco/atomic-red-team",
+      "language": "YAML / PowerShell",
+      "lab_safe": false,
+      "tags": ["mitre", "tests", "windows", "détection"],
+      "caution": "À exécuter uniquement sur des machines virtuelles jetables et isolées."
+    },
+    {
+      "id": "caldera",
+      "name": "MITRE Caldera",
+      "category": "endpoint",
+      "purpose": "Orchestration d'émulation d'adversaire pour des exercices pourpres.",
+      "homepage": "https://github.com/mitre/caldera",
+      "language": "Python",
+      "lab_safe": false,
+      "tags": ["émulation", "purple team", "mitre", "scénarios"],
+      "caution": "Outil offensif puissant : périmètre de laboratoire isolé et autorisation écrite."
+    },
+    {
+      "id": "sliver",
+      "name": "Sliver",
+      "category": "endpoint",
+      "purpose": "Framework C2 open source pour simuler un adversaire en purple team.",
+      "homepage": "https://github.com/BishopFox/sliver",
+      "language": "Go",
+      "lab_safe": false,
+      "tags": ["c2", "adversaire", "purple team"],
+      "caution": "C2 offensif : jamais hors d'un laboratoire cloisonné."
+    },
+    {
+      "id": "docker",
+      "name": "Docker / Compose",
+      "category": "conteneurs",
+      "purpose": "Isolation des cibles et des services de test, orchestrés en une commande.",
+      "homepage": "https://github.com/docker/compose",
+      "language": "Go",
+      "lab_safe": true,
+      "tags": ["conteneurs", "isolation", "orchestration", "labo"]
+    },
+    {
+      "id": "podman",
+      "name": "Podman",
+      "category": "conteneurs",
+      "purpose": "Alternative sans démon, utile pour des laboratoires sans privilèges root.",
+      "homepage": "https://github.com/containers/podman",
+      "language": "Go",
+      "lab_safe": true,
+      "tags": ["conteneurs", "rootless", "isolation"]
+    },
+    {
+      "id": "vagrant",
+      "name": "Vagrant",
+      "category": "conteneurs",
+      "purpose": "Décrit et recrée des machines virtuelles de laboratoire reproductibles.",
+      "homepage": "https://github.com/hashicorp/vagrant",
+      "language": "Ruby",
+      "lab_safe": true,
+      "tags": ["vm", "reproductible", "labo", "orchestration"]
+    },
+    {
+      "id": "kali",
+      "name": "Kali Linux",
+      "category": "endpoint",
+      "purpose": "Distribution d'outils de test d'intrusion pour les exercices encadrés.",
+      "homepage": "https://www.kali.org/",
+      "language": "—",
+      "lab_safe": false,
+      "tags": ["pentest", "distribution", "outils"],
+      "caution": "Les outils offensifs qu'elle embarque restent soumis à autorisation et périmètre."
+    },
+    {
+      "id": "hey",
+      "name": "hey",
+      "category": "charge",
+      "purpose": "Génère une charge HTTP mesurée vers un service de test pour observer la télémétrie.",
+      "homepage": "https://github.com/rakyll/hey",
+      "language": "Go",
+      "lab_safe": true,
+      "tags": ["charge", "http", "latence", "test"]
+    },
+    {
+      "id": "vegeta",
+      "name": "Vegeta",
+      "category": "charge",
+      "purpose": "Attaques HTTP configurables avec rapports de latence et de débit.",
+      "homepage": "https://github.com/tsenart/vegeta",
+      "language": "Go",
+      "lab_safe": true,
+      "tags": ["charge", "http", "débit", "rapport"]
+    },
+    {
+      "id": "iperf3",
+      "name": "iperf3",
+      "category": "charge",
+      "purpose": "Mesure de bande passante entre deux hôtes de laboratoire.",
+      "homepage": "https://github.com/esnet/iperf",
+      "language": "C",
+      "lab_safe": true,
+      "tags": ["bande passante", "réseau", "mesure"]
+    },
+    {
+      "id": "tcpreplay",
+      "name": "tcpreplay",
+      "category": "charge",
+      "purpose": "Rejoue des captures pcap à débit contrôlé pour valider un IDS.",
+      "homepage": "https://github.com/appneta/tcpreplay",
+      "language": "C",
+      "lab_safe": false,
+      "tags": ["pcap", "rejeu", "ids", "trafic"],
+      "caution": "Ne rejouer que sur une interface et un segment dédiés au laboratoire."
+    },
+    {
+      "id": "hping3",
+      "name": "hping3",
+      "category": "reseau",
+      "purpose": "Forge de paquets TCP/UDP/ICMP pour tester des filtres et des sondes.",
+      "homepage": "https://github.com/antirez/hping",
+      "language": "C",
+      "lab_safe": false,
+      "tags": ["paquets", "filtres", "scan", "icmp"],
+      "caution": "Peut saturer une cible : usage restreint au réseau de laboratoire."
+    },
+    {
+      "id": "trivy",
+      "name": "Trivy",
+      "category": "detection",
+      "purpose": "Recherche de vulnérabilités dans les images et les dépendances du labo.",
+      "homepage": "https://github.com/aquasecurity/trivy",
+      "language": "Go",
+      "lab_safe": true,
+      "tags": ["vulnérabilités", "conteneurs", "dépendances", "sbom"]
+    },
+    {
+      "id": "sentinel-bridge",
+      "name": "Sentinel Bridge",
+      "category": "soc",
+      "purpose": "Plateforme SOC/SIEM/XDR de laboratoire compatible avec les sorties LabTools.",
+      "homepage": "https://github.com/saif-infinity/projet-soc-ips-siem-xdr-",
+      "language": "Python / React",
+      "lab_safe": true,
+      "tags": ["siem", "xdr", "soc", "pipeline", "fastapi"]
+    },
+    {
+      "id": "labtools",
+      "name": "LabTools",
+      "category": "collecte",
+      "purpose": "Ce dépôt : génération de scénarios, envoi HTTP, sorties CEF/syslog et sondes réseau bornées.",
+      "homepage": "https://github.com/saif-infinity/test-tools-collecter",
+      "language": "Python",
+      "lab_safe": true,
+      "tags": ["génération", "scénarios", "collecte", "soc", "cli"]
+    }
+  ]
+}
