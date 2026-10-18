@@ -52,6 +52,7 @@ Ouvrir le port 8080 exposé par l’environnement ; sur son propre ordinateur, `
 - [Fonctionnalités et statut réel](#fonctionnalites)
 - [Architecture et flux d’un incident](#architecture)
 - [Interfaces SOC et administration](#interfaces)
+- [Agent Windows .exe (lab local)](#agent)
 - [Démarrage local](#demarrage)
 - [Configuration](#configuration)
 - [Connecter les sources et les services](#integrations)
@@ -268,6 +269,7 @@ projet-soc-ips-siem-xdr-/
 │   ├── assets/                    # SVG locaux, CSS et JS du guide interactif
 │   ├── tests/                     # Tests statiques de documentation, sans backend
 │   └── diagrams/generate.py       # Générateur SVG Python sans dépendance externe
+├── agent/                        # Agent Windows/Linux (lab) — collectors, queue, .exe build (`agent/sentinel-agent.spec`, `build.ps1`)
 ├── docker-compose.yml            # Infrastructure locale : Postgres + Redis
 ├── docker-compose.prod.yml       # Base de déploiement à adapter
 ├── Makefile                      # Raccourcis de développement
@@ -344,6 +346,22 @@ Les interfaces partagent l’API, **pas un système de design ou un mécanisme d
 Ces adresses concernent **la machine sur laquelle les services tournent**. Pour un serveur distant, utiliser un domaine, TLS et un reverse proxy ; ne pas coder `localhost` dans le navigateur pour joindre un backend distant.
 
 <a id="demarrage"></a>
+
+<a id="agent"></a>
+
+## 05 · Agent Windows .exe (lab local, sans cloud)
+
+**Télécharger l'agent comme une application** : un seul `SentinelAgent.exe` portable (~15-20 MB, embarque Python) + `config.json`, sans installation Python sur le PC cible. Le code source de l'exe est dans `agent/` (auditable, pas de binaire externe opaque).
+
+| Besoin | Réponse |
+| :--- | :--- |
+| **Où l'obtenir ?** | **Actions** → workflow **Build Agent EXE (Windows)** → artefact `SentinelAgent-Windows.zip`, ou builder en local `cd agent && powershell -ExecutionPolicy Bypass -File build.ps1` → `dist\SentinelAgent.exe` |
+| **Que contient le zip ?** | `SentinelAgent.exe` + `config.example.json` + `README.md` |
+| **Comment installer ?** | Copier `SentinelAgent.exe` + `config.json` côte à côte (ex: `C:\SentinelAgent\`), éditer `server_url=http://192.168.1.50:8001` (IP LAN du serveur, pas localhost), `token=sb_...` depuis `POST /api/agent/enroll`, puis `SentinelAgent.exe --check` et `sentinel_agent\service\install_windows_exe.ps1` (NSSM ou Task Scheduler) |
+| **Désinstaller ?** | `sentinel_agent\service\uninstall_windows_exe.ps1` (Admin) — file `data\queue.jsonl` conservée |
+| **Lab local** | Serveur `http://192.168.1.50:8001` ouvert via `netsh advfirewall` (§ `docs/agent/README.md`), Postgres/Redis restent en `127.0.0.1` (non exposés), Wi-Fi Guest/AP isolation à désactiver |
+
+Guides détaillés : [agent/README.md](agent/README.md) · [Build .exe](agent/BUILD_EXE.md) · [Installer Windows](docs/agent/INSTALL_WINDOWS.md) · [Dépannage](docs/agent/TROUBLESHOOTING.md) — [Résultats & suite](docs/agent/RESULTATS_ET_SUITE.md)
 
 ## 05 · Démarrage local
 
