@@ -24,9 +24,11 @@ export NVM_DIR="$REAL_HOME/.nvm"
 
 START_OLLAMA=true
 START_ADMIN=true
+BACKEND_HOST="127.0.0.1"
 for arg in "$@"; do
-  case "$arg" in --no-ollama) START_OLLAMA=false;; --no-admin) START_ADMIN=false;; esac
+  case "$arg" in --no-ollama) START_OLLAMA=false;; --no-admin) START_ADMIN=false;; --lan|--host-lan|--host=0.0.0.0) BACKEND_HOST="0.0.0.0";; esac
 done
+# --lan = expose backend sur LAN (0.0.0.0:8001) pour que les agents Wi-Fi joignent l'IP LAN du serveur (ex: 192.168.1.50). Sans --lan, backend reste en 127.0.0.1 (dev local uniquement). Postgres/Redis restent toujours en 127.0.0.1, jamais exposés aux agents.
 
 info()  { echo -e "${BLUE}▸${NC} $*"; }
 ok()    { echo -e "${GREEN}✔${NC} $*"; }
@@ -118,10 +120,16 @@ fi
 # shellcheck source=/dev/null
 source "$VENV_DIR/bin/activate"
 cd "$BACKEND_DIR"
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8001 --log-level info \
+uvicorn app.main:app --reload --host "$BACKEND_HOST" --port 8001 --log-level info \
   2>&1 | sed 's/^/[backend] /' &
 PIDS+=($!)
-ok "Backend starting on http://127.0.0.1:8001 (PID ${PIDS[-1]})"
+if [[ "$BACKEND_HOST" == "0.0.0.0" ]]; then
+  ok "Backend starting on http://$BACKEND_HOST:8001 (LAN, accessible via IP LAN du serveur) (PID ${PIDS[-1]})"
+  warn "LAN mode: backend exposé — vérifiez pare-feu Windows 'netsh advfirewall firewall add rule ... localport=8001' (voir docs/agent/README.md)"
+  warn "Postgres/Redis restent en 127.0.0.1 (non exposés aux agents) — seul /api/agent/* est exposé"
+else
+  ok "Backend starting on http://127.0.0.1:8001 (PID ${PIDS[-1]}) — lab local, pour LAN utilisez ./start.sh --lan"
+fi
 sleep 2
 
 # ── 4. Celery Worker ───────────────────────────────────────────────

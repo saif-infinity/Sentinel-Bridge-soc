@@ -405,8 +405,31 @@ class Agent(Base):
     tenant_id: Mapped[str] = mapped_column(String(64), default="default")
     registered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     last_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="active", index=True)  # active | revoked | quarantined
     seq: Mapped[int] = mapped_column(BigInteger, default=0)
     capabilities: Mapped[str | None] = mapped_column(Text, nullable=True)
+    token_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    heartbeat_interval: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    config_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+
+class AgentToken(Base):
+    """Jeton d'agent révocable — identité propre par agent (lab local)."""
+    __tablename__ = "agent_tokens"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: str(uuid.uuid4()))
+    agent_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    tenant_id: Mapped[str] = mapped_column(String(36), index=True, default="default")
+    token_hash: Mapped[str] = mapped_column(String(128), nullable=False)  # sha256 hex
+    label: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    is_revoked: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
 
 
 class AgentTelemetryEvent(Base):

@@ -1,0 +1,65 @@
+name: Build Agent EXE (Windows)
+
+# Build SentinelAgent.exe sur Windows sans intervention locale
+# Trigger: push sur agent/** ou manuel (workflow_dispatch)
+# Artefact: dist/SentinelAgent.exe téléchargeable (Actions → Artifacts)
+
+on:
+  push:
+    branches: [master, "arena/*"]
+    paths: ["agent/**", ".github/workflows/agent-build.yml"]
+  pull_request:
+    paths: ["agent/**"]
+  workflow_dispatch:
+
+jobs:
+  build-windows-exe:
+    name: Build Windows EXE
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build EXE (PyInstaller one-file)
+        run: |
+          pyinstaller sentinel-agent.spec --noconfirm --clean
+          dir dist
+          if (!(Test-Path "dist/SentinelAgent.exe")) { throw "SentinelAgent.exe not found" }
+
+      - name: Smoke test --check (no server, expects fail but binary runs)
+        run: |
+          .\dist\SentinelAgent.exe --help
+          # --check needs server, so we just test the binary loads; --once with no server should not crash
+          echo '{"server_url":"http://127.0.0.1:8001","agent_id":"ci-test","token":"test"}' | Out-File -Encoding utf8 config.ci.json
+          .\dist\SentinelAgent.exe --config config.ci.json --once; echo "exit code $LASTEXITCODE (0 is ok, non-zero is expected without server)"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SentinelAgent-Windows
+          path: |
+            agent/dist/SentinelAgent.exe
+            agent/config.example.json
+            agent/README.md
+          retention-days: 30
+
+      - name: Create Release asset (on tag)
+        if: startsWith(github.ref, 'refs/tags/agent-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            agent/dist/SentinelAgent.exe
+            agent/config.example.json

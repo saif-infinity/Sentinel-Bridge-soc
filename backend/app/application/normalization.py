@@ -171,6 +171,42 @@ def map_syslog(raw: dict) -> dict[str, Any]:
     return c
 
 
+def map_host_agent(raw: dict) -> dict[str, Any]:
+    """Agent hôte local (Windows/Linux) → canonique.
+
+    L'agent envoie des batches avec catégories: system_log, auth_log, auth_event,
+    network_connection, process, security_event, misconfig.
+    On normalise vers event.category = catégorie d'origine + host/user enrichis.
+    Sévérité: string (low/medium/high/critical) → normalisée via mapping host-agent.
+    """
+    if not isinstance(raw, dict):
+        return {}
+    c = {k: None for k in CANONICAL_KEYS}
+    c["@timestamp"] = raw.get("timestamp") or raw.get("ts") or raw.get("@timestamp") or datetime.now(UTC).isoformat()
+    c["event.kind"] = "alert" if raw.get("category") in ("security_event", "misconfig") else "event"
+    # Préserve la catégorie d'origine pour investigation/corrélation
+    c["event.category"] = raw.get("category") or raw.get("event.category") or "host"
+    c["event.type"] = raw.get("type") or raw.get("event.type") or raw.get("check") or raw.get("event_type") or c["event.category"]
+    c["src_ip"] = raw.get("src_ip") or raw.get("src") or _get(raw, "host.ip")
+    c["dest_ip"] = raw.get("dest_ip") or raw.get("dst") or _get(raw, "destination.ip")
+    c["host"] = _host(raw)
+    # Host fallback: si agent_id présent et host vide, utiliser agent_id comme host.name
+    if not c["host"].get("name") and raw.get("agent_id"):
+        c["host"]["name"] = raw.get("agent_id")
+    c["user"] = _user(raw)
+    # Description: construire depuis detail/summary/description/msg
+    c["description"] = (
+        raw.get("description") or raw.get("detail") or raw.get("summary")
+        or raw.get("msg") or raw.get("message") or f"Host-agent {c['event.category']}: {c['event.type']}"
+    )
+    c["severity"] = raw.get("severity") or raw.get("level") or raw.get("priority")
+    c["payload"] = raw.get("raw") or raw
+    c["proto"] = raw.get("proto") or raw.get("protocol")
+    c["agent_id"] = raw.get("agent_id")
+    c["tenant_id"] = raw.get("tenant_id")
+    return c
+
+
 def normalize_event(raw: dict, source: str) -> dict[str, Any]:
     """Dispatche vers le mapper de la source (suricata | wazuh | syslog | générique)."""
     src = (source or "generic").lower()
@@ -180,6 +216,8 @@ def normalize_event(raw: dict, source: str) -> dict[str, Any]:
         return map_wazuh(raw)
     if src == "syslog":
         return map_syslog(raw)
+    if src in ("host-agent", "host_agent", "agent"):
+        return map_host_agent(raw)
     return map_generic(raw)
 
 
