@@ -1,4 +1,4 @@
-# Sentinel Bridge Agent — Windows / Linux (Lab local)
+# Sentinel Bridge Agent — Windows .exe / Linux (Lab local)
 
 Agent Python léger pour envoyer les événements du PC au serveur SOC sur le Wi-Fi local.
 

@@ -129,8 +129,19 @@ def run_agent(cfg: dict):
         signal.signal(signal.SIGBREAK, _signal_handler)
 
     client = SentinelClient(cfg)
-    # File locale bornée
-    data_dir = pathlib.Path(cfg.get("data_dir", pathlib.Path.home() / ".sentinel-agent" if platform.system() != "Windows" else pathlib.Path(".") / "data"))
+    # File locale bornée — pour .exe: à côté de l'exe, sinon home
+    # Détection exe: si _config_path est dans un dossier d'exe, data_dir = ce dossier/data
+    import sys as _sys
+    if getattr(_sys, "frozen", False):
+        # PyInstaller one-file: exe dir = où est SentinelAgent.exe
+        try:
+            exe_dir = pathlib.Path(_sys.executable).parent
+            default_data_dir = exe_dir / "data"
+        except Exception:
+            default_data_dir = pathlib.Path(".") / "data"
+    else:
+        default_data_dir = pathlib.Path.home() / ".sentinel-agent" if platform.system() != "Windows" else pathlib.Path(".") / "data"
+    data_dir = pathlib.Path(cfg.get("data_dir", default_data_dir))
     if cfg.get("_config_path"):
         # Use config dir for queue
         cfg_path = pathlib.Path(cfg["_config_path"])

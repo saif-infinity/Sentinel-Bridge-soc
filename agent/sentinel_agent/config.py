@@ -36,11 +36,29 @@ def _hostname() -> str:
         return "unknown"
 
 
+def _exe_dir() -> pathlib.Path | None:
+    """Dossier de l'exécutable (PyInstaller) — où se trouve SentinelAgent.exe + config.json."""
+    # PyInstaller one-file: sys.executable = chemin vers l'exe extrait temporaire, mais _MEIPASS != dir
+    # On veut le dir de l'exe réel (où l'utilisateur a copié le fichier)
+    import sys
+    if getattr(sys, "frozen", False):
+        # sys.executable = C:\SentinelAgent\SentinelAgent.exe
+        try:
+            return pathlib.Path(sys.executable).parent
+        except Exception:
+            return None
+    return None
+
+
 def load_config(path: str | None = None) -> dict:
-    """Charge config depuis fichier JSON (priorité: path > ./config.json > /etc/sentinel-agent/config.json)."""
+    """Charge config depuis fichier JSON (priorité: path > exe dir > ./config.json > /etc/sentinel-agent/config.json)."""
+    exe_dir = _exe_dir()
     candidates = []
     if path:
         candidates.append(pathlib.Path(path))
+    if exe_dir:
+        candidates.append(exe_dir / "config.json")
+        candidates.append(exe_dir / "agent" / "config.json")
     candidates.append(pathlib.Path("config.json"))
     candidates.append(pathlib.Path("agent/config.json"))
     candidates.append(pathlib.Path("/etc/sentinel-agent/config.json"))
