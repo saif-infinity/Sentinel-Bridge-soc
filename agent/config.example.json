@@ -1,0 +1,18 @@
+{
+  "server_url": "http://192.168.1.50:8001",
+  "agent_id": "pc-bureau-01",
+  "token": "sb_...collez-le-token-enroll-ici...",
+  "tenant_id": "default",
+  "verify_tls": true,
+  "heartbeat_interval_secs": 30,
+  "telemetry_interval_secs": 30,
+  "orders_interval_secs": 10,
+  "enable_system_logs": true,
+  "enable_auth_logs": true,
+  "enable_processes": true,
+  "enable_network": true,
+  "max_processes": 500,
+  "batch_size": 50,
+  "queue_max_events": 5000,
+  "log_level": "INFO"
+}

@@ -91,6 +91,11 @@ DEFAULT_CONFIGS = {
         "fields": {
             "enabled": {"label": "Activer l'enrichissement", "default": "false", "is_secret": False},
             "api_key": {"label": "Clé API AbuseIPDB", "default": "", "is_secret": True},
+            "provider": {"label": "Fournisseur principal (abuseipdb|virustotal|kaspersky)", "default": "abuseipdb", "is_secret": False},
+            "virustotal_api_key": {"label": "Clé API VirusTotal (optionnel)", "default": "", "is_secret": True},
+            "kaspersky_api_key": {"label": "Clé API Kaspersky Threat Lookup (optionnel)", "default": "", "is_secret": True},
+            "quota_abuseipdb_per_day": {"label": "Quota AbuseIPDB / jour", "default": "1000", "is_secret": False},
+            "quota_virustotal_per_day": {"label": "Quota VirusTotal / jour", "default": "500", "is_secret": False},
         },
     },
     "investigation": {
@@ -129,18 +134,27 @@ DEFAULT_CONFIGS = {
         },
     },
     "host_agent": {
-        "label": "Agent hôte (Rust)",
+        "label": "Agent hôte (collecte locale)",
         "fields": {
-            "api_url": {"label": "URL du backend SOC", "default": "http://127.0.0.1:8001", "is_secret": False},
-            "api_key": {"label": "Clé API", "default": "", "is_secret": True},
+            "api_url": {"label": "URL du backend SOC (LAN, ex: http://192.168.1.10:8001)", "default": "http://127.0.0.1:8001", "is_secret": False},
+            "api_key": {"label": "Clé API globale (lab legacy)", "default": "", "is_secret": True},
             "tenant_id": {"label": "Tenant ID", "default": "default", "is_secret": False},
             "agent_id": {"label": "ID de l'agent", "default": "host-01", "is_secret": False},
             "telemetry_interval_secs": {"label": "Intervalle télémétrie (s)", "default": "30", "is_secret": False},
+            "heartbeat_interval_secs": {"label": "Intervalle heartbeat (s)", "default": "30", "is_secret": False},
             "orders_interval_secs": {"label": "Intervalle ordres (s)", "default": "10", "is_secret": False},
             "register_retry_backoff_secs": {"label": "Backoff ré-enregistrement (s)", "default": "5", "is_secret": False},
             "quarantine_dir": {"label": "Répertoire de quarantaine", "default": "/var/quarantine", "is_secret": False},
             "max_processes": {"label": "Processus max surveillés", "default": "500", "is_secret": False},
             "http_timeout_secs": {"label": "Timeout HTTP (s)", "default": "15", "is_secret": False},
+            "verify_tls": {"label": "Vérifier TLS (true en prod, false en HTTP lab)", "default": "true", "is_secret": False},
+            # Collecte configurable
+            "enable_system_logs": {"label": "Collecter journaux système", "default": "true", "is_secret": False},
+            "enable_auth_logs": {"label": "Collecter journaux auth (SSH/logon)", "default": "true", "is_secret": False},
+            "enable_processes": {"label": "Collecter processus", "default": "true", "is_secret": False},
+            "enable_network": {"label": "Collecter connexions réseau", "default": "true", "is_secret": False},
+            "batch_size": {"label": "Taille max d'envoi par lot", "default": "50", "is_secret": False},
+            "queue_max_events": {"label": "File locale bornée (événements max)", "default": "5000", "is_secret": False},
         },
     },
     "ai_auto": {

@@ -204,7 +204,87 @@ function EmptyState({ icon: Icon = FileText, title, subtitle }) {
     <div className="flex flex-col items-center justify-center py-10 px-4 text-center border border-dashed border-gray-800 rounded-lg bg-gray-900/30">
       <Icon size={32} className="text-gray-600 mb-3" />
       <p className="text-sm font-semibold text-gray-300">{title}</p>
-      {subtitle && <p className="text-xs text-gray-500 mt-1 max-w-md">{subtitle}</p>}
+      {subtitle && <p className="text-xs text-gray-500 mt-1 max-w-md\">{subtitle}</p>}
+    </div>
+  );
+}
+
+function EnrollPanel({ fetchWithAuth, onEnrolled }) {
+  const [agentId, setAgentId] = useState("");
+  const [label, setLabel] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+  const handleEnroll = async () => {
+    setError(""); setResult(null); setCopied(false);
+    if (!agentId.trim()) { setError("agent_id requis (ex: pc-bureau-01)"); return; }
+    setLoading(true);
+    try {
+      const res = await fetchWithAuth("/api/agent/enroll", {
+        method: "POST",
+        body: JSON.stringify({ agent_id: agentId.trim(), label: label.trim() || agentId.trim() }),
+      });
+      const data = await res.json().catch(()=>({}));
+      if (!res.ok) throw new Error(data.detail || data.error || `Erreur ${res.status}`);
+      setResult(data);
+      if (onEnrolled) onEnrolled();
+      toast.success(`Agent ${data.agent_id} enrollé`);
+    } catch (e) { setError(e.message); toast.error(e.message); }
+    finally { setLoading(false); }
+  };
+  const handleRevoke = async () => {
+    if (!agentId.trim()) { setError("Saisissez l'agent_id à révoquer"); return; }
+    if (!confirm(`Révoquer ${agentId.trim()} ? L'agent ne pourra plus se connecter.`)) return;
+    setLoading(true); setError("");
+    try {
+      const res = await fetchWithAuth("/api/agent/revoke", {
+        method: "POST", body: JSON.stringify({ agent_id: agentId.trim() }),
+      });
+      const data = await res.json().catch(()=>({}));
+      if (!res.ok) throw new Error(data.detail || `Erreur ${res.status}`);
+      toast.success(`Révocation OK (${data.revoked} token(s))`);
+      if (onEnrolled) onEnrolled();
+      setResult(null);
+    } catch(e){ setError(e.message); }
+    finally{ setLoading(false); }
+  };
+  const copyToken = async () => {
+    if (!result?.token) return;
+    try { await navigator.clipboard.writeText(result.token); setCopied(true); toast.success("Token copié"); setTimeout(()=>setCopied(false),2000);} 
+    catch { setError("Copie échouée — copiez manuellement"); }
+  };
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Agent ID *</label>
+          <input className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono" placeholder="pc-bureau-01" value={agentId} onChange={e=>setAgentId(e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Label (optionnel)</label>
+          <input className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm" placeholder="PC Bureau Win11" value={label} onChange={e=>setLabel(e.target.value)} />
+        </div>
+        <div className="flex items-end gap-2">
+          <button onClick={handleEnroll} disabled={loading} className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-4 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-2">
+            {loading ? <RefreshCw size={14} className="animate-spin"/> : <ShieldCheck size={14}/>} Enroller
+          </button>
+          <button onClick={handleRevoke} disabled={loading} className="bg-red-900/30 hover:bg-red-800/50 border border-red-500/20 px-3 py-2 rounded-lg text-sm text-red-300" title="Révoquer cet agent">Révoquer</button>
+        </div>
+      </div>
+      {error && <div className="bg-red-500/10 border border-red-500/20 text-red-300 text-xs px-3 py-2 rounded-lg">{error}</div>}
+      {result?.token && (
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 space-y-2">
+          <div className="flex items-center gap-2 text-amber-300 text-sm font-semibold"><AlertTriangle size={14}/> Token à copier maintenant — ne sera plus affiché</div>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 bg-gray-950 border border-gray-800 text-amber-200 font-mono text-xs px-3 py-2 rounded break-all">{result.token}</code>
+            <button onClick={copyToken} className={`px-3 py-2 rounded-lg text-sm font-semibold border ${copied ? "bg-emerald-600 border-emerald-500 text-white" : "bg-gray-800 border-gray-700 hover:bg-gray-700"}`}>{copied ? "Copié ✓" : "Copier"}</button>
+          </div>
+          <p className="text-[11px] text-gray-400">Collez ce token dans <span className="font-mono text-gray-300">agent/config.json</span> : <span className="font-mono text-cyan-400">"token": "{result.token.slice(0,20)}…"</span>. Serveur: IP LAN (ex: http://192.168.1.50:8001) — jamais localhost depuis une autre machine.</p>
+          <pre className="bg-gray-950 border border-gray-800 rounded p-2 text-[11px] text-gray-400 overflow-x-auto">{JSON.stringify({ server_url: "http://192.168.1.50:8001", agent_id: result.agent_id, token: result.token, tenant_id: "default", verify_tls: false }, null, 2)}</pre>
+        </div>
+      )}
+      <p className="text-[11px] text-gray-500">Serveur SOC: <span className="font-mono text-gray-300">netsh advfirewall firewall add rule name="Sentinel SOC 8001" dir=in action=allow protocol=TCP localport=8001</span> (PowerShell Admin sur PC serveur). Wi-Fi invité/AP isolation → désactiver (voir docs/agent/README.md §7).</p>
     </div>
   );
 }
@@ -517,6 +597,26 @@ export default function HostAgentsPage() {
           </div>
           <div className="text-sm font-semibold text-white mt-1 truncate">{selectedAgent ? (selectedAgent.hostname || selectedAgent.agent_id || selectedId) : "Aucun"}</div>
           <div className="text-xs text-gray-500 mt-1 truncate">{selectedAgent ? (selectedAgent.os ? `${selectedAgent.os} ${selectedAgent.arch || ""}`.trim() : selectedAgent.agent_id) : "Choisissez un agent ci-dessous"}</div>
+        </div>
+      </div>
+
+      {/* Enroll panel — lab local: identité propre + token révocable */}
+      <div className="bg-gray-900 border border-emerald-500/20 rounded-lg overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between bg-emerald-950/20">
+          <div className="font-semibold flex items-center gap-2">
+            <ShieldCheck size={16} className="text-emerald-400" /> Enroller un agent (lab local)
+          </div>
+          <span className="text-xs bg-gray-800 border border-gray-700 text-gray-400 px-2 py-0.5 rounded-full">
+            Token affiché une seule fois · révoquable · LAN uniquement
+          </span>
+        </div>
+        <div className="p-4 space-y-3">
+          <p className="text-xs text-gray-400 leading-relaxed">
+            Enrolle un nouveau PC (adresse LAN du serveur, pas localhost). Le token généré doit être copié dans <span className="font-mono text-gray-300">agent/config.json</span> sur le PC agent.
+            Aucun scan automatique : seuls les PCs où vous installez l'agent remontent.
+            Postgres/Redis restent en <span className="font-mono text-gray-300">127.0.0.1</span>, seul <span className="font-mono text-gray-300">/api/agent/*</span> est exposé sur le Wi-Fi.
+          </p>
+          <EnrollPanel fetchWithAuth={fetchWithAuth} onEnrolled={() => agentsQuery.refetch()} />
         </div>
       </div>
 
